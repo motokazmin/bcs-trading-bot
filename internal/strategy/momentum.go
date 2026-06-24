@@ -77,43 +77,6 @@ func (s *MomentumBreakout) OnCandle(candle models.Candle) *models.Order {
 		StopLoss:   stopLoss,
 		TakeProfit: takeProfit,
 	}
-
-	/*
-		// ОТЛАДКА: искусственные сигналы на каждой 3-й свече (BUY/SELL поочерёдно).
-		// Раскомментируйте блок ниже и закомментируйте production-логику выше,
-		// чтобы быстро проверить симулятор сделок: SL/TP, EOD, Circuit Breaker
-		// без ожидания реального пробоя уровней (~100 мин накопления истории).
-		//
-		// var candleCount int — добавьте поле в struct MomentumBreakout.
-		//
-		// s.candleCount++
-		// if s.candleCount%3 != 0 {
-		// 	return nil
-		// }
-		// direction := "BUY"
-		// if (s.candleCount/3)%2 == 0 {
-		// 	direction = "SELL"
-		// }
-		// entry := candle.Close
-		// stopDistance := entry * 0.01
-		// if stopDistance <= 0 {
-		// 	stopDistance = 1
-		// }
-		// var stopLoss, takeProfit float64
-		// switch direction {
-		// case "BUY":
-		// 	stopLoss = entry - stopDistance
-		// 	takeProfit = entry + stopDistance*riskRewardRatio
-		// case "SELL":
-		// 	stopLoss = entry + stopDistance
-		// 	takeProfit = entry - stopDistance*riskRewardRatio
-		// }
-		// s.lastSignalTime = candle.Timestamp.UnixNano()
-		// return &models.Order{
-		// 	Ticker: candle.Ticker, Direction: direction, Price: entry,
-		// 	StopLoss: stopLoss, TakeProfit: takeProfit,
-		// }
-	*/
 }
 
 func (s *MomentumBreakout) isDuplicate(candle models.Candle) bool {

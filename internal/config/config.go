@@ -12,27 +12,55 @@ const (
 	TradingModeVirtual = "virtual"
 	TradingModeReal    = "real"
 
-	defaultClassCode       = "TQBR"
-	defaultCandleTimeFrame = "M5"
-	defaultDeposit         = 100_000
-	defaultLookback        = 20
-	defaultMaxDailyLossPct = 2.0
-	defaultRiskPerTradePct = 0.5
-	defaultTimezone        = "Europe/Moscow"
-	defaultEODCloseTime    = "23:40"
-	defaultSessionOpenTime = "10:00"
+	defaultClassCode        = "TQBR"
+	defaultCandleTimeFrame  = "M5"
+	defaultDeposit          = 100_000
+	defaultLookback         = 20
+	defaultMaxDailyLossPct  = 2.0
+	defaultRiskPerTradePct  = 0.5
+	defaultStepPriceValue   = 1.0
+	defaultTimezone         = "Europe/Moscow"
+	defaultEODCloseTime     = "23:40"
+	defaultSessionOpenTime  = "10:00"
 )
 
 // Config описывает все настройки бота, кроме секретов (токен — только из env).
 type Config struct {
 	TradingMode     string         `yaml:"trading_mode"`
-	Tickers         []string       `yaml:"tickers"`
+	Tickers         []TickerConfig `yaml:"tickers"`
 	ClassCode       string         `yaml:"class_code"`
 	CandleTimeFrame string         `yaml:"candle_timeframe"`
 	Risk            RiskConfig     `yaml:"risk"`
 	Strategy        StrategyConfig `yaml:"strategy"`
 	Virtual         VirtualConfig  `yaml:"virtual"`
 	Session         SessionConfig  `yaml:"session"`
+}
+
+// TickerConfig описывает инструмент и его параметры для расчёта риска.
+// В YAML допускается как строка ("SBER"), так и объект с полями ticker и step_price_value.
+type TickerConfig struct {
+	Symbol         string
+	StepPriceValue float64 `yaml:"step_price_value"`
+}
+
+func (t *TickerConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err == nil {
+		t.Symbol = strings.TrimSpace(strings.ToUpper(s))
+		t.StepPriceValue = defaultStepPriceValue
+		return nil
+	}
+
+	var raw struct {
+		Ticker         string  `yaml:"ticker"`
+		StepPriceValue float64 `yaml:"step_price_value"`
+	}
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+	t.Symbol = strings.TrimSpace(strings.ToUpper(raw.Ticker))
+	t.StepPriceValue = raw.StepPriceValue
+	return nil
 }
 
 type RiskConfig struct {
@@ -56,16 +84,29 @@ type SessionConfig struct {
 	SessionOpenTime string `yaml:"session_open_time"`
 }
 
+// TickerSymbols возвращает список символов тикеров для логирования.
+func (c *Config) TickerSymbols() []string {
+	symbols := make([]string, len(c.Tickers))
+	for i, t := range c.Tickers {
+		symbols[i] = t.Symbol
+	}
+	return symbols
+}
+
 // Load читает YAML-конфиг с диска и применяет значения по умолчанию.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("чтение конфига %q: %w", path, err)
 	}
+	return LoadFromBytes(data)
+}
 
+// LoadFromBytes разбирает YAML-конфиг из байтов (для тестов).
+func LoadFromBytes(data []byte) (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("разбор конфига %q: %w", path, err)
+		return nil, fmt.Errorf("разбор конфига: %w", err)
 	}
 
 	cfg.applyDefaults()
@@ -121,8 +162,10 @@ func (c *Config) applyDefaults() {
 		c.Session.SessionOpenTime = defaultSessionOpenTime
 	}
 
-	for i, t := range c.Tickers {
-		c.Tickers[i] = strings.TrimSpace(strings.ToUpper(t))
+	for i := range c.Tickers {
+		if c.Tickers[i].StepPriceValue <= 0 {
+			c.Tickers[i].StepPriceValue = defaultStepPriceValue
+		}
 	}
 }
 
@@ -138,8 +181,11 @@ func (c *Config) validate() error {
 	}
 
 	for _, t := range c.Tickers {
-		if t == "" {
+		if t.Symbol == "" {
 			return fmt.Errorf("в tickers есть пустое значение")
+		}
+		if t.StepPriceValue <= 0 {
+			return fmt.Errorf("tickers.%s: step_price_value должен быть > 0", t.Symbol)
 		}
 	}
 

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"log"
+	"math"
 	"time"
 
 	"bcs-trading-bot/internal/config"
@@ -12,32 +13,37 @@ import (
 	"bcs-trading-bot/pkg/models"
 )
 
+const virtualCommissionPerLot = 5.0
+
 type openPosition struct {
 	direction  string
 	quantity   int
 	entryPrice float64
 	stopLoss   float64
 	takeProfit float64
+	rDistance  float64
+	trailStage int
 }
 
 // TickerWorker инкапсулирует торговый цикл для одного тикера.
 type TickerWorker struct {
-	ticker       string
-	strategy     *strategy.MomentumBreakout
-	riskMgr      *risk.RiskManager
-	session      *SessionClock
-	candleChan   chan models.Candle
-	tickChan     chan models.Tick
-	position       *openPosition
-	lastPrice      float64
-	eodCloseDate   string
-	riskResetDate  string
+	ticker          string
+	stepPriceValue  float64
+	strategy        *strategy.MomentumBreakout
+	riskMgr         *risk.RiskManager
+	session         *SessionClock
+	candleChan      chan models.Candle
+	tickChan        chan models.Tick
+	position        *openPosition
+	lastPrice       float64
+	eodCloseDate    string
+	riskResetDate   string
 }
 
 // NewTickerWorker создаёт изолированный воркер для тикера.
 func NewTickerWorker(
 	ticker string,
-	deposit, maxDailyLoss, riskPerTradePct float64,
+	deposit, maxDailyLoss, riskPerTradePct, stepPriceValue float64,
 	lookback int,
 	sessionCfg config.SessionConfig,
 ) (*TickerWorker, error) {
@@ -46,13 +52,18 @@ func NewTickerWorker(
 		return nil, err
 	}
 
+	if stepPriceValue <= 0 {
+		stepPriceValue = 1.0
+	}
+
 	return &TickerWorker{
-		ticker:     ticker,
-		strategy:   strategy.NewMomentumBreakout(lookback),
-		riskMgr:    risk.NewRiskManager(deposit, maxDailyLoss, riskPerTradePct),
-		session:    clock,
-		candleChan: make(chan models.Candle, 64),
-		tickChan:   make(chan models.Tick, 256),
+		ticker:         ticker,
+		stepPriceValue: stepPriceValue,
+		strategy:       strategy.NewMomentumBreakout(lookback),
+		riskMgr:        risk.NewRiskManager(deposit, maxDailyLoss, riskPerTradePct, stepPriceValue),
+		session:        clock,
+		candleChan:     make(chan models.Candle, 64),
+		tickChan:       make(chan models.Tick, 256),
 	}, nil
 }
 
@@ -151,6 +162,8 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		entryPrice: signal.Price,
 		stopLoss:   signal.StopLoss,
 		takeProfit: signal.TakeProfit,
+		rDistance:  math.Abs(signal.Price - signal.StopLoss),
+		trailStage: 0,
 	}
 }
 
@@ -158,6 +171,8 @@ func (w *TickerWorker) checkSLTP(executor interfaces.OrderExecutor, price float6
 	if w.position == nil {
 		return
 	}
+
+	w.updateTrailingStop(price)
 
 	pos := w.position
 	switch pos.direction {
@@ -172,6 +187,66 @@ func (w *TickerWorker) checkSLTP(executor interfaces.OrderExecutor, price float6
 			w.closePosition(executor, price, models.CloseReasonStopLoss)
 		} else if price <= pos.takeProfit {
 			w.closePosition(executor, price, models.CloseReasonTakeProfit)
+		}
+	}
+}
+
+func (w *TickerWorker) updateTrailingStop(price float64) {
+	pos := w.position
+	if pos == nil || pos.rDistance <= 0 {
+		return
+	}
+
+	prevStage := pos.trailStage
+	applyTrailingStop(pos, price, w.stepPriceValue)
+	if pos.trailStage > prevStage {
+		switch pos.trailStage {
+		case 1:
+			log.Printf("[%s] трейлинг: +1R → SL=%.2f", w.ticker, pos.stopLoss)
+		case 2:
+			log.Printf("[%s] трейлинг: +2R → SL=%.2f", w.ticker, pos.stopLoss)
+		}
+	}
+}
+
+// applyTrailingStop подтягивает SL при достижении +1R и +2R. SL никогда не откатывается назад.
+func applyTrailingStop(pos *openPosition, price, stepPriceValue float64) {
+	if pos == nil || pos.rDistance <= 0 || stepPriceValue <= 0 {
+		return
+	}
+
+	breakevenOffset := virtualCommissionPerLot / stepPriceValue
+
+	switch pos.direction {
+	case "BUY":
+		if pos.trailStage < 1 && price >= pos.entryPrice+pos.rDistance {
+			newSL := pos.entryPrice + breakevenOffset
+			if newSL > pos.stopLoss {
+				pos.stopLoss = newSL
+			}
+			pos.trailStage = 1
+		}
+		if pos.trailStage < 2 && price >= pos.entryPrice+2*pos.rDistance {
+			newSL := pos.entryPrice + pos.rDistance
+			if newSL > pos.stopLoss {
+				pos.stopLoss = newSL
+			}
+			pos.trailStage = 2
+		}
+	case "SELL":
+		if pos.trailStage < 1 && price <= pos.entryPrice-pos.rDistance {
+			newSL := pos.entryPrice - breakevenOffset
+			if newSL < pos.stopLoss {
+				pos.stopLoss = newSL
+			}
+			pos.trailStage = 1
+		}
+		if pos.trailStage < 2 && price <= pos.entryPrice-2*pos.rDistance {
+			newSL := pos.entryPrice - pos.rDistance
+			if newSL < pos.stopLoss {
+				pos.stopLoss = newSL
+			}
+			pos.trailStage = 2
 		}
 	}
 }
@@ -242,24 +317,23 @@ func (w *TickerWorker) closePosition(executor interfaces.OrderExecutor, price fl
 		return
 	}
 
-	pnl := calcPnL(pos, price)
-	switch {
-	case pnl < 0:
+	pnl := calcPnL(pos, price, w.stepPriceValue)
+	if pnl < 0 {
 		w.riskMgr.RegisterLoss(-pnl)
-	case pnl > 0:
+	} else if pnl > 0 {
 		w.riskMgr.RegisterProfit(pnl)
 	}
 
 	log.Printf("[%s] позиция закрыта (%s), PnL=%.2f", w.ticker, reason, pnl)
 }
 
-func calcPnL(pos *openPosition, closePrice float64) float64 {
+func calcPnL(pos *openPosition, closePrice, stepPriceValue float64) float64 {
 	qty := float64(pos.quantity)
 	switch pos.direction {
 	case "BUY":
-		return (closePrice - pos.entryPrice) * qty
+		return (closePrice - pos.entryPrice) * qty * stepPriceValue
 	case "SELL":
-		return (pos.entryPrice - closePrice) * qty
+		return (pos.entryPrice - closePrice) * qty * stepPriceValue
 	default:
 		return 0
 	}

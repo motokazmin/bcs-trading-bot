@@ -2,33 +2,39 @@ package risk
 
 import (
 	"errors"
+	"math"
 	"sync"
 )
 
 type RiskManager struct {
-	mu                 sync.RWMutex
-	maxDailyLoss       float64
-	currentLoss        float64
-	isBlocked          bool
-	accountDeposit     float64
-	riskPerTradePct    float64
+	mu              sync.RWMutex
+	maxDailyLoss    float64
+	currentLoss     float64
+	isBlocked       bool
+	accountDeposit  float64
+	riskPerTradePct float64
+	stepPriceValue  float64
 }
 
-func NewRiskManager(deposit, maxLoss, riskPerTradePct float64) *RiskManager {
+func NewRiskManager(deposit, maxLoss, riskPerTradePct, stepPriceValue float64) *RiskManager {
 	if riskPerTradePct <= 0 {
 		riskPerTradePct = 0.5
+	}
+	if stepPriceValue <= 0 {
+		stepPriceValue = 1.0
 	}
 	return &RiskManager{
 		accountDeposit:  deposit,
 		maxDailyLoss:    maxLoss,
 		riskPerTradePct: riskPerTradePct,
+		stepPriceValue:  stepPriceValue,
 	}
 }
 
 func (rm *RiskManager) CheckCircuitBreaker() error {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
-	
+
 	if rm.isBlocked || rm.currentLoss >= rm.maxDailyLoss {
 		return errors.New("risk manager: дневной лимит убытков превышен, торговля заблокирована")
 	}
@@ -40,16 +46,14 @@ func (rm *RiskManager) CalculatePositionSize(entryPrice, stopLossPrice float64) 
 	defer rm.mu.RUnlock()
 
 	riskAmount := rm.accountDeposit * rm.riskPerTradePct / 100
-	priceRisk := entryPrice - stopLossPrice
-	if priceRisk < 0 {
-		priceRisk = -priceRisk
-	}
+	priceRisk := math.Abs(entryPrice - stopLossPrice)
 
 	if priceRisk == 0 {
 		return 0
 	}
 
-	return int(riskAmount / priceRisk)
+	riskPerLot := priceRisk * rm.stepPriceValue
+	return int(riskAmount / riskPerLot)
 }
 
 func (rm *RiskManager) RegisterLoss(amount float64) {
@@ -66,21 +70,9 @@ func (rm *RiskManager) RegisterLoss(amount float64) {
 	}
 }
 
+// RegisterProfit не влияет на Circuit Breaker: блокировка держится до ResetDaily.
 func (rm *RiskManager) RegisterProfit(amount float64) {
-	if amount <= 0 {
-		return
-	}
-
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
-
-	rm.currentLoss -= amount
-	if rm.currentLoss < 0 {
-		rm.currentLoss = 0
-	}
-	if rm.currentLoss < rm.maxDailyLoss {
-		rm.isBlocked = false
-	}
+	_ = amount
 }
 
 // ResetDaily сбрасывает накопленный дневной убыток и снимает блокировку Circuit Breaker.

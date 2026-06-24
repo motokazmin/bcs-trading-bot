@@ -4,7 +4,8 @@
 trading_mode: virtual
 
 tickers:
-  - SRH6
+  - ticker: SRH6
+    step_price_value: 1.2
   - GAZR
 
 class_code: SPBFUT
