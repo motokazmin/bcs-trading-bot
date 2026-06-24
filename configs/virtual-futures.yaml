@@ -1,0 +1,27 @@
+# Paper trading: фьючерсы MOEX.
+# Запуск: go run ./cmd/bot -config configs/virtual-futures.yaml
+
+trading_mode: virtual
+
+tickers:
+  - SRH6
+  - GAZR
+
+class_code: SPBFUT
+candle_timeframe: M5
+
+risk:
+  deposit: 500000
+  max_daily_loss_percent: 2
+  risk_per_trade_percent: 0.5
+
+strategy:
+  lookback: 20
+
+virtual:
+  balance: 500000
+
+session:
+  timezone: Europe/Moscow
+  eod_close_time: "23:40"      # вечерняя сессия фьючерсов
+  session_open_time: "10:00"

@@ -1,0 +1,23 @@
+# Реальная торговля акциями. Требуется BCS_REFRESH_TOKEN со скоупом trade-api-write.
+# Запуск: go run ./cmd/bot -config configs/real-stocks.yaml
+
+trading_mode: real
+
+tickers:
+  - SBER
+
+class_code: TQBR
+candle_timeframe: M5
+
+risk:
+  deposit: 1000000
+  max_daily_loss_percent: 2
+  risk_per_trade_percent: 0.5
+
+strategy:
+  lookback: 20
+
+session:
+  timezone: Europe/Moscow
+  eod_close_time: "18:40"
+  session_open_time: "10:00"

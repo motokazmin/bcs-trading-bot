@@ -1,0 +1,27 @@
+# Paper trading: несколько акций, депозит делится между тикерами.
+# Запуск: go run ./cmd/bot -config configs/virtual-multi.yaml
+
+trading_mode: virtual
+
+tickers:
+  - SBER
+  - GAZP
+
+class_code: TQBR
+candle_timeframe: M5
+
+risk:
+  deposit: 200000
+  max_daily_loss: 4000
+  risk_per_trade_percent: 0.5
+
+strategy:
+  lookback: 20
+
+virtual:
+  balance: 200000
+
+session:
+  timezone: Europe/Moscow
+  eod_close_time: "18:40"
+  session_open_time: "10:00"
