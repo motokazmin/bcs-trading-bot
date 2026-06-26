@@ -2,8 +2,6 @@ package bcs
 
 import (
 	"fmt"
-	"log"
-	"math"
 	"sync"
 
 	"bcs-trading-bot/pkg/interfaces"
@@ -51,8 +49,6 @@ func (v *VirtualExecutor) ExecuteOrder(order models.Order) error {
 
 func (v *VirtualExecutor) openPosition(order models.Order) error {
 	notional := order.Price * float64(order.Quantity)
-	risk := math.Abs(order.Price-order.StopLoss) * float64(order.Quantity)
-	potentialProfit := math.Abs(order.TakeProfit-order.Price) * float64(order.Quantity)
 
 	switch order.Direction {
 	case "BUY":
@@ -68,6 +64,7 @@ func (v *VirtualExecutor) openPosition(order models.Order) error {
 			takeProfit: order.TakeProfit,
 		}
 	case "SELL":
+		v.balance += notional
 		v.positions[order.Ticker] = &virtualPosition{
 			direction:  order.Direction,
 			quantity:   order.Quantity,
@@ -79,11 +76,6 @@ func (v *VirtualExecutor) openPosition(order models.Order) error {
 		return fmt.Errorf("[VIRTUAL] неизвестное направление: %s", order.Direction)
 	}
 
-	log.Printf(
-		"[VIRTUAL] ОТКРЫТИЕ %s %s x%d @ %.2f | баланс=%.2f | риск(SL)=%.2f | потенциал(TP)=%.2f | SL=%.2f TP=%.2f",
-		order.Direction, order.Ticker, order.Quantity, order.Price,
-		v.balance, risk, potentialProfit, order.StopLoss, order.TakeProfit,
-	)
 	return nil
 }
 
@@ -105,26 +97,7 @@ func (v *VirtualExecutor) closePosition(order models.Order) error {
 	}
 
 	delete(v.positions, order.Ticker)
-
-	switch order.CloseReason {
-	case models.CloseReasonStopLoss:
-		if pnl < 0 {
-			log.Printf("[VIRTUAL] [STOP-LOSS СРАБОТАЛ] Тикер: %s, Убыток: %.2f, Новый баланс: %.2f",
-				order.Ticker, -pnl, v.balance)
-		} else {
-			log.Printf("[VIRTUAL] [STOP-LOSS СРАБОТАЛ] Тикер: %s, Результат: %.2f, Новый баланс: %.2f",
-				order.Ticker, pnl, v.balance)
-		}
-	case models.CloseReasonTakeProfit:
-		log.Printf("[VIRTUAL] [TAKE-PROFIT СРАБОТАЛ] Тикер: %s, Прибыль: %.2f, Новый баланс: %.2f",
-			order.Ticker, pnl, v.balance)
-	case models.CloseReasonEOD:
-		log.Printf("[VIRTUAL] [EOD ЗАКРЫТИЕ] Тикер: %s, PnL: %.2f, Новый баланс: %.2f",
-			order.Ticker, pnl, v.balance)
-	default:
-		log.Printf("[VIRTUAL] ЗАКРЫТИЕ %s %s x%d @ %.2f | PnL=%.2f | баланс=%.2f",
-			order.Direction, order.Ticker, order.Quantity, closePrice, pnl, v.balance)
-	}
+	_ = pnl
 
 	return nil
 }

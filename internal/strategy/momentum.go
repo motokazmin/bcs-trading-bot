@@ -13,28 +13,23 @@ const (
 )
 
 // MomentumBreakout — стратегия пробоя локальных уровней поддержки/сопротивления.
-// Хранит скользящее окно из последних N закрытых свечей и генерирует сигнал,
-// когда цена закрытия пробивает диапазон предыдущих баров.
 type MomentumBreakout struct {
 	mu sync.Mutex
 
-	lookback       int
+	opts           Options
 	history        []models.Candle
-	lastSignalTime int64 // unix nano, чтобы не дублировать сигнал на одной свече
+	lastSignalTime int64
 }
 
-func NewMomentumBreakout(lookback int) *MomentumBreakout {
-	if lookback < 2 {
-		lookback = defaultLookback
-	}
+func NewMomentumBreakout(opts Options) *MomentumBreakout {
+	opts = opts.normalized()
 	return &MomentumBreakout{
-		lookback: lookback,
-		history:  make([]models.Candle, 0, lookback),
+		opts:    opts,
+		history: make([]models.Candle, 0, opts.Lookback),
 	}
 }
 
 // OnCandle принимает новую свечу и возвращает торговый сигнал или nil.
-// Потокобезопасен: можно вызывать из разных горутин.
 func (s *MomentumBreakout) OnCandle(candle models.Candle) *models.Order {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -45,7 +40,7 @@ func (s *MomentumBreakout) OnCandle(candle models.Candle) *models.Order {
 
 	s.pushHistory(candle)
 
-	if len(s.history) < s.lookback {
+	if len(s.history) < s.opts.Lookback {
 		return nil
 	}
 
@@ -87,7 +82,6 @@ func (s *MomentumBreakout) isDuplicate(candle models.Candle) bool {
 	if len(s.history) > 0 {
 		last := s.history[len(s.history)-1]
 		if last.Timestamp.Equal(candle.Timestamp) {
-			// Обновление текущей формирующейся свечи — перезаписываем, сигнал не генерируем повторно.
 			s.history[len(s.history)-1] = candle
 			return true
 		}
@@ -105,12 +99,11 @@ func (s *MomentumBreakout) pushHistory(candle models.Candle) {
 	}
 
 	s.history = append(s.history, candle)
-	if len(s.history) > s.lookback {
-		s.history = s.history[len(s.history)-s.lookback:]
+	if len(s.history) > s.opts.Lookback {
+		s.history = s.history[len(s.history)-s.opts.Lookback:]
 	}
 }
 
-// levels возвращает верхний и нижний уровни по High/Low предыдущих lookback-1 свечей.
 func (s *MomentumBreakout) levels() (upper, lower float64) {
 	window := s.history[:len(s.history)-1]
 	upper = window[0].High
@@ -127,25 +120,65 @@ func (s *MomentumBreakout) levels() (upper, lower float64) {
 }
 
 func (s *MomentumBreakout) calcLevels(direction string, entry, upper, lower float64) (stopLoss, takeProfit float64) {
-	rangeSize := upper - lower
-	if rangeSize <= 0 {
-		return 0, 0
-	}
-
-	// Стоп за противоположной границей диапазона, но не дальше половины диапазона.
-	stopDistance := math.Min(rangeSize*0.5, entry*0.005) // не более 0.5% от цены
+	stopDistance := s.stopDistance(entry, upper, lower)
 	if stopDistance <= 0 {
-		stopDistance = rangeSize * 0.25
+		return 0, 0
 	}
 
 	switch direction {
 	case "BUY":
 		stopLoss = entry - stopDistance
-		takeProfit = entry + stopDistance*riskRewardRatio
+		takeProfit = entry + stopDistance*s.opts.RewardRatio
 	case "SELL":
 		stopLoss = entry + stopDistance
-		takeProfit = entry - stopDistance*riskRewardRatio
+		takeProfit = entry - stopDistance*s.opts.RewardRatio
 	}
 
 	return stopLoss, takeProfit
+}
+
+func (s *MomentumBreakout) stopDistance(entry, upper, lower float64) float64 {
+	rangeSize := upper - lower
+	if rangeSize <= 0 {
+		return 0
+	}
+
+	switch s.opts.StopMode {
+	case StopModeATR:
+		if atr := s.calcATR(); atr > 0 {
+			return atr * s.opts.ATRMultiplier
+		}
+		return s.rangeStopDistance(entry, rangeSize)
+	default:
+		return s.rangeStopDistance(entry, rangeSize)
+	}
+}
+
+func (s *MomentumBreakout) rangeStopDistance(entry, rangeSize float64) float64 {
+	stopDistance := rangeSize * 0.5
+	if s.opts.RangeUseCap {
+		cap := entry * defaultRangeCapPct / 100
+		stopDistance = math.Min(stopDistance, cap)
+	}
+	if stopDistance <= 0 {
+		stopDistance = rangeSize * 0.25
+	}
+	return stopDistance
+}
+
+func (s *MomentumBreakout) calcATR() float64 {
+	period := s.opts.ATRPeriod
+	if len(s.history) < period+1 {
+		return 0
+	}
+
+	start := len(s.history) - period
+	var sum float64
+	for i := start; i < len(s.history); i++ {
+		c := s.history[i]
+		prevClose := s.history[i-1].Close
+		tr := math.Max(c.High-c.Low, math.Max(math.Abs(c.High-prevClose), math.Abs(c.Low-prevClose)))
+		sum += tr
+	}
+	return sum / float64(period)
 }

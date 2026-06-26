@@ -4,6 +4,9 @@ configs/local*.yaml
 # Бинарник
 bot
 
+# Локальная БД сделок
+data/
+
 # IDE
 .idea/
 .vscode/

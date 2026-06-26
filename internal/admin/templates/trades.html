@@ -1,0 +1,31 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>
+{{template "filters" .}}
+
+<p class="muted">Показано {{len .Trades.Trades}} из {{.Trades.Total}}</p>
+<table>
+  <thead>
+    <tr>
+      <th>Эксперимент</th><th>Тикер</th><th>Напр.</th><th>Вход</th><th>Выход</th>
+      <th>PnL</th><th>R</th><th>Причина</th><th>Дата</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Trades.Trades}}
+    <tr>
+      <td><code>{{.ExperimentID}}</code></td>
+      <td>{{.Ticker}}</td>
+      <td>{{.Direction}}</td>
+      <td>{{printf "%.2f" .EntryPrice}}</td>
+      <td>{{printf "%.2f" .ExitPrice}}</td>
+      <td class="{{pnlClass .GrossPnL}}">{{fmtMoney .GrossPnL}}</td>
+      <td>{{printf "%.2f" .PnLR}}</td>
+      <td>{{.CloseReason}}</td>
+      <td>{{.TradingDate}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="9" class="muted">Нет сделок</td></tr>
+    {{end}}
+  </tbody>
+</table>
+{{end}}

@@ -1,0 +1,14 @@
+{{define "filters"}}
+<form class="filters" method="get">
+  <label>Эксперимент
+    <select name="experiment_id">
+      <option value="">все</option>
+      {{range .Experiments}}<option value="{{.}}">{{.}}</option>{{end}}
+    </select>
+  </label>
+  <label>Тикер <input name="ticker" placeholder="SBER"></label>
+  <label>С <input type="date" name="date_from"></label>
+  <label>По <input type="date" name="date_to"></label>
+  <button type="submit">Применить</button>
+</form>
+{{end}}

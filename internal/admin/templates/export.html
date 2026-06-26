@@ -1,0 +1,49 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>
+{{template "filters" .}}
+
+<section class="export-hero">
+  <p>Выгрузите данные и готовый промпт для анализа в ChatGPT, Claude или другом ИИ. Промпт содержит контекст стратегии, сводку по экспериментам и JSON с метриками.</p>
+</section>
+
+<section class="export-actions">
+  <a class="btn primary" href="/api/export/ai{{querySuffix .FilterQuery}}">Скачать пакет для ИИ (JSON)</a>
+  <a class="btn" href="/api/export/prompt{{querySuffix .FilterQuery}}">Скачать промпт (MD)</a>
+  <a class="btn" href="/api/export/trades.json{{querySuffix .FilterQuery}}">Сделки JSON</a>
+  <a class="btn" href="/api/export/trades.csv{{querySuffix .FilterQuery}}">Сделки CSV</a>
+  <button type="button" class="btn" id="copy-prompt">Копировать промпт</button>
+</section>
+
+<section>
+  <h2>Как использовать</h2>
+  <ol class="steps">
+    <li>Примените фильтры выше (период, эксперимент).</li>
+    <li>Скачайте <strong>export-ai.json</strong> — полные данные + поле <code>prompt</code>.</li>
+    <li>Скопируйте промпт (кнопка или поле <code>prompt</code> в JSON) в ИИ.</li>
+    <li>При необходимости приложите JSON-файл целиком для детального разбора сделок.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>Предпросмотр промпта</h2>
+  <pre id="prompt-preview" class="prompt-box">Загрузка…</pre>
+</section>
+
+<script>
+(async () => {
+  const qs = window.location.search;
+  const preview = document.getElementById('prompt-preview');
+  try {
+    const res = await fetch('/api/prompt' + qs);
+    const data = await res.json();
+    preview.textContent = data.prompt || '';
+  } catch (e) {
+    preview.textContent = 'Ошибка загрузки: ' + e;
+  }
+  document.getElementById('copy-prompt').addEventListener('click', async () => {
+    await navigator.clipboard.writeText(preview.textContent);
+    alert('Промпт скопирован');
+  });
+})();
+</script>
+{{end}}

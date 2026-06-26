@@ -46,6 +46,37 @@ func TestLoadMultiTickerSplit(t *testing.T) {
 	}
 }
 
+func TestLoadExperimentsMulti(t *testing.T) {
+	cfg, err := config.Load("../../configs/experiments-multi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !cfg.HasExperiments() {
+		t.Fatal("expected experiments section")
+	}
+	if len(cfg.ResolvedExperiments()) != 3 {
+		t.Fatalf("experiments: got %d, want 3", len(cfg.ResolvedExperiments()))
+	}
+	if len(cfg.Tickers) != 10 {
+		t.Fatalf("tickers: got %d, want 10", len(cfg.Tickers))
+	}
+
+	exp := cfg.ResolvedExperiments()[1]
+	if exp.ID != "atr-2" {
+		t.Fatalf("experiment id: %q", exp.ID)
+	}
+	if exp.Strategy.StopMode != "atr" {
+		t.Fatalf("stop_mode: %q", exp.Strategy.StopMode)
+	}
+	if exp.Strategy.ATRMultiplier != 2.0 {
+		t.Fatalf("atr_multiplier: %f", exp.Strategy.ATRMultiplier)
+	}
+	if exp.PerTickerDeposit(10) != 20_000 {
+		t.Fatalf("per-ticker deposit: %f", exp.PerTickerDeposit(10))
+	}
+}
+
 func TestLoadFuturesStepPriceValue(t *testing.T) {
 	cfg, err := config.Load("../../configs/virtual-futures.yaml")
 	if err != nil {

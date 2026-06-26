@@ -2,7 +2,7 @@ package engine
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"math"
 	"time"
 
@@ -10,42 +10,61 @@ import (
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
 )
 
 const virtualCommissionPerLot = 5.0
 
 type openPosition struct {
-	direction  string
-	quantity   int
-	entryPrice float64
-	stopLoss   float64
-	takeProfit float64
-	rDistance  float64
-	trailStage int
+	direction         string
+	quantity          int
+	entryPrice        float64
+	initialStopLoss   float64
+	initialTakeProfit float64
+	stopLoss          float64
+	takeProfit        float64
+	rDistance         float64
+	trailStage        int
+	openedAt          time.Time
 }
 
-// TickerWorker инкапсулирует торговый цикл для одного тикера.
+// TickerWorker инкапсулирует торговый цикл для одного тикера (в рамках одного эксперимента).
 type TickerWorker struct {
-	ticker          string
-	stepPriceValue  float64
-	strategy        *strategy.MomentumBreakout
-	riskMgr         *risk.RiskManager
-	session         *SessionClock
-	candleChan      chan models.Candle
-	tickChan        chan models.Tick
-	position        *openPosition
-	lastPrice       float64
-	eodCloseDate    string
-	riskResetDate   string
+	label            string
+	ticker           string
+	experimentID     string
+	stopMode         string
+	stepPriceValue   float64
+	tradingMode      string
+	runID            string
+	classCode        string
+	candleTimeframe  string
+	lookback         int
+	riskPerTradePct  float64
+	depositPerTicker float64
+	strategy         *strategy.MomentumBreakout
+	riskMgr          *risk.RiskManager
+	session          *SessionClock
+	store            interfaces.TradeStore
+	candleChan       chan models.Candle
+	tickChan         chan models.Tick
+	position         *openPosition
+	lastPrice        float64
+	eodCloseDate     string
+	riskResetDate    string
 }
 
 // NewTickerWorker создаёт изолированный воркер для тикера.
 func NewTickerWorker(
 	ticker string,
-	deposit, maxDailyLoss, riskPerTradePct, stepPriceValue float64,
-	lookback int,
+	exp config.ResolvedExperiment,
+	tickerCount int,
+	stepPriceValue float64,
+	strategyOpts strategy.Options,
 	sessionCfg config.SessionConfig,
+	tradingMode, runID, classCode, candleTimeframe string,
+	store interfaces.TradeStore,
 ) (*TickerWorker, error) {
 	clock, err := NewSessionClock(sessionCfg.Timezone, sessionCfg.EODCloseTime, sessionCfg.SessionOpenTime)
 	if err != nil {
@@ -55,25 +74,48 @@ func NewTickerWorker(
 	if stepPriceValue <= 0 {
 		stepPriceValue = 1.0
 	}
+	if store == nil {
+		store = interfaces.NoopTradeStore{}
+	}
+
+	deposit := exp.PerTickerDeposit(tickerCount)
+	maxLoss := exp.PerTickerMaxDailyLoss(tickerCount)
+	label := ticker
+	if exp.ID != "" && exp.ID != "default" {
+		label = fmt.Sprintf("%s/%s", exp.ID, ticker)
+	}
 
 	return &TickerWorker{
-		ticker:         ticker,
-		stepPriceValue: stepPriceValue,
-		strategy:       strategy.NewMomentumBreakout(lookback),
-		riskMgr:        risk.NewRiskManager(deposit, maxDailyLoss, riskPerTradePct, stepPriceValue),
-		session:        clock,
-		candleChan:     make(chan models.Candle, 64),
-		tickChan:       make(chan models.Tick, 256),
+		label:            label,
+		ticker:           ticker,
+		experimentID:     exp.ID,
+		stopMode:         strategyOpts.StopMode,
+		stepPriceValue:   stepPriceValue,
+		tradingMode:      tradingMode,
+		runID:            runID,
+		classCode:        classCode,
+		candleTimeframe:  candleTimeframe,
+		lookback:         strategyOpts.Lookback,
+		riskPerTradePct:  exp.Risk.RiskPerTradePercent,
+		depositPerTicker: deposit,
+		strategy:         strategy.NewMomentumBreakout(strategyOpts),
+		riskMgr:          risk.NewRiskManager(deposit, maxLoss, exp.Risk.RiskPerTradePercent, stepPriceValue),
+		session:          clock,
+		store:            store,
+		candleChan:       make(chan models.Candle, 64),
+		tickChan:         make(chan models.Tick, 256),
 	}, nil
 }
 
 func (w *TickerWorker) CandleChan() chan<- models.Candle { return w.candleChan }
 func (w *TickerWorker) TickChan() chan<- models.Tick     { return w.tickChan }
 func (w *TickerWorker) Ticker() string                   { return w.ticker }
+func (w *TickerWorker) ExperimentID() string             { return w.experimentID }
+func (w *TickerWorker) Label() string                    { return w.label }
 
 // Start запускает цикл обработки тиков, свечей и контроля позиции.
 func (w *TickerWorker) Start(ctx context.Context, executor interfaces.OrderExecutor) {
-	log.Printf("[%s] воркер запущен", w.ticker)
+	logx.WorkerLifecycle(w.label, "воркер запущен")
 
 	eodTicker := time.NewTicker(30 * time.Second)
 	defer eodTicker.Stop()
@@ -81,12 +123,12 @@ func (w *TickerWorker) Start(ctx context.Context, executor interfaces.OrderExecu
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[%s] воркер остановлен", w.ticker)
+			logx.WorkerLifecycle(w.label, "воркер остановлен")
 			return
 
 		case tick, ok := <-w.tickChan:
 			if !ok {
-				log.Printf("[%s] канал тиков закрыт", w.ticker)
+				logx.WorkerLifecycle(w.label, "канал тиков закрыт")
 				return
 			}
 			w.lastPrice = tick.Price
@@ -96,7 +138,7 @@ func (w *TickerWorker) Start(ctx context.Context, executor interfaces.OrderExecu
 
 		case candle, ok := <-w.candleChan:
 			if !ok {
-				log.Printf("[%s] канал свечей закрыт", w.ticker)
+				logx.WorkerLifecycle(w.label, "канал свечей закрыт")
 				return
 			}
 			w.lastPrice = candle.Close
@@ -132,38 +174,37 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 	}
 
 	if err := w.riskMgr.CheckCircuitBreaker(); err != nil {
-		log.Printf("[%s] сигнал %s отклонён: %v", w.ticker, signal.Direction, err)
+		logx.SignalRejected(w.label, signal.Direction, err.Error())
 		return
 	}
 
 	quantity := w.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if quantity <= 0 {
-		log.Printf("[%s] сигнал %s отклонён: нулевой объём позиции", w.ticker, signal.Direction)
+		logx.SignalRejected(w.label, signal.Direction, "нулевой объём позиции")
 		return
 	}
 
 	signal.Quantity = quantity
 	signal.OrderType = models.OrderTypeLimit
 
-	log.Printf(
-		"[%s] Сделка валидирована риском, объем %d лотов, отправка | %s %s @ %.2f, SL=%.2f, TP=%.2f",
-		w.ticker, signal.Quantity, signal.Direction, signal.Ticker,
-		signal.Price, signal.StopLoss, signal.TakeProfit,
-	)
-
 	if err := executor.ExecuteOrder(*signal); err != nil {
-		log.Printf("[%s] ошибка исполнения ордера: %v", w.ticker, err)
+		logx.Error("[%s] ошибка исполнения ордера: %v", w.label, err)
 		return
 	}
 
+	logx.TradeOpen(w.label, signal.Direction, signal.Quantity, signal.Price, signal.StopLoss, signal.TakeProfit)
+
 	w.position = &openPosition{
-		direction:  signal.Direction,
-		quantity:   signal.Quantity,
-		entryPrice: signal.Price,
-		stopLoss:   signal.StopLoss,
-		takeProfit: signal.TakeProfit,
-		rDistance:  math.Abs(signal.Price - signal.StopLoss),
-		trailStage: 0,
+		direction:         signal.Direction,
+		quantity:          signal.Quantity,
+		entryPrice:        signal.Price,
+		initialStopLoss:   signal.StopLoss,
+		initialTakeProfit: signal.TakeProfit,
+		stopLoss:          signal.StopLoss,
+		takeProfit:        signal.TakeProfit,
+		rDistance:         math.Abs(signal.Price - signal.StopLoss),
+		trailStage:        0,
+		openedAt:          candle.Timestamp,
 	}
 }
 
@@ -202,9 +243,9 @@ func (w *TickerWorker) updateTrailingStop(price float64) {
 	if pos.trailStage > prevStage {
 		switch pos.trailStage {
 		case 1:
-			log.Printf("[%s] трейлинг: +1R → SL=%.2f", w.ticker, pos.stopLoss)
+			logx.Trailing(w.label, 1, pos.stopLoss)
 		case 2:
-			log.Printf("[%s] трейлинг: +2R → SL=%.2f", w.ticker, pos.stopLoss)
+			logx.Trailing(w.label, 2, pos.stopLoss)
 		}
 	}
 }
@@ -266,7 +307,6 @@ func (w *TickerWorker) checkEOD(executor interfaces.OrderExecutor, price float64
 	}
 
 	if w.position != nil {
-		log.Printf("[%s] EOD: принудительное закрытие позиции по %.2f", w.ticker, price)
 		w.closePosition(executor, price, models.CloseReasonEOD)
 	}
 
@@ -286,7 +326,7 @@ func (w *TickerWorker) checkDailyReset() {
 
 	w.riskMgr.ResetDaily()
 	w.riskResetDate = today
-	log.Printf("[%s] новый торговый день: дневной счётчик убытков сброшен", w.ticker)
+	logx.DailyReset(w.label)
 }
 
 func (w *TickerWorker) closePosition(executor interfaces.OrderExecutor, price float64, reason string) {
@@ -312,7 +352,7 @@ func (w *TickerWorker) closePosition(executor interfaces.OrderExecutor, price fl
 	}
 
 	if err := executor.ExecuteOrder(order); err != nil {
-		log.Printf("[%s] ошибка закрытия позиции (%s): %v", w.ticker, reason, err)
+		logx.Error("[%s] ошибка закрытия позиции (%s): %v", w.label, reason, err)
 		w.position = pos
 		return
 	}
@@ -324,7 +364,48 @@ func (w *TickerWorker) closePosition(executor interfaces.OrderExecutor, price fl
 		w.riskMgr.RegisterProfit(pnl)
 	}
 
-	log.Printf("[%s] позиция закрыта (%s), PnL=%.2f", w.ticker, reason, pnl)
+	closedAt := time.Now()
+	riskAmount := pos.rDistance * float64(pos.quantity) * w.stepPriceValue
+	pnlR := 0.0
+	if riskAmount > 0 {
+		pnlR = pnl / riskAmount
+	}
+
+	trade := models.ClosedTrade{
+		TradingMode:       w.tradingMode,
+		RunID:             w.runID,
+		ExperimentID:      w.experimentID,
+		StopMode:          w.stopMode,
+		Ticker:            w.ticker,
+		ClassCode:         w.classCode,
+		StepPriceValue:    w.stepPriceValue,
+		Direction:         pos.direction,
+		Quantity:          pos.quantity,
+		EntryPrice:        pos.entryPrice,
+		ExitPrice:         price,
+		InitialStopLoss:   pos.initialStopLoss,
+		InitialTakeProfit: pos.initialTakeProfit,
+		FinalStopLoss:     pos.stopLoss,
+		RDistance:         pos.rDistance,
+		GrossPnL:          pnl,
+		PnLR:              pnlR,
+		CloseReason:       reason,
+		TrailStage:        pos.trailStage,
+		IsWinner:          pnl > 0,
+		OpenedAt:          pos.openedAt,
+		ClosedAt:          closedAt,
+		HoldSeconds:       int(closedAt.Sub(pos.openedAt).Seconds()),
+		TradingDate:       w.session.today(closedAt),
+		CandleTimeframe:   w.candleTimeframe,
+		Lookback:          w.lookback,
+		RiskPerTradePct:   w.riskPerTradePct,
+		DepositPerTicker:  w.depositPerTicker,
+	}
+	if err := w.store.SaveClosedTrade(context.Background(), trade); err != nil {
+		logx.Error("[%s] ошибка сохранения сделки в БД: %v", w.label, err)
+	}
+
+	logx.TradeClose(w.label, reason, price, pnl, pnlR)
 }
 
 func calcPnL(pos *openPosition, closePrice, stepPriceValue float64) float64 {

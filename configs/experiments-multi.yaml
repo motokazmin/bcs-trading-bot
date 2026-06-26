@@ -1,0 +1,71 @@
+# Параллельная проверка гипотезы «стоп слишком узкий?»
+# Пакет A: baseline (range) | atr-2 | atr-3
+# 3 эксперимента × 10 тикеров = 30 воркеров, один WebSocket
+# Запуск: go run ./cmd/bot -config configs/experiments-multi.yaml
+
+trading_mode: virtual
+
+tickers:
+  - SBER
+  - GAZP
+  - LKOH
+  - NVTK
+  - YNDX
+  - ROSN
+  - MGNT
+  - CHMF
+  - TATN
+  - MOEX
+
+class_code: TQBR
+candle_timeframe: M5
+
+session:
+  timezone: Europe/Moscow
+  eod_close_time: "18:40"
+  session_open_time: "10:00"
+
+storage:
+  path: data/trades.db
+
+experiments:
+  - id: baseline
+    name: "Range SL + cap 0.5% (текущий)"
+    strategy:
+      lookback: 20
+      stop_mode: range
+      range_use_cap: true
+    risk:
+      deposit: 200000
+      max_daily_loss: 4000
+      risk_per_trade_percent: 0.5
+    virtual:
+      balance: 200000
+
+  - id: atr-2
+    name: "ATR × 2.0"
+    strategy:
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.0
+    risk:
+      deposit: 200000
+      max_daily_loss: 4000
+      risk_per_trade_percent: 0.5
+    virtual:
+      balance: 200000
+
+  - id: atr-3
+    name: "ATR × 3.0 (шире стоп)"
+    strategy:
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 3.0
+    risk:
+      deposit: 200000
+      max_daily_loss: 4000
+      risk_per_trade_percent: 0.5
+    virtual:
+      balance: 200000

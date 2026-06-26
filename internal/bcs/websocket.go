@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
+	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
 
 	"github.com/gorilla/websocket"
@@ -21,7 +21,34 @@ const (
 
 	wsDataTypeCandles = 1
 	wsDataTypeQuotes  = 3
+
+	wsReadDeadlineActive = 90 * time.Second
+	wsReadDeadlineQuiet  = 60 * time.Minute
+
+	wsQuietStartMinutes = 23*60 + 50 // 23:50 МСК
+	wsQuietEndMinutes   = 7 * 60     // 07:00 МСК
 )
+
+var moscowLoc = func() *time.Location {
+	loc, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		return time.FixedZone("MSK", 3*3600)
+	}
+	return loc
+}()
+
+// isWSQuietPeriod — ночное окно без рыночных данных (после вечерней сессии до утра).
+func isWSQuietPeriod(now time.Time) bool {
+	m := now.In(moscowLoc).Hour()*60 + now.In(moscowLoc).Minute()
+	return m >= wsQuietStartMinutes || m < wsQuietEndMinutes
+}
+
+func wsReadDeadline(now time.Time) time.Duration {
+	if isWSQuietPeriod(now) {
+		return wsReadDeadlineQuiet
+	}
+	return wsReadDeadlineActive
+}
 
 // WorkerRoutes — каналы доставки рыночных данных одному воркеру.
 type WorkerRoutes struct {
@@ -72,23 +99,24 @@ type quoteWSMessage struct {
 
 // SubscribeToCandles подключается к WebSocket БКС и передаёт свечи в candleChan.
 func (c *BCSClient) SubscribeToCandles(ctx context.Context, ticker string, candleChan chan<- models.Candle) error {
-	routes := map[string]WorkerRoutes{
-		ticker: {CandleChan: candleChan},
+	routes := map[string][]WorkerRoutes{
+		ticker: {{CandleChan: candleChan}},
 	}
 	return c.runMarketDataSession(ctx, []string{ticker}, routes)
 }
 
 // SubscribeCandlesFanOut — совместимость: только свечи без тиков.
 func (c *BCSClient) SubscribeCandlesFanOut(ctx context.Context, routes map[string]chan<- models.Candle) error {
-	wr := make(map[string]WorkerRoutes, len(routes))
+	wr := make(map[string][]WorkerRoutes, len(routes))
 	for ticker, ch := range routes {
-		wr[ticker] = WorkerRoutes{CandleChan: ch}
+		wr[ticker] = []WorkerRoutes{{CandleChan: ch}}
 	}
 	return c.SubscribeMarketDataFanOut(ctx, wr)
 }
 
 // SubscribeMarketDataFanOut подписывается на свечи и котировки для всех тикеров.
-func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[string]WorkerRoutes) error {
+// На один тикер может быть несколько маршрутов (параллельные эксперименты).
+func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[string][]WorkerRoutes) error {
 	if len(routes) == 0 {
 		return fmt.Errorf("список маршрутов пуст")
 	}
@@ -111,7 +139,7 @@ func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[st
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			log.Printf("WebSocket рыночных данных: %v, переподключение через %s", err, backoff)
+			logx.WS("рыночные данные: %v, переподключение через %s", err, backoff)
 		} else {
 			backoff = time.Second
 		}
@@ -129,7 +157,7 @@ func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[st
 	}
 }
 
-func (c *BCSClient) runMarketDataSession(ctx context.Context, tickers []string, routes map[string]WorkerRoutes) error {
+func (c *BCSClient) runMarketDataSession(ctx context.Context, tickers []string, routes map[string][]WorkerRoutes) error {
 	token := c.AccessToken()
 	if token == "" {
 		return fmt.Errorf("клиент не авторизован")
@@ -179,10 +207,10 @@ func (c *BCSClient) runMarketDataSession(ctx context.Context, tickers []string, 
 		return fmt.Errorf("ошибка подписки на котировки: %w", err)
 	}
 
-	log.Printf("WebSocket: подписка %d инструмент(ов) %v — свечи %s + котировки", len(tickers), tickers, timeFrame)
+	logx.WS("подписка %d инструмент(ов) %v — свечи %s + котировки", len(tickers), tickers, timeFrame)
 
 	conn.SetPongHandler(func(string) error {
-		return conn.SetReadDeadline(time.Now().Add(90 * time.Second))
+		return conn.SetReadDeadline(time.Now().Add(wsReadDeadline(time.Now())))
 	})
 
 	for {
@@ -192,7 +220,7 @@ func (c *BCSClient) runMarketDataSession(ctx context.Context, tickers []string, 
 		default:
 		}
 
-		if err := conn.SetReadDeadline(time.Now().Add(90 * time.Second)); err != nil {
+		if err := conn.SetReadDeadline(time.Now().Add(wsReadDeadline(time.Now()))); err != nil {
 			return err
 		}
 
@@ -207,7 +235,7 @@ func (c *BCSClient) runMarketDataSession(ctx context.Context, tickers []string, 
 	}
 }
 
-func (c *BCSClient) dispatchMarketMessage(ctx context.Context, raw []byte, routes map[string]WorkerRoutes) error {
+func (c *BCSClient) dispatchMarketMessage(ctx context.Context, raw []byte, routes map[string][]WorkerRoutes) error {
 	var header struct {
 		ResponseType string `json:"responseType"`
 		Ticker       string `json:"ticker"`
@@ -217,26 +245,34 @@ func (c *BCSClient) dispatchMarketMessage(ctx context.Context, raw []byte, route
 		} `json:"errors"`
 	}
 	if err := json.Unmarshal(raw, &header); err != nil {
-		log.Printf("WebSocket: не удалось разобрать сообщение: %v", err)
+		logx.WS("не удалось разобрать сообщение: %v", err)
 		return nil
 	}
 
 	if len(header.Errors) > 0 {
-		log.Printf("WebSocket: ошибка от сервера [%s]: %s (%s)",
+		logx.WS("ошибка от сервера [%s]: %s (%s)",
 			header.Ticker, header.Errors[0].Message, header.Errors[0].Code)
 		return nil
 	}
 
-	route, ok := routes[header.Ticker]
+	routeList, ok := routes[header.Ticker]
 	if !ok {
 		return nil
 	}
 
 	switch header.ResponseType {
 	case "CandleStick":
-		return c.dispatchCandle(ctx, raw, route)
+		for _, route := range routeList {
+			if err := c.dispatchCandle(ctx, raw, route); err != nil {
+				return err
+			}
+		}
 	case "Quotes":
-		return c.dispatchQuote(ctx, raw, route)
+		for _, route := range routeList {
+			if err := c.dispatchQuote(ctx, raw, route); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -254,7 +290,7 @@ func (c *BCSClient) dispatchCandle(ctx context.Context, raw []byte, route Worker
 
 	ts, err := parseWSDateTime(msg.DateTime)
 	if err != nil {
-		log.Printf("WebSocket: неверный dateTime %q: %v", msg.DateTime, err)
+		logx.WS("неверный dateTime %q: %v", msg.DateTime, err)
 		return nil
 	}
 
