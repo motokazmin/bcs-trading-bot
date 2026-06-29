@@ -118,7 +118,7 @@ func write(parts ...string) {
 		}
 		msg += p
 	}
-	out.Println(paint(dim, time.Now().Format("15:04:05")) + " " + msg)
+	out.Println(paint(dim, time.Now().Format("2006-01-02 15:04:05")) + " " + msg)
 }
 
 // Info — обычное системное сообщение.

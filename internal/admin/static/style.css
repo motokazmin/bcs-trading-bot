@@ -103,6 +103,32 @@ th { color: var(--muted); font-weight: 500; }
   margin-bottom: 1rem;
 }
 
+.export-variants {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.export-variant {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+.export-variant-header h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+}
+.export-variant-header p {
+  margin: 0 0 0.75rem;
+}
+.export-variant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
 .export-actions {
   display: flex;
   flex-wrap: wrap;
@@ -126,17 +152,48 @@ th { color: var(--muted); font-weight: 500; }
 .steps { padding-left: 1.25rem; color: var(--muted); }
 .steps strong { color: var(--text); }
 
+.prompt-preview-section { margin-top: 0.5rem; }
+.prompt-preview-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.prompt-preview-header h2 { margin: 0; }
+.prompt-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.prompt-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
 .prompt-box {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1rem;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 480px;
+  min-height: 320px;
+  max-height: 70vh;
   overflow: auto;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.82rem;
   line-height: 1.45;
+  color: var(--text);
+}
+.prompt-box:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 code { background: #243044; padding: 0.1rem 0.35rem; border-radius: 3px; }

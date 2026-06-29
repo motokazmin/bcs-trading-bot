@@ -2,12 +2,10 @@ package admin
 
 import (
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/models"
@@ -39,64 +37,24 @@ func (h *Handler) parseFilter(r *http.Request) models.TradeFilter {
 	}
 }
 
-func (h *Handler) handleExportAI(w http.ResponseWriter, r *http.Request) {
-	bundle, err := h.export.BuildAIExport(r.Context(), h.parseFilter(r))
+func (h *Handler) parseExportMode(r *http.Request) (ExportMode, error) {
+	return ParseExportMode(r.URL.Query().Get("mode"))
+}
+
+func (h *Handler) handleExportData(w http.ResponseWriter, r *http.Request) {
+	mode, err := h.parseExportMode(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	data, err := h.export.BuildExportData(r.Context(), h.parseFilter(r), mode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="export-ai.json"`)
-	writeJSONBytes(w, bundle)
-}
-
-func (h *Handler) handleExportPrompt(w http.ResponseWriter, r *http.Request) {
-	bundle, err := h.export.BuildAIExport(r.Context(), h.parseFilter(r))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="ai-prompt.md"`)
-	_, _ = w.Write([]byte(RenderPromptMarkdown(bundle)))
-}
-
-func (h *Handler) handleExportTradesJSON(w http.ResponseWriter, r *http.Request) {
-	trades, err := h.export.listAllTrades(r.Context(), h.parseFilter(r))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="trades.json"`)
-	writeJSONBytes(w, trades)
-}
-
-func (h *Handler) handleExportTradesCSV(w http.ResponseWriter, r *http.Request) {
-	trades, err := h.export.listAllTrades(r.Context(), h.parseFilter(r))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="trades.csv"`)
-
-	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{
-		"experiment_id", "stop_mode", "ticker", "direction", "trading_date",
-		"entry_price", "exit_price", "gross_pnl", "pnl_r", "close_reason",
-		"trail_stage", "hold_seconds", "opened_at", "closed_at", "run_id",
-	})
-	for _, t := range trades {
-		_ = cw.Write([]string{
-			t.ExperimentID, t.StopMode, t.Ticker, t.Direction, t.TradingDate,
-			fmtFloat(t.EntryPrice), fmtFloat(t.ExitPrice), fmtFloat(t.GrossPnL), fmtFloat(t.PnLR),
-			t.CloseReason, strconv.Itoa(t.TrailStage), strconv.Itoa(t.HoldSeconds),
-			t.OpenedAt.Format(time.RFC3339), t.ClosedAt.Format(time.RFC3339), t.RunID,
-		})
-	}
-	cw.Flush()
+	w.Header().Set("Content-Disposition", `attachment; filename="`+mode.DataFilename()+`"`)
+	writeJSONBytes(w, data)
 }
 
 func (h *Handler) handleAPISummary(w http.ResponseWriter, r *http.Request) {
@@ -131,19 +89,29 @@ func (h *Handler) handleAPITrades(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, result)
 }
 
-func (h *Handler) handleAPIPromptPreview(w http.ResponseWriter, r *http.Request) {
-	bundle, err := h.export.BuildAIExport(r.Context(), h.parseFilter(r))
+func (h *Handler) handleAPIPrompt(w http.ResponseWriter, r *http.Request) {
+	mode, err := h.parseExportMode(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	prompt, err := h.export.BuildPrompt(r.Context(), h.parseFilter(r), mode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]string{"prompt": bundle.Prompt})
+	writeJSON(w, map[string]string{
+		"mode":     string(mode),
+		"prompt":   prompt,
+		"data_file": mode.DataFilename(),
+	})
 }
 
 type pageData struct {
 	Title       string
 	ActiveNav   string
 	FilterQuery string
+	Filter      models.TradeFilter
 	Summary     models.TradeSummary
 	Comparison  []models.BreakdownRow
 	Trades      models.TradeListResult
@@ -173,6 +141,7 @@ func (h *Handler) buildPageData(ctx context.Context, r *http.Request, title, nav
 		Title:       title,
 		ActiveNav:   nav,
 		FilterQuery: r.URL.RawQuery,
+		Filter:      f,
 		Summary:     summary,
 		Comparison:  comparison,
 		DateRange:   dr,
@@ -216,10 +185,6 @@ func (h *Handler) handleExportPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	renderTemplate(w, "export.html", data)
-}
-
-func fmtFloat(v float64) string {
-	return strconv.FormatFloat(v, 'f', 4, 64)
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

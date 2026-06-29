@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
+	"time"
 )
 
 //go:embed templates/*.html static/*
@@ -28,12 +29,9 @@ func NewServer(cfg Config, handler *Handler) (*http.Server, error) {
 	mux.HandleFunc("GET /api/summary", handler.handleAPISummary)
 	mux.HandleFunc("GET /api/comparison", handler.handleAPIComparison)
 	mux.HandleFunc("GET /api/trades", handler.handleAPITrades)
-	mux.HandleFunc("GET /api/prompt", handler.handleAPIPromptPreview)
+	mux.HandleFunc("GET /api/prompt", handler.handleAPIPrompt)
 
-	mux.HandleFunc("GET /api/export/ai", handler.handleExportAI)
-	mux.HandleFunc("GET /api/export/prompt", handler.handleExportPrompt)
-	mux.HandleFunc("GET /api/export/trades.json", handler.handleExportTradesJSON)
-	mux.HandleFunc("GET /api/export/trades.csv", handler.handleExportTradesCSV)
+	mux.HandleFunc("GET /api/export/data", handler.handleExportData)
 
 	return &http.Server{
 		Addr:         cfg.Listen,
@@ -66,7 +64,37 @@ var templateFuncs = template.FuncMap{
 	"fmtMoney": func(v float64) string {
 		return fmt.Sprintf("%.2f", v)
 	},
+	"fmtTime": func(t time.Time) string {
+		if t.IsZero() {
+			return "—"
+		}
+		return t.Format("02.01 15:04")
+	},
+	"fmtHold": func(sec int) string {
+		return formatHoldDuration(sec)
+	},
+	"fmtHoldSec": func(sec float64) string {
+		return formatHoldDuration(int(sec + 0.5))
+	},
 	"join": strings.Join,
+}
+
+func formatHoldDuration(sec int) string {
+	if sec <= 0 {
+		return "—"
+	}
+	if sec < 60 {
+		return fmt.Sprintf("%dс", sec)
+	}
+	if sec < 3600 {
+		return fmt.Sprintf("%dм", sec/60)
+	}
+	h := sec / 3600
+	m := (sec % 3600) / 60
+	if m == 0 {
+		return fmt.Sprintf("%dч", h)
+	}
+	return fmt.Sprintf("%dч %02dм", h, m)
 }
 
 func renderTemplate(w http.ResponseWriter, name string, data any) {

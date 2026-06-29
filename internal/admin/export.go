@@ -1,10 +1,8 @@
 package admin
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -13,8 +11,50 @@ import (
 	"bcs-trading-bot/pkg/models"
 )
 
-//go:embed prompts/strategy_analysis.md
-var strategyAnalysisPromptTemplate string
+//go:embed prompts/strategy_summary.md
+var strategySummaryPromptTemplate string
+
+//go:embed prompts/strategy_detailed.md
+var strategyDetailedPromptTemplate string
+
+const exportVersion = "2.0"
+
+// ExportMode — вариант выгрузки для ИИ.
+type ExportMode string
+
+const (
+	ExportModeSummary  ExportMode = "summary"
+	ExportModeDetailed ExportMode = "detailed"
+)
+
+func ParseExportMode(s string) (ExportMode, error) {
+	switch strings.TrimSpace(s) {
+	case "", "summary":
+		return ExportModeSummary, nil
+	case "detailed":
+		return ExportModeDetailed, nil
+	default:
+		return "", fmt.Errorf("неизвестный mode: %q (ожидается summary или detailed)", s)
+	}
+}
+
+func (m ExportMode) DataFilename() string {
+	switch m {
+	case ExportModeDetailed:
+		return "data-trades.json"
+	default:
+		return "data-summary.json"
+	}
+}
+
+func (m ExportMode) Label() string {
+	switch m {
+	case ExportModeDetailed:
+		return "Подробный (с разбором сделок)"
+	default:
+		return "Краткий (по метрикам)"
+	}
+}
 
 // ExportService собирает пакеты для веб-UI и ИИ-анализа.
 type ExportService struct {
@@ -39,21 +79,27 @@ func defaultStrategyContext() models.StrategyContext {
 	}
 }
 
-// BuildAIExport собирает полный пакет с данными и готовым промптом.
-func (s *ExportService) BuildAIExport(ctx context.Context, f models.TradeFilter) (models.AIExportBundle, error) {
+type exportBase struct {
+	experiments []models.ExperimentReport
+	comparison  []models.BreakdownRow
+	dateRange   models.DateRange
+	totalTrades int
+}
+
+func (s *ExportService) buildBase(ctx context.Context, f models.TradeFilter) (exportBase, error) {
 	dateRange, err := s.reader.GetDateRange(ctx, f)
 	if err != nil {
-		return models.AIExportBundle{}, err
+		return exportBase{}, err
 	}
 
 	experimentIDs, err := s.reader.ListExperimentIDs(ctx, f)
 	if err != nil {
-		return models.AIExportBundle{}, err
+		return exportBase{}, err
 	}
 
 	comparison, err := s.reader.GetBreakdown(ctx, f, "experiment_id")
 	if err != nil {
-		return models.AIExportBundle{}, err
+		return exportBase{}, err
 	}
 
 	var experiments []models.ExperimentReport
@@ -65,29 +111,81 @@ func (s *ExportService) BuildAIExport(ctx context.Context, f models.TradeFilter)
 
 		report, err := s.buildExperimentReport(ctx, expFilter)
 		if err != nil {
-			return models.AIExportBundle{}, fmt.Errorf("experiment %s: %w", expID, err)
+			return exportBase{}, fmt.Errorf("experiment %s: %w", expID, err)
 		}
 		experiments = append(experiments, report)
 		totalTrades += report.Summary.TradeCount
 	}
 
-	bundle := models.AIExportBundle{
-		ExportVersion:   "1.0",
+	return exportBase{
+		experiments: experiments,
+		comparison:  comparison,
+		dateRange:   dateRange,
+		totalTrades: totalTrades,
+	}, nil
+}
+
+// BuildExportData — только данные для вложения (без промпта).
+func (s *ExportService) BuildExportData(ctx context.Context, f models.TradeFilter, mode ExportMode) (models.ExportData, error) {
+	base, err := s.buildBase(ctx, f)
+	if err != nil {
+		return models.ExportData{}, err
+	}
+
+	experiments := base.experiments
+	if mode == ExportModeSummary {
+		experiments = stripTrades(experiments)
+	}
+
+	return models.ExportData{
+		ExportVersion:   exportVersion,
+		ExportMode:      string(mode),
 		ExportedAt:      time.Now().UTC(),
 		Filters:         f,
-		DateRange:       dateRange,
+		DateRange:       base.dateRange,
 		StrategyContext: defaultStrategyContext(),
 		Experiments:     experiments,
-		Comparison:      comparison,
-	}
+		Comparison:      base.comparison,
+	}, nil
+}
 
-	prompt, err := s.buildPrompt(bundle, totalTrades)
+// BuildPrompt — только инструкции для вставки в чат (без данных).
+func (s *ExportService) BuildPrompt(ctx context.Context, f models.TradeFilter, mode ExportMode) (string, error) {
+	base, err := s.buildBase(ctx, f)
 	if err != nil {
-		return models.AIExportBundle{}, err
+		return "", err
 	}
-	bundle.Prompt = prompt
+	return renderPrompt(mode, base.dateRange, base.totalTrades), nil
+}
 
-	return bundle, nil
+func stripTrades(experiments []models.ExperimentReport) []models.ExperimentReport {
+	out := make([]models.ExperimentReport, len(experiments))
+	for i, exp := range experiments {
+		exp.Trades = nil
+		out[i] = exp
+	}
+	return out
+}
+
+func renderPrompt(mode ExportMode, dateRange models.DateRange, totalTrades int) string {
+	tmpl := strategySummaryPromptTemplate
+	if mode == ExportModeDetailed {
+		tmpl = strategyDetailedPromptTemplate
+	}
+
+	replacements := map[string]string{
+		"{{EXPORT_VERSION}}": exportVersion,
+		"{{EXPORTED_AT}}":    time.Now().UTC().Format(time.RFC3339),
+		"{{DATE_FROM}}":      orDash(dateRange.From),
+		"{{DATE_TO}}":        orDash(dateRange.To),
+		"{{TOTAL_TRADES}}":   fmt.Sprintf("%d", totalTrades),
+	}
+
+	out := tmpl
+	for k, v := range replacements {
+		out = strings.ReplaceAll(out, k, v)
+	}
+	return out
 }
 
 func (s *ExportService) buildExperimentReport(ctx context.Context, f models.TradeFilter) (models.ExperimentReport, error) {
@@ -152,113 +250,9 @@ func (s *ExportService) listAllTrades(ctx context.Context, f models.TradeFilter)
 	return all, nil
 }
 
-func (s *ExportService) buildPrompt(bundle models.AIExportBundle, totalTrades int) (string, error) {
-	ctxJSON, err := json.MarshalIndent(bundle.StrategyContext, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	filtersJSON, err := json.Marshal(bundle.Filters)
-	if err != nil {
-		return "", err
-	}
-
-	// Для промпта — компактные данные без полного списка сделок (они в JSON-файле).
-	compact := struct {
-		ExportVersion   string                    `json:"export_version"`
-		ExportedAt      time.Time                 `json:"exported_at"`
-		DateRange       models.DateRange          `json:"date_range"`
-		Filters         models.TradeFilter        `json:"filters"`
-		StrategyContext models.StrategyContext    `json:"strategy_context"`
-		Comparison      []models.BreakdownRow     `json:"comparison"`
-		Experiments     []experimentCompact       `json:"experiments"`
-	}{
-		ExportVersion:   bundle.ExportVersion,
-		ExportedAt:      bundle.ExportedAt,
-		DateRange:       bundle.DateRange,
-		Filters:         bundle.Filters,
-		StrategyContext: bundle.StrategyContext,
-		Comparison:      bundle.Comparison,
-		Experiments:     make([]experimentCompact, len(bundle.Experiments)),
-	}
-	for i, exp := range bundle.Experiments {
-		compact.Experiments[i] = experimentCompact{
-			ExperimentID:  exp.ExperimentID,
-			StopMode:      exp.StopMode,
-			Summary:       exp.Summary,
-			ByTicker:      exp.ByTicker,
-			ByCloseReason: exp.ByCloseReason,
-			DailyPnL:      exp.DailyPnL,
-			EquityCurve:   exp.EquityCurve,
-			TradeCount:    len(exp.Trades),
-		}
-	}
-
-	dataJSON, err := json.MarshalIndent(compact, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	replacements := map[string]string{
-		"{{STRATEGY_CONTEXT}}":         string(ctxJSON),
-		"{{EXPORT_VERSION}}":           bundle.ExportVersion,
-		"{{EXPORTED_AT}}":              bundle.ExportedAt.Format(time.RFC3339),
-		"{{DATE_FROM}}":                orDash(bundle.DateRange.From),
-		"{{DATE_TO}}":                  orDash(bundle.DateRange.To),
-		"{{FILTERS_JSON}}":             string(filtersJSON),
-		"{{EXPERIMENT_COUNT}}":         fmt.Sprintf("%d", len(bundle.Experiments)),
-		"{{TOTAL_TRADES}}":             fmt.Sprintf("%d", totalTrades),
-		"{{EXPERIMENT_SUMMARY_TABLE}}": formatExperimentSummaryTable(bundle.Comparison),
-		"{{DATA_JSON}}":                string(dataJSON),
-	}
-
-	out := strategyAnalysisPromptTemplate
-	for k, v := range replacements {
-		out = strings.ReplaceAll(out, k, v)
-	}
-	return out, nil
-}
-
-type experimentCompact struct {
-	ExperimentID  string               `json:"experiment_id"`
-	StopMode      string               `json:"stop_mode"`
-	Summary       models.TradeSummary  `json:"summary"`
-	ByTicker      []models.BreakdownRow `json:"by_ticker"`
-	ByCloseReason []models.BreakdownRow `json:"by_close_reason"`
-	DailyPnL      []models.DailyPnLRow `json:"daily_pnl"`
-	EquityCurve   []models.EquityPoint `json:"equity_curve"`
-	TradeCount    int                  `json:"trade_count"`
-}
-
-func formatExperimentSummaryTable(rows []models.BreakdownRow) string {
-	if len(rows) == 0 {
-		return "_Нет сделок в выборке._"
-	}
-	var b strings.Builder
-	b.WriteString("| experiment_id | сделок | win% | total PnL | profit factor | avg R |\n")
-	b.WriteString("|---|---:|---:|---:|---:|---:|\n")
-	for _, r := range rows {
-		fmt.Fprintf(&b, "| %s | %d | %.1f | %.2f | %.2f | %.2f |\n",
-			r.Key, r.TradeCount, r.WinRate, r.TotalPnL, r.ProfitFactor, r.AvgPnLR)
-	}
-	return b.String()
-}
-
 func orDash(s string) string {
 	if s == "" {
 		return "—"
 	}
 	return s
-}
-
-// RenderPromptMarkdown оборачивает промпт в markdown-файл для скачивания.
-func RenderPromptMarkdown(bundle models.AIExportBundle) string {
-	var buf bytes.Buffer
-	buf.WriteString("# Промпт для анализа стратегии BCS Trading Bot\n\n")
-	buf.WriteString("Скопируйте блок ниже в ChatGPT / Claude / другой ИИ.\n\n")
-	buf.WriteString("---\n\n")
-	buf.WriteString(bundle.Prompt)
-	buf.WriteString("\n\n---\n\n")
-	buf.WriteString("> Для полного списка сделок приложите файл `export-ai.json` из админки.\n")
-	return buf.String()
 }

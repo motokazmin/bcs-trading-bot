@@ -339,19 +339,22 @@ go run ./cmd/admin -db data/trades.db -listen 127.0.0.1:8090
 |---|---|
 | `/` | Дашборд, сравнение experiment_id |
 | `/trades` | Таблица сделок |
-| `/export` | Выгрузка для ИИ, предпросмотр промпта |
-| `GET /api/export/ai` | **Пакет для ИИ** — JSON с данными + поле `prompt` |
-| `GET /api/export/prompt` | Промпт в Markdown |
-| `GET /api/export/trades.csv` | Сделки в CSV |
+| `/export` | Экспорт для ИИ: промпт + JSON с данными |
+| `GET /api/prompt?mode=summary\|detailed` | Текст промпта для копирования |
+| `GET /api/export/data?mode=summary\|detailed` | JSON с данными (`data-summary.json` / `data-trades.json`) |
 
 ### Как анализировать с ИИ
 
 1. Накопите сделки ботом (`configs/experiments-multi.yaml` и т.п.).
-2. В админке задайте фильтры (период, эксперимент) → скачайте **export-ai.json**.
-3. Скопируйте поле `prompt` из JSON (или кнопку «Копировать промпт» на `/export`) в ChatGPT / Claude.
-4. При необходимости приложите весь JSON-файл — в нём summary, разбивки и полный список сделок по экспериментам.
+2. В админке задайте фильтры → откройте `/export`.
+3. Выберите вариант:
+   - **Краткий** — метрики и сравнение экспериментов (`data-summary.json`);
+   - **Подробный** — то же + список сделок (`data-trades.json`).
+4. Скопируйте промпт → вставьте в ChatGPT / Claude → прикрепите соответствующий JSON.
 
-Шаблон промпта: `internal/admin/prompts/strategy_analysis.md` — просит ИИ сравнить эксперименты, диагностировать причины убытков и предложить следующий пакет A/B тестов в формате YAML.
+Промпт содержит только инструкции; данные — в приложенном файле (без дублирования).
+
+Шаблоны: `internal/admin/prompts/strategy_summary.md`, `strategy_detailed.md`.
 
 ---
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"bcs-trading-bot/pkg/logx"
@@ -139,7 +140,19 @@ func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[st
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			logx.WS("рыночные данные: %v, переподключение через %s", err, backoff)
+
+			if isUnauthorizedWSError(err) {
+				logx.WS("токен протух, переавторизация...")
+				if authErr := c.Connect(ctx); authErr != nil {
+					logx.WS("переавторизация не удалась: %v, backoff %s", authErr, backoff)
+				} else {
+					logx.WS("переавторизация успешна, переподключение")
+					backoff = time.Second
+					continue
+				}
+			} else {
+				logx.WS("рыночные данные: %v, переподключение через %s", err, backoff)
+			}
 		} else {
 			backoff = time.Second
 		}
@@ -213,6 +226,22 @@ func (c *BCSClient) runMarketDataSession(ctx context.Context, tickers []string, 
 		return conn.SetReadDeadline(time.Now().Add(wsReadDeadline(time.Now())))
 	})
 
+	pingTicker := time.NewTicker(30 * time.Second)
+	defer pingTicker.Stop()
+
+	go func() {
+		for {
+			select {
+			case <-pingTicker.C:
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -233,6 +262,10 @@ func (c *BCSClient) runMarketDataSession(ctx context.Context, tickers []string, 
 			return err
 		}
 	}
+}
+
+func isUnauthorizedWSError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "HTTP 401")
 }
 
 func (c *BCSClient) dispatchMarketMessage(ctx context.Context, raw []byte, routes map[string][]WorkerRoutes) error {

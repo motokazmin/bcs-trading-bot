@@ -51,30 +51,67 @@ func seedTrades(t *testing.T) *sqlite.Store {
 	return store
 }
 
-func TestBuildAIExport(t *testing.T) {
+func TestBuildExportSummary(t *testing.T) {
 	store := seedTrades(t)
 	defer store.Close()
 
 	svc := NewExportService(store)
-	bundle, err := svc.BuildAIExport(context.Background(), models.TradeFilter{})
+	data, err := svc.BuildExportData(context.Background(), models.TradeFilter{}, ExportModeSummary)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(bundle.Experiments) != 2 {
-		t.Fatalf("experiments: got %d, want 2", len(bundle.Experiments))
+	if data.ExportMode != "summary" {
+		t.Fatalf("mode: %q", data.ExportMode)
 	}
-	if bundle.Prompt == "" {
-		t.Fatal("prompt is empty")
+	if len(data.Experiments) != 2 {
+		t.Fatalf("experiments: got %d, want 2", len(data.Experiments))
 	}
-	if !strings.Contains(bundle.Prompt, "baseline") {
-		t.Fatal("prompt should mention baseline experiment")
+	for _, exp := range data.Experiments {
+		if len(exp.Trades) != 0 {
+			t.Fatalf("summary should not include trades for %s", exp.ExperimentID)
+		}
 	}
-	if !strings.Contains(bundle.Prompt, "Momentum Breakout") {
-		t.Fatal("prompt should include strategy context")
+
+	prompt, err := svc.BuildPrompt(context.Background(), models.TradeFilter{}, ExportModeSummary)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if bundle.ExportVersion != "1.0" {
-		t.Fatalf("export version: %q", bundle.ExportVersion)
+	if !strings.Contains(prompt, "data-summary.json") {
+		t.Fatal("summary prompt should reference data-summary.json")
+	}
+	if strings.Contains(prompt, `"trade_count"`) {
+		t.Fatal("prompt should not embed JSON data")
+	}
+}
+
+func TestBuildExportDetailed(t *testing.T) {
+	store := seedTrades(t)
+	defer store.Close()
+
+	svc := NewExportService(store)
+	data, err := svc.BuildExportData(context.Background(), models.TradeFilter{}, ExportModeDetailed)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if data.ExportMode != "detailed" {
+		t.Fatalf("mode: %q", data.ExportMode)
+	}
+	totalTrades := 0
+	for _, exp := range data.Experiments {
+		totalTrades += len(exp.Trades)
+	}
+	if totalTrades != 2 {
+		t.Fatalf("trades: got %d, want 2", totalTrades)
+	}
+
+	prompt, err := svc.BuildPrompt(context.Background(), models.TradeFilter{}, ExportModeDetailed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(prompt, "data-trades.json") {
+		t.Fatal("detailed prompt should reference data-trades.json")
 	}
 }
 

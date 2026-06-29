@@ -68,7 +68,7 @@ type ExperimentReport struct {
 	ByCloseReason []BreakdownRow `json:"by_close_reason"`
 	DailyPnL     []DailyPnLRow  `json:"daily_pnl"`
 	EquityCurve  []EquityPoint  `json:"equity_curve"`
-	Trades       []ClosedTrade  `json:"trades"`
+	Trades       []ClosedTrade  `json:"trades,omitempty"`
 }
 
 // StrategyContext — описание стратегии для ИИ.
@@ -84,16 +84,16 @@ type StrategyContext struct {
 	ExperimentNote    string `json:"experiment_note"`
 }
 
-// AIExportBundle — пакет для выгрузки и анализа ИИ.
-type AIExportBundle struct {
+// ExportData — данные для вложения в ИИ (без промпта).
+type ExportData struct {
 	ExportVersion   string             `json:"export_version"`
+	ExportMode      string             `json:"export_mode"`
 	ExportedAt      time.Time          `json:"exported_at"`
 	Filters         TradeFilter        `json:"filters"`
 	DateRange       DateRange          `json:"date_range"`
 	StrategyContext StrategyContext    `json:"strategy_context"`
 	Experiments     []ExperimentReport `json:"experiments"`
 	Comparison      []BreakdownRow     `json:"comparison"`
-	Prompt          string             `json:"prompt"`
 }
 
 // DateRange — фактический диапазон дат в выборке.

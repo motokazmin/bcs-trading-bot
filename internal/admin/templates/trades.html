@@ -6,8 +6,10 @@
 <table>
   <thead>
     <tr>
-      <th>Эксперимент</th><th>Тикер</th><th>Напр.</th><th>Вход</th><th>Выход</th>
-      <th>PnL</th><th>R</th><th>Причина</th><th>Дата</th>
+      <th>Эксперимент</th><th>Тикер</th><th>Напр.</th>
+      <th>Открыта</th><th>Закрыта</th><th>Удерж.</th>
+      <th>Цена вх.</th><th>Цена вых.</th>
+      <th>PnL</th><th>R</th><th>Причина</th>
     </tr>
   </thead>
   <tbody>
@@ -16,15 +18,17 @@
       <td><code>{{.ExperimentID}}</code></td>
       <td>{{.Ticker}}</td>
       <td>{{.Direction}}</td>
+      <td>{{fmtTime .OpenedAt}}</td>
+      <td>{{fmtTime .ClosedAt}}</td>
+      <td>{{fmtHold .HoldSeconds}}</td>
       <td>{{printf "%.2f" .EntryPrice}}</td>
       <td>{{printf "%.2f" .ExitPrice}}</td>
       <td class="{{pnlClass .GrossPnL}}">{{fmtMoney .GrossPnL}}</td>
       <td>{{printf "%.2f" .PnLR}}</td>
       <td>{{.CloseReason}}</td>
-      <td>{{.TradingDate}}</td>
     </tr>
     {{else}}
-    <tr><td colspan="9" class="muted">Нет сделок</td></tr>
+    <tr><td colspan="11" class="muted">Нет сделок</td></tr>
     {{end}}
   </tbody>
 </table>

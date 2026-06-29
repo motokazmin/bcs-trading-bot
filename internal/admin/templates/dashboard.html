@@ -8,6 +8,7 @@
   <div class="card"><div class="label">Total PnL</div><div class="value {{pnlClass .Summary.TotalPnL}}">{{fmtMoney .Summary.TotalPnL}} ₽</div></div>
   <div class="card"><div class="label">Profit factor</div><div class="value">{{printf "%.2f" .Summary.ProfitFactor}}</div></div>
   <div class="card"><div class="label">Avg R</div><div class="value">{{printf "%.2f" .Summary.AvgPnLR}}</div></div>
+  <div class="card"><div class="label">Ср. удержание</div><div class="value">{{fmtHoldSec .Summary.AvgHoldSec}}</div></div>
   <div class="card"><div class="label">Период</div><div class="value small">{{.DateRange.From}} — {{.DateRange.To}}</div></div>
 </section>
 
