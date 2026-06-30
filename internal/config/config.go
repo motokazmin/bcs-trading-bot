@@ -47,20 +47,24 @@ type Config struct {
 
 // ExperimentConfig — изолированный виртуальный счёт с собственными параметрами стратегии и риска.
 type ExperimentConfig struct {
-	ID       string         `yaml:"id"`
-	Name     string         `yaml:"name"`
-	Strategy StrategyConfig `yaml:"strategy"`
-	Risk     RiskConfig     `yaml:"risk"`
-	Virtual  VirtualConfig  `yaml:"virtual"`
+	ID                string         `yaml:"id"`
+	Name              string         `yaml:"name"`
+	Tickers           []TickerConfig `yaml:"tickers"`
+	EntryDelayMinutes *int           `yaml:"entry_delay_minutes"`
+	Strategy          StrategyConfig `yaml:"strategy"`
+	Risk              RiskConfig     `yaml:"risk"`
+	Virtual           VirtualConfig  `yaml:"virtual"`
 }
 
 // ResolvedExperiment — нормализованный эксперимент, готовый к запуску воркеров.
 type ResolvedExperiment struct {
-	ID       string
-	Name     string
-	Strategy StrategyConfig
-	Risk     RiskConfig
-	Virtual  VirtualConfig
+	ID                string
+	Name              string
+	Tickers           []TickerConfig
+	EntryDelayMinutes *int
+	Strategy          StrategyConfig
+	Risk              RiskConfig
+	Virtual           VirtualConfig
 }
 
 type StorageConfig struct {
@@ -110,12 +114,13 @@ type RiskConfig struct {
 }
 
 type StrategyConfig struct {
-	Lookback      int     `yaml:"lookback"`
-	StopMode      string  `yaml:"stop_mode"`
-	ATRPeriod     int     `yaml:"atr_period"`
-	ATRMultiplier float64 `yaml:"atr_multiplier"`
-	RewardRatio   float64 `yaml:"reward_ratio"`
-	RangeUseCap   *bool   `yaml:"range_use_cap"`
+	Lookback                  int     `yaml:"lookback"`
+	StopMode                  string  `yaml:"stop_mode"`
+	ATRPeriod                 int     `yaml:"atr_period"`
+	ATRMultiplier             float64 `yaml:"atr_multiplier"`
+	RewardRatio               float64 `yaml:"reward_ratio"`
+	RangeUseCap               *bool   `yaml:"range_use_cap"`
+	MaxTradesPerTickerPerDay  int     `yaml:"max_trades_per_ticker_per_day"`
 }
 
 type VirtualConfig struct {
@@ -123,9 +128,10 @@ type VirtualConfig struct {
 }
 
 type SessionConfig struct {
-	Timezone        string `yaml:"timezone"`
-	EODCloseTime    string `yaml:"eod_close_time"`
-	SessionOpenTime string `yaml:"session_open_time"`
+	Timezone          string `yaml:"timezone"`
+	EODCloseTime      string `yaml:"eod_close_time"`
+	SessionOpenTime   string `yaml:"session_open_time"`
+	EntryDelayMinutes int    `yaml:"entry_delay_minutes"`
 }
 
 // TickerSymbols возвращает список символов тикеров для логирования.
@@ -157,11 +163,61 @@ func (c *Config) ResolvedExperiments() []ResolvedExperiment {
 	out := make([]ResolvedExperiment, len(c.Experiments))
 	for i, exp := range c.Experiments {
 		out[i] = ResolvedExperiment{
-			ID:       exp.ID,
-			Name:     exp.Name,
-			Strategy: exp.Strategy,
-			Risk:     exp.Risk,
-			Virtual:  exp.Virtual,
+			ID:                exp.ID,
+			Name:              exp.Name,
+			Tickers:           exp.Tickers,
+			EntryDelayMinutes: exp.EntryDelayMinutes,
+			Strategy:          exp.Strategy,
+			Risk:              exp.Risk,
+			Virtual:           exp.Virtual,
+		}
+	}
+	return out
+}
+
+// TickersForExperiment возвращает список тикеров эксперимента (свой или корневой).
+func (c *Config) TickersForExperiment(exp ResolvedExperiment) []TickerConfig {
+	if len(exp.Tickers) == 0 {
+		return c.Tickers
+	}
+	rootBySymbol := make(map[string]TickerConfig, len(c.Tickers))
+	for _, t := range c.Tickers {
+		rootBySymbol[t.Symbol] = t
+	}
+	out := make([]TickerConfig, len(exp.Tickers))
+	for i, t := range exp.Tickers {
+		if t.StepPriceValue <= 0 {
+			if root, ok := rootBySymbol[t.Symbol]; ok {
+				out[i] = root
+				continue
+			}
+			t.StepPriceValue = defaultStepPriceValue
+		}
+		out[i] = t
+	}
+	return out
+}
+
+// SessionForExperiment возвращает сессию с учётом переопределений эксперимента.
+func (c *Config) SessionForExperiment(exp ResolvedExperiment) SessionConfig {
+	s := c.Session
+	if exp.EntryDelayMinutes != nil {
+		s.EntryDelayMinutes = *exp.EntryDelayMinutes
+	}
+	return s
+}
+
+// AllTickerSymbols возвращает объединение тикеров всех экспериментов (для WebSocket).
+func (c *Config) AllTickerSymbols() []string {
+	seen := make(map[string]struct{})
+	var out []string
+	for _, exp := range c.ResolvedExperiments() {
+		for _, t := range c.TickersForExperiment(exp) {
+			if _, ok := seen[t.Symbol]; ok {
+				continue
+			}
+			seen[t.Symbol] = struct{}{}
+			out = append(out, t.Symbol)
 		}
 	}
 	return out
@@ -285,6 +341,11 @@ func (c *Config) applyDefaults() {
 		if exp.Virtual.Balance <= 0 {
 			exp.Virtual.Balance = exp.Risk.Deposit
 		}
+		for j := range exp.Tickers {
+			if exp.Tickers[j].StepPriceValue <= 0 {
+				exp.Tickers[j].StepPriceValue = defaultStepPriceValue
+			}
+		}
 	}
 }
 
@@ -365,6 +426,11 @@ func (c *Config) validate() error {
 			}
 			if exp.Risk.MaxDailyLoss <= 0 {
 				return fmt.Errorf("experiments.%s: risk.max_daily_loss должен быть > 0", exp.ID)
+			}
+			for _, t := range exp.Tickers {
+				if t.Symbol == "" {
+					return fmt.Errorf("experiments.%s: пустой тикер", exp.ID)
+				}
 			}
 		}
 		return nil

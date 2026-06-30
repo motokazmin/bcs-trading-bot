@@ -1,0 +1,35 @@
+# atr-1 на lean universe: SBER, ROSN, NVTK
+# Запуск: go run ./cmd/bot -config configs/experiments-atr1-lean.yaml
+
+trading_mode: virtual
+
+tickers:
+  - SBER
+  - ROSN
+  - NVTK
+
+class_code: TQBR
+candle_timeframe: M5
+
+session:
+  timezone: Europe/Moscow
+  eod_close_time: "18:40"
+  session_open_time: "10:00"
+
+storage:
+  path: data/trades.db
+
+experiments:
+  - id: atr-1-lean
+    name: "ATR × 1.0 — lean universe"
+    strategy:
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 1.0
+    risk:
+      deposit: 200000
+      max_daily_loss: 4000
+      risk_per_trade_percent: 0.5
+    virtual:
+      balance: 200000

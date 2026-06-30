@@ -102,6 +102,8 @@ func closeReasonTag(reason string) string {
 		return tag("TP", green+bold)
 	case "EOD":
 		return tag("EOD", yellow+bold)
+	case "SMOKE":
+		return tag("SMOKE", cyan+bold)
 	default:
 		return tag(reason, yellow)
 	}

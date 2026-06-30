@@ -8,7 +8,7 @@ import (
 )
 
 func TestSessionClockEOD(t *testing.T) {
-	clock, err := engine.NewSessionClock("Europe/Moscow", "18:40", "10:00")
+	clock, err := engine.NewSessionClock("Europe/Moscow", "18:40", "10:00", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,5 +29,24 @@ func TestSessionClockEOD(t *testing.T) {
 	}
 	if !clock.ShouldForceClose(atEOD) {
 		t.Fatal("EOD should trigger at 18:40")
+	}
+}
+
+func TestSessionClockEntryDelay(t *testing.T) {
+	clock, err := engine.NewSessionClock("Europe/Moscow", "18:40", "10:00", 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	loc, _ := time.LoadLocation("Europe/Moscow")
+
+	atOpen := time.Date(2026, 6, 24, 10, 15, 0, 0, loc)
+	if clock.EntriesAllowed(atOpen) {
+		t.Fatal("entries should be blocked at 10:15 with 30 min delay")
+	}
+
+	atDelayEnd := time.Date(2026, 6, 24, 10, 30, 0, 0, loc)
+	if !clock.EntriesAllowed(atDelayEnd) {
+		t.Fatal("entries should be allowed at 10:30 with 30 min delay")
 	}
 }

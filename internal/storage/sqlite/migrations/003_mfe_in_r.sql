@@ -1,0 +1,1 @@
+ALTER TABLE closed_trades ADD COLUMN mfe_in_r REAL NOT NULL DEFAULT 0;

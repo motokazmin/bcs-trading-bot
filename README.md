@@ -109,6 +109,14 @@ go run ./cmd/bot -config configs/experiments-multi.yaml
 
 3 эксперимента × 10 тикеров = 30 воркеров, один WebSocket. Сделки пишутся в `data/trades.db` с полем `experiment_id`.
 
+### 5a. Все запланированные опыты (atr-1/atr-2 lean + delayed)
+
+```bash
+go run ./cmd/bot -config configs/experiments-all.yaml
+```
+
+3 эксперимента, 16 воркеров: lean universe (SBER, ROSN, NVTK) для atr-1/atr-2 и полный universe для atr-2-delayed. У эксперимента можно задать свои `tickers` и `entry_delay_minutes`.
+
 ### 6. Виртуальная торговля — фьючерсы
 
 ```bash
@@ -121,6 +129,22 @@ go run ./cmd/bot -config configs/virtual-futures.yaml
 # нужен refresh token со скоупом trade-api-write
 go run ./cmd/bot -config configs/real-stocks.yaml
 ```
+
+### 7a. Быстрая проверка перед сессией (smoke-test)
+
+Проверяет OAuth, WebSocket и виртуальное исполнение **без ожидания lookback** и **без записи в БД**:
+
+```bash
+go run ./cmd/bot -config configs/experiments-all.yaml -smoke-test
+```
+
+Бот ждёт первую котировку по первому тикеру из конфига, открывает и сразу закрывает 1 лот в `VirtualExecutor`, затем завершается. Работает только с `trading_mode: virtual`. При успехе в логе:
+
+```
+Smoke-test: OK — OAuth, WebSocket и виртуальное исполнение работают
+```
+
+После этого запускайте основную сессию без флага `-smoke-test`.
 
 ### 8. Локальный конфиг
 
@@ -161,7 +185,7 @@ go run ./cmd/bot
 | `[WS]` | WebSocket: подписка, реконнект, ошибки сервера |
 | `[OPEN]` | Позиция открыта |
 | `[TP]` / `[SL]` / `[EOD]` | Позиция закрыта по тейку, стопу или концу дня |
-| `[TRAIL]` | Трейлинг-стоп подтянул SL (+1R / +2R) |
+| `[TRAIL]` | Трейлинг-стоп подтянул SL (+1R / +2R / непрерывный MFE−1R) |
 | `[SKIP]` | Сигнал отклонён риск-менеджером |
 | `[ERR]` | Ошибка исполнения или сохранения |
 | `[WARN]` | Предупреждение (не фатально) |
@@ -284,6 +308,10 @@ go run ./cmd/bot
 | `configs/virtual-sber.yaml` | Paper trading, один тикер SBER |
 | `configs/virtual-multi.yaml` | Paper trading, топ-10 акций TQBR |
 | `configs/experiments-multi.yaml` | A/B: baseline (range) vs ATR×2 vs ATR×3, 30 воркеров |
+| `configs/experiments-atr2-lean.yaml` | ATR×2 на lean universe (SBER, ROSN, NVTK) |
+| `configs/experiments-atr1-lean.yaml` | ATR×1 на lean universe — сравнение с atr-2-lean |
+| `configs/experiments-atr2-delayed.yaml` | ATR×2, полный universe, вход с 10:30 МСК |
+| `configs/experiments-all.yaml` | **Все опыты разом**: atr-2-lean + atr-1-lean + atr-2-delayed (16 воркеров) |
 | `configs/virtual-futures.yaml` | Paper trading, фьючерсы SPBFUT |
 | `configs/real-stocks.yaml` | Реальные ордера, акции TQBR |
 
@@ -306,13 +334,17 @@ go run ./cmd/bot
 | `strategy.atr_period` | `14` | Период ATR (для `stop_mode: atr`) |
 | `strategy.atr_multiplier` | `2.0` | Множитель ATR для ширины стопа |
 | `strategy.range_use_cap` | `true` | Ограничить range-стоп cap 0.5% от цены входа |
+| `strategy.max_trades_per_ticker_per_day` | `0` | Лимит входов на тикер в день (`0` — без лимита) |
 | `virtual.balance` | = `risk.deposit` | Стартовый баланс virtual-счёта **на эксперимент** |
 | `storage.path` | `data/trades.db` | SQLite с закрытыми сделками |
 | `experiments[]` | — | Параллельные virtual-счета с разными `strategy` / `risk` (только `virtual`) |
 | `experiments[].id` | — | Идентификатор (`experiment_id` в БД и в логе `id/ticker`) |
+| `experiments[].tickers` | корневой `tickers` | Подмножество тикеров для этого эксперимента |
+| `experiments[].entry_delay_minutes` | корневой `session.entry_delay_minutes` | Задержка входов для эксперимента (минуты) |
 | `session.timezone` | `Europe/Moscow` | Часовой пояс для EOD-логики |
 | `session.eod_close_time` | `23:40` | Принудительное закрытие позиций (ЧЧ:ММ) |
 | `session.session_open_time` | `10:00` | Начало торгового дня (ЧЧ:ММ); в этот момент сбрасывается дневной счётчик убытков |
+| `session.entry_delay_minutes` | `0` | Задержка входов после открытия сессии (минуты); `30` → входы с 10:30 при open 10:00 |
 
 При нескольких тикерах `risk.deposit` и `risk.max_daily_loss` **делятся поровну** между воркерами одного эксперимента. При секции `experiments` корневые `risk` / `strategy` / `virtual` игнорируются — параметры задаются внутри каждого элемента `experiments[]`.
 
@@ -384,7 +416,8 @@ type OrderExecutor interface {
 
 - свой `MomentumBreakout` и `RiskManager`;
 - каналы свечей и тиков (котировки);
-- мониторинг SL/TP на каждом тике, трейлинг +1R / +2R;
+- мониторинг SL/TP на каждом тике, трейлинг +1R / +2R / непрерывный SL = MFE − 1R после +2R;
+- опциональная задержка входа `session.entry_delay_minutes` и лимит `strategy.max_trades_per_ticker_per_day`;
 - принудительное закрытие в `session.eod_close_time`;
 - сброс дневного Circuit Breaker в `session.session_open_time`;
 - запись закрытых сделок в SQLite (`experiment_id`, `pnl_r`, …);
@@ -436,6 +469,10 @@ bcs-trading-bot/
 │   ├── virtual-sber.yaml
 │   ├── virtual-multi.yaml
 │   ├── experiments-multi.yaml
+│   ├── experiments-atr2-lean.yaml
+│   ├── experiments-atr1-lean.yaml
+│   ├── experiments-atr2-delayed.yaml
+│   ├── experiments-all.yaml
 │   ├── virtual-futures.yaml
 │   └── real-stocks.yaml
 ├── data/trades.db                     # SQLite (создаётся ботом)

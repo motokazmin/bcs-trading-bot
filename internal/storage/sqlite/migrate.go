@@ -13,6 +13,9 @@ func applyMigrations(db *sql.DB) error {
 	if err := applyMigration002(db); err != nil {
 		return fmt.Errorf("миграция 002: %w", err)
 	}
+	if err := applyMigration003(db); err != nil {
+		return fmt.Errorf("миграция 003: %w", err)
+	}
 	return nil
 }
 
@@ -29,6 +32,10 @@ func applyMigration002(db *sql.DB) error {
 		return fmt.Errorf("index experiment: %w", err)
 	}
 	return nil
+}
+
+func applyMigration003(db *sql.DB) error {
+	return addColumnIfMissing(db, "closed_trades", "mfe_in_r", `REAL NOT NULL DEFAULT 0`)
 }
 
 func addColumnIfMissing(db *sql.DB, table, column, definition string) error {

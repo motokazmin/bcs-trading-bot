@@ -26,6 +26,7 @@ type openPosition struct {
 	takeProfit        float64
 	rDistance         float64
 	trailStage        int
+	mfePrice          float64
 	openedAt          time.Time
 }
 
@@ -51,8 +52,10 @@ type TickerWorker struct {
 	tickChan         chan models.Tick
 	position         *openPosition
 	lastPrice        float64
-	eodCloseDate     string
-	riskResetDate    string
+	eodCloseDate              string
+	riskResetDate             string
+	tradesToday               int
+	maxTradesPerTickerPerDay  int
 }
 
 // NewTickerWorker создаёт изолированный воркер для тикера.
@@ -66,7 +69,7 @@ func NewTickerWorker(
 	tradingMode, runID, classCode, candleTimeframe string,
 	store interfaces.TradeStore,
 ) (*TickerWorker, error) {
-	clock, err := NewSessionClock(sessionCfg.Timezone, sessionCfg.EODCloseTime, sessionCfg.SessionOpenTime)
+	clock, err := NewSessionClock(sessionCfg.Timezone, sessionCfg.EODCloseTime, sessionCfg.SessionOpenTime, sessionCfg.EntryDelayMinutes)
 	if err != nil {
 		return nil, err
 	}
@@ -99,9 +102,10 @@ func NewTickerWorker(
 		riskPerTradePct:  exp.Risk.RiskPerTradePercent,
 		depositPerTicker: deposit,
 		strategy:         strategy.NewMomentumBreakout(strategyOpts),
-		riskMgr:          risk.NewRiskManager(deposit, maxLoss, exp.Risk.RiskPerTradePercent, stepPriceValue),
-		session:          clock,
-		store:            store,
+		riskMgr:                  risk.NewRiskManager(deposit, maxLoss, exp.Risk.RiskPerTradePercent, stepPriceValue),
+		session:                  clock,
+		store:                    store,
+		maxTradesPerTickerPerDay: exp.Strategy.MaxTradesPerTickerPerDay,
 		candleChan:       make(chan models.Candle, 64),
 		tickChan:         make(chan models.Tick, 256),
 	}, nil
@@ -168,6 +172,10 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		return
 	}
 
+	if w.maxTradesPerTickerPerDay > 0 && w.tradesToday >= w.maxTradesPerTickerPerDay {
+		return
+	}
+
 	signal := w.strategy.OnCandle(candle)
 	if signal == nil {
 		return
@@ -193,6 +201,7 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 	}
 
 	logx.TradeOpen(w.label, signal.Direction, signal.Quantity, signal.Price, signal.StopLoss, signal.TakeProfit)
+	w.tradesToday++
 
 	w.position = &openPosition{
 		direction:         signal.Direction,
@@ -204,6 +213,7 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		takeProfit:        signal.TakeProfit,
 		rDistance:         math.Abs(signal.Price - signal.StopLoss),
 		trailStage:        0,
+		mfePrice:          signal.Price,
 		openedAt:          candle.Timestamp,
 	}
 }
@@ -213,6 +223,7 @@ func (w *TickerWorker) checkSLTP(executor interfaces.OrderExecutor, price float6
 		return
 	}
 
+	updateMFE(w.position, price)
 	w.updateTrailingStop(price)
 
 	pos := w.position
@@ -250,7 +261,37 @@ func (w *TickerWorker) updateTrailingStop(price float64) {
 	}
 }
 
-// applyTrailingStop подтягивает SL при достижении +1R и +2R. SL никогда не откатывается назад.
+func updateMFE(pos *openPosition, price float64) {
+	if pos == nil {
+		return
+	}
+	switch pos.direction {
+	case "BUY":
+		if price > pos.mfePrice {
+			pos.mfePrice = price
+		}
+	case "SELL":
+		if price < pos.mfePrice {
+			pos.mfePrice = price
+		}
+	}
+}
+
+func calcMFEinR(pos *openPosition) float64 {
+	if pos == nil || pos.rDistance <= 0 {
+		return 0
+	}
+	switch pos.direction {
+	case "BUY":
+		return (pos.mfePrice - pos.entryPrice) / pos.rDistance
+	case "SELL":
+		return (pos.entryPrice - pos.mfePrice) / pos.rDistance
+	default:
+		return 0
+	}
+}
+
+// applyTrailingStop подтягивает SL при +1R и +2R; после +2R — непрерывный трейлинг SL = MFE − 1R.
 func applyTrailingStop(pos *openPosition, price, stepPriceValue float64) {
 	if pos == nil || pos.rDistance <= 0 || stepPriceValue <= 0 {
 		return
@@ -290,6 +331,21 @@ func applyTrailingStop(pos *openPosition, price, stepPriceValue float64) {
 			pos.trailStage = 2
 		}
 	}
+
+	if pos.trailStage >= 2 {
+		switch pos.direction {
+		case "BUY":
+			newSL := pos.mfePrice - pos.rDistance
+			if newSL > pos.stopLoss {
+				pos.stopLoss = newSL
+			}
+		case "SELL":
+			newSL := pos.mfePrice + pos.rDistance
+			if newSL < pos.stopLoss {
+				pos.stopLoss = newSL
+			}
+		}
+	}
 }
 
 func (w *TickerWorker) checkEOD(executor interfaces.OrderExecutor, price float64) {
@@ -325,6 +381,7 @@ func (w *TickerWorker) checkDailyReset() {
 	}
 
 	w.riskMgr.ResetDaily()
+	w.tradesToday = 0
 	w.riskResetDate = today
 	logx.DailyReset(w.label)
 }
@@ -389,6 +446,7 @@ func (w *TickerWorker) closePosition(executor interfaces.OrderExecutor, price fl
 		RDistance:         pos.rDistance,
 		GrossPnL:          pnl,
 		PnLR:              pnlR,
+		MFEinR:            calcMFEinR(pos),
 		CloseReason:       reason,
 		TrailStage:        pos.trailStage,
 		IsWinner:          pnl > 0,

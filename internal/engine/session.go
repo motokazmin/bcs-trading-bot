@@ -9,12 +9,13 @@ import (
 
 // SessionClock определяет торговое окно и момент принудительного закрытия позиций.
 type SessionClock struct {
-	loc         *time.Location
-	eodMinutes  int
-	openMinutes int
+	loc               *time.Location
+	eodMinutes        int
+	openMinutes       int
+	entryDelayMinutes int
 }
 
-func NewSessionClock(timezone, eodClose, sessionOpen string) (*SessionClock, error) {
+func NewSessionClock(timezone, eodClose, sessionOpen string, entryDelayMinutes int) (*SessionClock, error) {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		return nil, fmt.Errorf("часовой пояс %q: %w", timezone, err)
@@ -30,9 +31,10 @@ func NewSessionClock(timezone, eodClose, sessionOpen string) (*SessionClock, err
 	}
 
 	return &SessionClock{
-		loc:         loc,
-		eodMinutes:  eodMinutes,
-		openMinutes: openMinutes,
+		loc:               loc,
+		eodMinutes:        eodMinutes,
+		openMinutes:       openMinutes,
+		entryDelayMinutes: entryDelayMinutes,
 	}, nil
 }
 
@@ -64,13 +66,13 @@ func (s *SessionClock) today(t time.Time) string {
 	return t.In(s.loc).Format("2006-01-02")
 }
 
-// EntriesAllowed возвращает false после eod_close_time и до session_open_time.
+// EntriesAllowed возвращает false после eod_close_time, до session_open_time + entry_delay и до открытия сессии.
 func (s *SessionClock) EntriesAllowed(now time.Time) bool {
 	m := s.nowMinutes(now)
 	if m >= s.eodMinutes {
 		return false
 	}
-	if m < s.openMinutes {
+	if m < s.openMinutes+s.entryDelayMinutes {
 		return false
 	}
 	return true

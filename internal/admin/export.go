@@ -72,7 +72,7 @@ func defaultStrategyContext() models.StrategyContext {
 		SignalLogic:    "Пробой high/low за lookback-1 свечей M5; вход лимитным ордером.",
 		RiskReward:     "Stop-Loss и Take-Profit в соотношении 1:3 (1R риск, 3R цель).",
 		RiskPerTrade:   "Размер лота из 0.5% депозита на тикер при срабатывании начального SL.",
-		TrailingStop:   "+1R → безубыток; +2R → фиксация +1R; выход по SL/TP/EOD рыночным ордером.",
+		TrailingStop:   "+1R → безубыток; +2R → фиксация +1R; далее SL = MFE − 1R на каждом тике; выход по SL/TP/EOD.",
 		CircuitBreaker: "2% дневного убытка на эксперимент → блокировка новых входов до следующего дня.",
 		PnLNote:        "gross_pnl в рублях, комиссия не вычтена. pnl_r — результат в единицах R.",
 		ExperimentNote: "Параллельные experiment_id — разные virtual-счета на одних рыночных данных (stop_mode: range | atr).",

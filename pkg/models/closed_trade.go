@@ -21,6 +21,7 @@ type ClosedTrade struct {
 	RDistance         float64
 	GrossPnL          float64
 	PnLR              float64
+	MFEinR            float64 `json:"mfe_in_r"`
 	CloseReason       string
 	TrailStage        int
 	IsWinner          bool

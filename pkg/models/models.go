@@ -11,6 +11,7 @@ const (
 	CloseReasonStopLoss   = "STOP_LOSS"
 	CloseReasonTakeProfit = "TAKE_PROFIT"
 	CloseReasonEOD        = "EOD"
+	CloseReasonSmoke      = "SMOKE"
 )
 
 type Candle struct {

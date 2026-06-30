@@ -70,6 +70,7 @@ func TestClosePositionSavesTrade(t *testing.T) {
 		takeProfit:        115,
 		rDistance:         5,
 		trailStage:        1,
+		mfePrice:          110,
 		openedAt:          openedAt,
 	}
 
@@ -105,5 +106,8 @@ func TestClosePositionSavesTrade(t *testing.T) {
 	}
 	if tr.TrailStage != 1 {
 		t.Fatalf("trail_stage: got %d", tr.TrailStage)
+	}
+	if tr.MFEinR != 2 {
+		t.Fatalf("mfe_in_r: got %.2f, want 2", tr.MFEinR)
 	}
 }

@@ -116,3 +116,56 @@ risk:
 		t.Fatalf("step_price_value: %f", cfg.Tickers[0].StepPriceValue)
 	}
 }
+
+func TestLoadExperimentsAtr2Lean(t *testing.T) {
+	cfg, err := config.Load("../../configs/experiments-atr2-lean.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Tickers) != 3 {
+		t.Fatalf("tickers: got %d, want 3", len(cfg.Tickers))
+	}
+	exp := cfg.ResolvedExperiments()[0]
+	if exp.ID != "atr-2-lean" || exp.Strategy.ATRMultiplier != 2.0 {
+		t.Fatalf("experiment: %+v", exp)
+	}
+}
+
+func TestLoadExperimentsAtr2Delayed(t *testing.T) {
+	cfg, err := config.Load("../../configs/experiments-atr2-delayed.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Session.EntryDelayMinutes != 30 {
+		t.Fatalf("entry_delay_minutes: got %d, want 30", cfg.Session.EntryDelayMinutes)
+	}
+	if len(cfg.Tickers) != 10 {
+		t.Fatalf("tickers: got %d, want 10", len(cfg.Tickers))
+	}
+}
+
+func TestLoadExperimentsAll(t *testing.T) {
+	cfg, err := config.Load("../../configs/experiments-all.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exps := cfg.ResolvedExperiments()
+	if len(exps) != 3 {
+		t.Fatalf("experiments: got %d, want 3", len(exps))
+	}
+	if len(cfg.AllTickerSymbols()) != 10 {
+		t.Fatalf("all tickers: got %d, want 10", len(cfg.AllTickerSymbols()))
+	}
+	if len(cfg.TickersForExperiment(exps[0])) != 3 {
+		t.Fatalf("atr-2-lean tickers: got %d, want 3", len(cfg.TickersForExperiment(exps[0])))
+	}
+	if cfg.SessionForExperiment(exps[0]).EntryDelayMinutes != 0 {
+		t.Fatalf("atr-2-lean delay: got %d, want 0", cfg.SessionForExperiment(exps[0]).EntryDelayMinutes)
+	}
+	if cfg.SessionForExperiment(exps[2]).EntryDelayMinutes != 30 {
+		t.Fatalf("atr-2-delayed delay: got %d, want 30", cfg.SessionForExperiment(exps[2]).EntryDelayMinutes)
+	}
+	if len(cfg.TickersForExperiment(exps[2])) != 10 {
+		t.Fatalf("atr-2-delayed tickers: got %d, want 10", len(cfg.TickersForExperiment(exps[2])))
+	}
+}

@@ -9,6 +9,7 @@ func TestApplyTrailingStopBuy(t *testing.T) {
 		stopLoss:   95,
 		rDistance:  5,
 		trailStage: 0,
+		mfePrice:   100,
 	}
 
 	applyTrailingStop(pos, 104, 1.0)
@@ -20,6 +21,7 @@ func TestApplyTrailingStopBuy(t *testing.T) {
 	}
 
 	applyTrailingStop(pos, 105, 1.0)
+	updateMFE(pos, 105)
 	if pos.trailStage != 1 {
 		t.Fatalf("stage at +1R: got %d, want 1", pos.trailStage)
 	}
@@ -29,11 +31,13 @@ func TestApplyTrailingStopBuy(t *testing.T) {
 
 	prevSL := pos.stopLoss
 	applyTrailingStop(pos, 108, 1.0)
+	updateMFE(pos, 108)
 	if pos.stopLoss != prevSL {
 		t.Fatalf("SL must not move backward: got %.2f, want %.2f", pos.stopLoss, prevSL)
 	}
 
 	applyTrailingStop(pos, 110, 1.0)
+	updateMFE(pos, 110)
 	if pos.trailStage != 2 {
 		t.Fatalf("stage at +2R: got %d, want 2", pos.trailStage)
 	}
@@ -50,6 +54,28 @@ func TestApplyTrailingStopBuy(t *testing.T) {
 	}
 }
 
+func TestApplyTrailingStopVariantCBuy(t *testing.T) {
+	pos := &openPosition{
+		direction:  "BUY",
+		entryPrice: 100,
+		stopLoss:   105,
+		rDistance:  5,
+		trailStage: 2,
+		mfePrice:   110,
+	}
+
+	updateMFE(pos, 115)
+	applyTrailingStop(pos, 115, 1.0)
+	if pos.stopLoss != 110 {
+		t.Fatalf("SL at +3R: got %.2f, want 110 (MFE-1R)", pos.stopLoss)
+	}
+
+	applyTrailingStop(pos, 108, 1.0)
+	if pos.stopLoss != 110 {
+		t.Fatalf("SL must not rollback on pullback: got %.2f, want 110", pos.stopLoss)
+	}
+}
+
 func TestApplyTrailingStopSell(t *testing.T) {
 	pos := &openPosition{
 		direction:  "SELL",
@@ -57,9 +83,11 @@ func TestApplyTrailingStopSell(t *testing.T) {
 		stopLoss:   105,
 		rDistance:  5,
 		trailStage: 0,
+		mfePrice:   100,
 	}
 
 	applyTrailingStop(pos, 95, 1.0)
+	updateMFE(pos, 95)
 	if pos.trailStage != 1 {
 		t.Fatalf("stage at +1R: got %d, want 1", pos.trailStage)
 	}
@@ -68,6 +96,7 @@ func TestApplyTrailingStopSell(t *testing.T) {
 	}
 
 	applyTrailingStop(pos, 90, 1.0)
+	updateMFE(pos, 90)
 	if pos.trailStage != 2 {
 		t.Fatalf("stage at +2R: got %d, want 2", pos.trailStage)
 	}
@@ -81,6 +110,40 @@ func TestApplyTrailingStopSell(t *testing.T) {
 	}
 }
 
+func TestApplyTrailingStopVariantCSell(t *testing.T) {
+	pos := &openPosition{
+		direction:  "SELL",
+		entryPrice: 100,
+		stopLoss:   95,
+		rDistance:  5,
+		trailStage: 2,
+		mfePrice:   90,
+	}
+
+	updateMFE(pos, 85)
+	applyTrailingStop(pos, 85, 1.0)
+	if pos.stopLoss != 90 {
+		t.Fatalf("SL at +3R: got %.2f, want 90 (MFE+1R)", pos.stopLoss)
+	}
+
+	applyTrailingStop(pos, 92, 1.0)
+	if pos.stopLoss != 90 {
+		t.Fatalf("SL must not rollback on pullback: got %.2f, want 90", pos.stopLoss)
+	}
+}
+
+func TestCalcMFEinR(t *testing.T) {
+	pos := &openPosition{
+		direction:  "BUY",
+		entryPrice: 100,
+		rDistance:  5,
+		mfePrice:   114,
+	}
+	if got := calcMFEinR(pos); got != 2.8 {
+		t.Fatalf("MFEinR: got %.2f, want 2.8", got)
+	}
+}
+
 func TestApplyTrailingStopFuturesStepPrice(t *testing.T) {
 	pos := &openPosition{
 		direction:  "BUY",
@@ -88,9 +151,11 @@ func TestApplyTrailingStopFuturesStepPrice(t *testing.T) {
 		stopLoss:   99,
 		rDistance:  1,
 		trailStage: 0,
+		mfePrice:   100,
 	}
 
 	applyTrailingStop(pos, 101, 1.2)
+	updateMFE(pos, 101)
 	if pos.trailStage != 1 {
 		t.Fatalf("stage at +1R: got %d, want 1", pos.trailStage)
 	}

@@ -1,0 +1,43 @@
+# atr-2 на полном universe + задержка входа 30 мин от открытия
+# Запуск: go run ./cmd/bot -config configs/experiments-atr2-delayed.yaml
+
+trading_mode: virtual
+
+tickers:
+  - SBER
+  - GAZP
+  - LKOH
+  - NVTK
+  - YNDX
+  - ROSN
+  - MGNT
+  - CHMF
+  - TATN
+  - MOEX
+
+class_code: TQBR
+candle_timeframe: M5
+
+session:
+  timezone: Europe/Moscow
+  eod_close_time: "18:40"
+  session_open_time: "10:00"
+  entry_delay_minutes: 30
+
+storage:
+  path: data/trades.db
+
+experiments:
+  - id: atr-2-delayed
+    name: "ATR × 2.0 — полный universe, вход с 10:30"
+    strategy:
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.0
+    risk:
+      deposit: 200000
+      max_daily_loss: 4000
+      risk_per_trade_percent: 0.5
+    virtual:
+      balance: 200000

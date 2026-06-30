@@ -53,7 +53,7 @@ const closedTradeSelectCols = `
 	direction, quantity,
 	entry_price, exit_price,
 	initial_stop_loss, initial_take_profit, final_stop_loss, r_distance,
-	gross_pnl, pnl_r,
+	gross_pnl, pnl_r, mfe_in_r,
 	close_reason, trail_stage, is_winner,
 	opened_at, closed_at, hold_seconds, trading_date,
 	candle_timeframe, lookback, risk_per_trade_pct, deposit_per_ticker
@@ -82,6 +82,7 @@ func scanClosedTrade(scanner interface {
 		rDistance        float64
 		grossPnL         float64
 		pnlR             float64
+		mfeInR           float64
 		closeReason      string
 		trailStage       int
 		isWinner         int
@@ -101,7 +102,7 @@ func scanClosedTrade(scanner interface {
 		&direction, &quantity,
 		&entryPrice, &exitPrice,
 		&initialStopLoss, &initialTakeProfit, &finalStopLoss, &rDistance,
-		&grossPnL, &pnlR,
+		&grossPnL, &pnlR, &mfeInR,
 		&closeReason, &trailStage, &isWinner,
 		&openedAt, &closedAt, &holdSeconds, &tradingDate,
 		&candleTimeframe, &lookback, &riskPerTradePct, &depositPerTicker,
@@ -137,6 +138,7 @@ func scanClosedTrade(scanner interface {
 		RDistance:         rDistance,
 		GrossPnL:          grossPnL,
 		PnLR:              pnlR,
+		MFEinR:            mfeInR,
 		CloseReason:       closeReason,
 		TrailStage:        trailStage,
 		IsWinner:          isWinner != 0,
