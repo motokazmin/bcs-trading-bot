@@ -46,7 +46,7 @@ func RunSmokeTest(ctx context.Context, client *bcs.BCSClient, ticker string, exe
 
 	cancel()
 
-	if err := runSmokeCycle(ticker, tick.Price, executor); err != nil {
+	if err := runSmokeCycle(ctx, ticker, tick.Price, executor); err != nil {
 		return err
 	}
 
@@ -54,7 +54,7 @@ func RunSmokeTest(ctx context.Context, client *bcs.BCSClient, ticker string, exe
 	return nil
 }
 
-func runSmokeCycle(ticker string, price float64, executor interfaces.OrderExecutor) error {
+func runSmokeCycle(ctx context.Context, ticker string, price float64, executor interfaces.OrderExecutor) error {
 	const qty = 1
 	risk := price * 0.01
 
@@ -67,7 +67,7 @@ func runSmokeCycle(ticker string, price float64, executor interfaces.OrderExecut
 		TakeProfit: price + 3*risk,
 		OrderType:  models.OrderTypeLimit,
 	}
-	if err := executor.ExecuteOrder(open); err != nil {
+	if err := executor.ExecuteOrder(ctx, open); err != nil {
 		return fmt.Errorf("smoke open: %w", err)
 	}
 	logx.TradeOpen(ticker, open.Direction, qty, price, open.StopLoss, open.TakeProfit)
@@ -80,7 +80,7 @@ func runSmokeCycle(ticker string, price float64, executor interfaces.OrderExecut
 		OrderType:   models.OrderTypeMarket,
 		CloseReason: models.CloseReasonSmoke,
 	}
-	if err := executor.ExecuteOrder(close); err != nil {
+	if err := executor.ExecuteOrder(ctx, close); err != nil {
 		return fmt.Errorf("smoke close: %w", err)
 	}
 	logx.TradeClose(ticker, models.CloseReasonSmoke, price, 0, 0)

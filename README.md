@@ -335,6 +335,8 @@ go run ./cmd/bot
 | `strategy.atr_multiplier` | `2.0` | Множитель ATR для ширины стопа |
 | `strategy.range_use_cap` | `true` | Ограничить range-стоп cap 0.5% от цены входа |
 | `strategy.max_trades_per_ticker_per_day` | `0` | Лимит входов на тикер в день (`0` — без лимита) |
+| `strategy.volume_filter` | `false` | Фильтр по объёму: вход только при объёме свечи > `volume_min_ratio` × средний объём окна |
+| `strategy.volume_min_ratio` | `1.5` | Множитель к среднему объёму (при `volume_filter: true`) |
 | `virtual.balance` | = `risk.deposit` | Стартовый баланс virtual-счёта **на эксперимент** |
 | `storage.path` | `data/trades.db` | SQLite с закрытыми сделками |
 | `experiments[]` | — | Параллельные virtual-счета с разными `strategy` / `risk` (только `virtual`) |
@@ -398,8 +400,8 @@ go run ./cmd/admin -db data/trades.db -listen 127.0.0.1:8090
 
 ```go
 type OrderExecutor interface {
-    ExecuteOrder(order models.Order) error
-    GetBalance() (float64, error)
+    ExecuteOrder(ctx context.Context, order models.Order) error
+    GetBalance(ctx context.Context) (float64, error)
 }
 ```
 

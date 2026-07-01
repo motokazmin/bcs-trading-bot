@@ -22,6 +22,9 @@ type ClosedTrade struct {
 	GrossPnL          float64
 	PnLR              float64
 	MFEinR            float64 `json:"mfe_in_r"`
+	MAEinR            float64 `json:"mae_in_r"`
+	BreakoutUpper     float64 `json:"breakout_upper"`
+	BreakoutLower     float64 `json:"breakout_lower"`
 	CloseReason       string
 	TrailStage        int
 	IsWinner          bool

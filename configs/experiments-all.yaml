@@ -1,9 +1,12 @@
 # Все запланированные A/B-опыты в одном процессе
-# 3 эксперимента, 16 воркеров (3+3+10), один WebSocket
+# 6 baseline + 3 vol = 9 экспериментов, 46 воркеров (3+3+10+10+10+10), один WebSocket
 #
-#   atr-2-lean   — ATR×2, lean universe (SBER, ROSN, NVTK), вход с 10:00
-#   atr-1-lean   — ATR×1, lean universe, вход с 10:00
-#   atr-2-delayed — ATR×2, полный universe, вход с 10:30 (entry_delay 30)
+#   atr-2-lean        — ATR×2, lean universe (SBER, ROSN, NVTK), вход с 10:00
+#   atr-1-lean        — ATR×1, lean universe, вход с 10:00
+#   atr-2-delayed     — ATR×2, полный universe, вход с 10:30
+#   atr-2-lean-vol    — ATR×2, полный universe, volume filter, вход с 10:00
+#   atr-1-lean-vol    — ATR×1, полный universe, volume filter, вход с 10:00
+#   atr-2-delayed-vol — ATR×2, полный universe, volume filter, вход с 10:30
 #
 # Запуск: go run ./cmd/bot -config configs/experiments-all.yaml
 
@@ -79,6 +82,57 @@ experiments:
       stop_mode: atr
       atr_period: 14
       atr_multiplier: 2.0
+    risk:
+      deposit: 200000
+      max_daily_loss: 4000
+      risk_per_trade_percent: 0.5
+    virtual:
+      balance: 200000
+
+  - id: atr-2-lean-vol
+    name: "ATR × 2.0 — полный universe + volume filter"
+    entry_delay_minutes: 0
+    strategy:
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.0
+      volume_filter: true
+      volume_min_ratio: 1.5
+    risk:
+      deposit: 200000
+      max_daily_loss: 4000
+      risk_per_trade_percent: 0.5
+    virtual:
+      balance: 200000
+
+  - id: atr-1-lean-vol
+    name: "ATR × 1.0 — полный universe + volume filter"
+    entry_delay_minutes: 0
+    strategy:
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 1.0
+      volume_filter: true
+      volume_min_ratio: 1.5
+    risk:
+      deposit: 200000
+      max_daily_loss: 4000
+      risk_per_trade_percent: 0.5
+    virtual:
+      balance: 200000
+
+  - id: atr-2-delayed-vol
+    name: "ATR × 2.0 — полный universe, вход с 10:30 + volume filter"
+    entry_delay_minutes: 30
+    strategy:
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.0
+      volume_filter: true
+      volume_min_ratio: 1.5
     risk:
       deposit: 200000
       max_daily_loss: 4000

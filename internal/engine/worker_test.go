@@ -144,6 +144,27 @@ func TestCalcMFEinR(t *testing.T) {
 	}
 }
 
+func TestCalcMAEinR(t *testing.T) {
+	pos := &openPosition{
+		direction:  "BUY",
+		entryPrice: 100,
+		rDistance:  5,
+		maePrice:   92,
+	}
+	if got := calcMAEinR(pos); got != 1.6 {
+		t.Fatalf("MAEinR: got %.2f, want 1.6", got)
+	}
+}
+
+func TestUpdateMAE(t *testing.T) {
+	pos := &openPosition{direction: "BUY", entryPrice: 100, maePrice: 100}
+	updateMAE(pos, 99)
+	updateMAE(pos, 97)
+	if pos.maePrice != 97 {
+		t.Fatalf("maePrice: got %.2f, want 97", pos.maePrice)
+	}
+}
+
 func TestApplyTrailingStopFuturesStepPrice(t *testing.T) {
 	pos := &openPosition{
 		direction:  "BUY",

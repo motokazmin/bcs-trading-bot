@@ -121,6 +121,8 @@ type StrategyConfig struct {
 	RewardRatio               float64 `yaml:"reward_ratio"`
 	RangeUseCap               *bool   `yaml:"range_use_cap"`
 	MaxTradesPerTickerPerDay  int     `yaml:"max_trades_per_ticker_per_day"`
+	VolumeFilter              *bool   `yaml:"volume_filter"`
+	VolumeMinRatio            float64 `yaml:"volume_min_ratio"`
 }
 
 type VirtualConfig struct {
@@ -257,14 +259,23 @@ func (s StrategyConfig) StrategyOptions() strategy.Options {
 	}
 
 	opts := strategy.Options{
-		Lookback:      s.Lookback,
-		StopMode:      strings.ToLower(strings.TrimSpace(s.StopMode)),
-		ATRPeriod:     s.ATRPeriod,
-		ATRMultiplier: s.ATRMultiplier,
-		RewardRatio:   s.RewardRatio,
-		RangeUseCap:   rangeUseCap,
+		Lookback:       s.Lookback,
+		StopMode:       strings.ToLower(strings.TrimSpace(s.StopMode)),
+		ATRPeriod:      s.ATRPeriod,
+		ATRMultiplier:  s.ATRMultiplier,
+		RewardRatio:    s.RewardRatio,
+		RangeUseCap:    rangeUseCap,
+		VolumeFilter:   s.VolumeFilterEnabled(),
+		VolumeMinRatio: s.VolumeMinRatio,
 	}
 	return opts
+}
+
+func (s StrategyConfig) VolumeFilterEnabled() bool {
+	if s.VolumeFilter == nil {
+		return false
+	}
+	return *s.VolumeFilter
 }
 
 // Load читает YAML-конфиг с диска и применяет значения по умолчанию.

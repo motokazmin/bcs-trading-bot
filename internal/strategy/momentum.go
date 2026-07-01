@@ -57,6 +57,10 @@ func (s *MomentumBreakout) OnCandle(candle models.Candle) *models.Order {
 		return nil
 	}
 
+	if !s.passesVolumeFilter(candle) {
+		return nil
+	}
+
 	entry := close
 	stopLoss, takeProfit := s.calcLevels(direction, entry, upper, lower)
 	if stopLoss == 0 {
@@ -66,11 +70,13 @@ func (s *MomentumBreakout) OnCandle(candle models.Candle) *models.Order {
 	s.lastSignalTime = candle.Timestamp.UnixNano()
 
 	return &models.Order{
-		Ticker:     candle.Ticker,
-		Direction:  direction,
-		Price:      entry,
-		StopLoss:   stopLoss,
-		TakeProfit: takeProfit,
+		Ticker:        candle.Ticker,
+		Direction:     direction,
+		Price:         entry,
+		StopLoss:      stopLoss,
+		TakeProfit:    takeProfit,
+		BreakoutUpper: upper,
+		BreakoutLower: lower,
 	}
 }
 
@@ -135,6 +141,25 @@ func (s *MomentumBreakout) calcLevels(direction string, entry, upper, lower floa
 	}
 
 	return stopLoss, takeProfit
+}
+
+func (s *MomentumBreakout) passesVolumeFilter(candle models.Candle) bool {
+	if !s.opts.VolumeFilter {
+		return true
+	}
+	if len(s.history) < 2 {
+		return false
+	}
+	window := s.history[:len(s.history)-1]
+	var sum int64
+	for _, c := range window {
+		sum += c.Volume
+	}
+	avg := float64(sum) / float64(len(window))
+	if avg <= 0 {
+		return false
+	}
+	return float64(candle.Volume) > avg*s.opts.VolumeMinRatio
 }
 
 func (s *MomentumBreakout) stopDistance(entry, upper, lower float64) float64 {

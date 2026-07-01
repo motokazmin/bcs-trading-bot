@@ -1,0 +1,3 @@
+ALTER TABLE closed_trades ADD COLUMN mae_in_r REAL NOT NULL DEFAULT 0;
+ALTER TABLE closed_trades ADD COLUMN breakout_upper REAL NOT NULL DEFAULT 0;
+ALTER TABLE closed_trades ADD COLUMN breakout_lower REAL NOT NULL DEFAULT 0;

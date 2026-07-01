@@ -32,12 +32,14 @@ type Tick struct {
 }
 
 type Order struct {
-	Ticker      string
-	Direction   string
-	Quantity    int
-	Price       float64
-	StopLoss    float64
-	TakeProfit  float64
-	OrderType   string
-	CloseReason string
+	Ticker        string
+	Direction     string
+	Quantity      int
+	Price         float64
+	StopLoss      float64
+	TakeProfit    float64
+	BreakoutUpper float64
+	BreakoutLower float64
+	OrderType     string
+	CloseReason   string
 }

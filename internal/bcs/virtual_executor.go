@@ -1,6 +1,7 @@
 package bcs
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -37,7 +38,10 @@ func NewVirtualExecutor(initialBalance float64) *VirtualExecutor {
 	}
 }
 
-func (v *VirtualExecutor) ExecuteOrder(order models.Order) error {
+func (v *VirtualExecutor) ExecuteOrder(ctx context.Context, order models.Order) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
@@ -114,7 +118,10 @@ func calcVirtualPnL(pos *virtualPosition, closePrice float64) float64 {
 	}
 }
 
-func (v *VirtualExecutor) GetBalance() (float64, error) {
+func (v *VirtualExecutor) GetBalance(ctx context.Context) (float64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	return v.balance, nil

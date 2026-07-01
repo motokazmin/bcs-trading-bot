@@ -146,7 +146,7 @@ type createOrderRequest struct {
 }
 
 // ExecuteOrder отправляет ордер в BCS Trade API (лимитный или рыночный).
-func (c *BCSClient) ExecuteOrder(order models.Order) error {
+func (c *BCSClient) ExecuteOrder(ctx context.Context, order models.Order) error {
 	if c.accessToken == "" {
 		return fmt.Errorf("клиент не авторизован")
 	}
@@ -182,7 +182,7 @@ func (c *BCSClient) ExecuteOrder(order models.Order) error {
 		return fmt.Errorf("ошибка сериализации ордера: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, OperationsURL+"/orders", bytes.NewReader(body))
@@ -211,8 +211,8 @@ func (c *BCSClient) ExecuteOrder(order models.Order) error {
 }
 
 // GetBalance возвращает свободные средства из портфеля.
-func (c *BCSClient) GetBalance() (float64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+func (c *BCSClient) GetBalance(ctx context.Context) (float64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	raw, err := c.GetPortfolio(ctx)

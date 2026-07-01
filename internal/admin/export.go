@@ -17,7 +17,7 @@ var strategySummaryPromptTemplate string
 //go:embed prompts/strategy_detailed.md
 var strategyDetailedPromptTemplate string
 
-const exportVersion = "2.0"
+const exportVersion = "2.1"
 
 // ExportMode — вариант выгрузки для ИИ.
 type ExportMode string
@@ -69,12 +69,12 @@ func defaultStrategyContext() models.StrategyContext {
 	return models.StrategyContext{
 		Name:           "Momentum Breakout (Неидеальный агент)",
 		Philosophy:     "Рынок непредсказуем; управляем только риском. Прибыльность при win rate 30–40% за счёт R:R 1:3.",
-		SignalLogic:    "Пробой high/low за lookback-1 свечей M5; вход лимитным ордером.",
+		SignalLogic:    "Пробой high/low за lookback-1 свечей M5; вход лимитным ордером. В сделке: breakout_upper/breakout_lower — уровни окна на входе.",
 		RiskReward:     "Stop-Loss и Take-Profit в соотношении 1:3 (1R риск, 3R цель).",
 		RiskPerTrade:   "Размер лота из 0.5% депозита на тикер при срабатывании начального SL.",
 		TrailingStop:   "+1R → безубыток; +2R → фиксация +1R; далее SL = MFE − 1R на каждом тике; выход по SL/TP/EOD.",
 		CircuitBreaker: "2% дневного убытка на эксперимент → блокировка новых входов до следующего дня.",
-		PnLNote:        "gross_pnl в рублях, комиссия не вычтена. pnl_r — результат в единицах R.",
+		PnLNote:        "gross_pnl в рублях, комиссия не вычтена. pnl_r — результат в R; mfe_in_r / mae_in_r — экскурсии внутри позиции в R.",
 		ExperimentNote: "Параллельные experiment_id — разные virtual-счета на одних рыночных данных (stop_mode: range | atr).",
 	}
 }

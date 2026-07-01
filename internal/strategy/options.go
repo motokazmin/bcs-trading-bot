@@ -7,6 +7,7 @@ const (
 	defaultATRPeriod     = 14
 	defaultATRMultiplier = 2.0
 	defaultRangeCapPct   = 0.5
+	defaultVolumeMinRatio = 1.5
 )
 
 // Options задаёт параметры стратегии MomentumBreakout.
@@ -15,8 +16,10 @@ type Options struct {
 	StopMode      string
 	ATRPeriod     int
 	ATRMultiplier float64
-	RewardRatio   float64
-	RangeUseCap   bool
+	RewardRatio    float64
+	RangeUseCap    bool
+	VolumeFilter   bool
+	VolumeMinRatio float64
 }
 
 func (o Options) normalized() Options {
@@ -35,6 +38,9 @@ func (o Options) normalized() Options {
 	}
 	if out.RewardRatio <= 0 {
 		out.RewardRatio = riskRewardRatio
+	}
+	if out.VolumeMinRatio <= 0 {
+		out.VolumeMinRatio = defaultVolumeMinRatio
 	}
 	return out
 }

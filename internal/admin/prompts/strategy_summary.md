@@ -21,7 +21,7 @@
 2. Сравнение экспериментов — `stop_mode` (range vs atr), гипотеза «узкий стоп выбивает прибыльные сделки».
 3. Причины закрытия — доля STOP_LOSS / TAKE_PROFIT / EOD.
 4. По тикерам — кто тянет вниз/вверх.
-5. Метрики — win rate, profit factor, expectancy, avg PnL в R; достаточность выборки.
+5. Метрики — win rate, profit factor, expectancy, avg PnL в R; при detailed-выгрузке — средние `mfe_in_r`/`mae_in_r` по экспериментам; достаточность выборки.
 6. Ограничения — `gross_pnl` без комиссии, virtual mode, короткий период.
 
 ## Формат ответа (русский)

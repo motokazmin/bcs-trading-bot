@@ -16,6 +16,9 @@ func applyMigrations(db *sql.DB) error {
 	if err := applyMigration003(db); err != nil {
 		return fmt.Errorf("миграция 003: %w", err)
 	}
+	if err := applyMigration004(db); err != nil {
+		return fmt.Errorf("миграция 004: %w", err)
+	}
 	return nil
 }
 
@@ -36,6 +39,16 @@ func applyMigration002(db *sql.DB) error {
 
 func applyMigration003(db *sql.DB) error {
 	return addColumnIfMissing(db, "closed_trades", "mfe_in_r", `REAL NOT NULL DEFAULT 0`)
+}
+
+func applyMigration004(db *sql.DB) error {
+	if err := addColumnIfMissing(db, "closed_trades", "mae_in_r", `REAL NOT NULL DEFAULT 0`); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(db, "closed_trades", "breakout_upper", `REAL NOT NULL DEFAULT 0`); err != nil {
+		return err
+	}
+	return addColumnIfMissing(db, "closed_trades", "breakout_lower", `REAL NOT NULL DEFAULT 0`)
 }
 
 func addColumnIfMissing(db *sql.DB, table, column, definition string) error {

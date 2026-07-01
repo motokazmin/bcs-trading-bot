@@ -150,8 +150,8 @@ func TestLoadExperimentsAll(t *testing.T) {
 		t.Fatal(err)
 	}
 	exps := cfg.ResolvedExperiments()
-	if len(exps) != 3 {
-		t.Fatalf("experiments: got %d, want 3", len(exps))
+	if len(exps) != 6 {
+		t.Fatalf("experiments: got %d, want 6", len(exps))
 	}
 	if len(cfg.AllTickerSymbols()) != 10 {
 		t.Fatalf("all tickers: got %d, want 10", len(cfg.AllTickerSymbols()))
@@ -167,5 +167,19 @@ func TestLoadExperimentsAll(t *testing.T) {
 	}
 	if len(cfg.TickersForExperiment(exps[2])) != 10 {
 		t.Fatalf("atr-2-delayed tickers: got %d, want 10", len(cfg.TickersForExperiment(exps[2])))
+	}
+
+	vol := exps[3]
+	if vol.ID != "atr-2-lean-vol" || !vol.Strategy.VolumeFilterEnabled() {
+		t.Fatalf("atr-2-lean-vol: %+v", vol)
+	}
+	if vol.Strategy.VolumeMinRatio != 1.5 {
+		t.Fatalf("volume_min_ratio: got %f", vol.Strategy.VolumeMinRatio)
+	}
+	if len(cfg.TickersForExperiment(vol)) != 10 {
+		t.Fatalf("atr-2-lean-vol tickers: got %d, want 10", len(cfg.TickersForExperiment(vol)))
+	}
+	if exps[5].ID != "atr-2-delayed-vol" || cfg.SessionForExperiment(exps[5]).EntryDelayMinutes != 30 {
+		t.Fatalf("atr-2-delayed-vol: %+v", exps[5])
 	}
 }

@@ -47,7 +47,10 @@
       <th class="num">Лоты</th><th class="num">₽/лот</th><th class="num">Сумма</th>
       <th>Открыта</th><th>Закрыта</th><th>Удерж.</th>
       <th class="num">Цена вх.</th><th class="num">Цена вых.</th>
-      <th class="num">PnL</th><th class="num">R</th><th>Причина</th>
+      <th class="num">PnL</th><th class="num">R</th>
+      <th class="num">MFE</th><th class="num">MAE</th>
+      <th class="num">Верх</th><th class="num">Низ</th>
+      <th>Причина</th>
     </tr>
   </thead>
   <tbody>
@@ -67,6 +70,10 @@
       <td class="num">{{printf "%.2f" $t.ExitPrice}}</td>
       <td class="num {{pnlClass $t.GrossPnL}}">{{fmtMoney $t.GrossPnL}}</td>
       <td class="num">{{printf "%.2f" $t.PnLR}}</td>
+      <td class="num">{{printf "%.2f" $t.MFEinR}}</td>
+      <td class="num">{{printf "%.2f" $t.MAEinR}}</td>
+      <td class="num">{{if $t.BreakoutUpper}}{{printf "%.2f" $t.BreakoutUpper}}{{else}}—{{end}}</td>
+      <td class="num">{{if $t.BreakoutLower}}{{printf "%.2f" $t.BreakoutLower}}{{else}}—{{end}}</td>
       <td>{{$t.CloseReason}}</td>
     </tr>
     {{end}}

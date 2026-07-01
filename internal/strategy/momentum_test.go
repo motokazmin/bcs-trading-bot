@@ -18,6 +18,12 @@ func candle(ts time.Time, open, high, low, close float64) models.Candle {
 	}
 }
 
+func candleVol(ts time.Time, open, high, low, close float64, volume int64) models.Candle {
+	c := candle(ts, open, high, low, close)
+	c.Volume = volume
+	return c
+}
+
 func TestATRStopWiderThanRangeCap(t *testing.T) {
 	base := time.Date(2026, 6, 25, 10, 0, 0, 0, time.UTC)
 
@@ -92,5 +98,96 @@ func TestRangeWithoutCapUsesHalfRange(t *testing.T) {
 	wideDist := wide.Price - wide.StopLoss
 	if wideDist <= cappedDist {
 		t.Fatalf("no-cap stop should be wider: capped=%.4f wide=%.4f", cappedDist, wideDist)
+	}
+}
+
+func TestVolumeFilterRejectsLowVolumeBreakout(t *testing.T) {
+	base := time.Date(2026, 6, 25, 10, 0, 0, 0, time.UTC)
+
+	noFilter := NewMomentumBreakout(Options{Lookback: 5, StopMode: StopModeRange})
+	withFilter := NewMomentumBreakout(Options{
+		Lookback:       5,
+		StopMode:       StopModeRange,
+		VolumeFilter:   true,
+		VolumeMinRatio: 1.5,
+	})
+
+	bars := []models.Candle{
+		candleVol(base, 100, 101, 99, 100, 1000),
+		candleVol(base.Add(5*time.Minute), 100, 101, 99, 100, 1000),
+		candleVol(base.Add(10*time.Minute), 100, 101, 99, 100, 1000),
+		candleVol(base.Add(15*time.Minute), 100, 101, 99, 100, 1000),
+		candleVol(base.Add(20*time.Minute), 105, 106, 104, 105, 100), // пробой, объём ниже 1.5× среднего
+	}
+
+	var baseline, filtered *models.Order
+	for _, bar := range bars {
+		if o := noFilter.OnCandle(bar); o != nil {
+			baseline = o
+		}
+		if o := withFilter.OnCandle(bar); o != nil {
+			filtered = o
+		}
+	}
+	if baseline == nil {
+		t.Fatal("expected signal without volume filter")
+	}
+	if filtered != nil {
+		t.Fatal("expected nil with low volume and volume filter enabled")
+	}
+}
+
+func TestVolumeFilterAcceptsHighVolumeBreakout(t *testing.T) {
+	base := time.Date(2026, 6, 25, 10, 0, 0, 0, time.UTC)
+
+	strat := NewMomentumBreakout(Options{
+		Lookback:       5,
+		StopMode:       StopModeRange,
+		VolumeFilter:   true,
+		VolumeMinRatio: 1.5,
+	})
+
+	bars := []models.Candle{
+		candleVol(base, 100, 101, 99, 100, 1000),
+		candleVol(base.Add(5*time.Minute), 100, 101, 99, 100, 1000),
+		candleVol(base.Add(10*time.Minute), 100, 101, 99, 100, 1000),
+		candleVol(base.Add(15*time.Minute), 100, 101, 99, 100, 1000),
+		candleVol(base.Add(20*time.Minute), 105, 106, 104, 105, 2000), // 2000 > 1.5×1000
+	}
+
+	var signal *models.Order
+	for _, bar := range bars {
+		if o := strat.OnCandle(bar); o != nil {
+			signal = o
+		}
+	}
+	if signal == nil {
+		t.Fatal("expected signal with high volume breakout")
+	}
+}
+
+func TestBreakoutLevelsInSignal(t *testing.T) {
+	base := time.Date(2026, 6, 25, 10, 0, 0, 0, time.UTC)
+	strat := NewMomentumBreakout(Options{Lookback: 5, StopMode: StopModeRange})
+
+	bars := []models.Candle{
+		candle(base, 100, 101, 99, 100),
+		candle(base.Add(5*time.Minute), 100, 101, 99, 100),
+		candle(base.Add(10*time.Minute), 100, 101, 99, 100),
+		candle(base.Add(15*time.Minute), 100, 101, 99, 100),
+		candle(base.Add(20*time.Minute), 105, 106, 104, 105),
+	}
+
+	var signal *models.Order
+	for _, bar := range bars {
+		if o := strat.OnCandle(bar); o != nil {
+			signal = o
+		}
+	}
+	if signal == nil {
+		t.Fatal("expected signal")
+	}
+	if signal.BreakoutUpper != 101 || signal.BreakoutLower != 99 {
+		t.Fatalf("breakout levels: upper=%.2f lower=%.2f, want 101/99", signal.BreakoutUpper, signal.BreakoutLower)
 	}
 }

@@ -39,6 +39,9 @@ func TestStoreSaveClosedTrade(t *testing.T) {
 		GrossPnL:          30.0,
 		PnLR:              1.5,
 		MFEinR:            2.2,
+		MAEinR:            0.8,
+		BreakoutUpper:     104.5,
+		BreakoutLower:     98.0,
 		CloseReason:       models.CloseReasonTakeProfit,
 		TrailStage:        1,
 		IsWinner:          true,
@@ -72,16 +75,22 @@ func TestStoreSaveClosedTrade(t *testing.T) {
 		grossPnL     float64
 		trailStage   int
 		mfeInR       float64
+		maeInR       float64
+		breakoutUpper float64
+		breakoutLower float64
 	}
 	err = store.db.QueryRow(`
-		SELECT trading_mode, experiment_id, stop_mode, ticker, gross_pnl, trail_stage, mfe_in_r
+		SELECT trading_mode, experiment_id, stop_mode, ticker, gross_pnl, trail_stage,
+		       mfe_in_r, mae_in_r, breakout_upper, breakout_lower
 		FROM closed_trades WHERE id = 1`,
-	).Scan(&got.tradingMode, &got.experimentID, &got.stopMode, &got.ticker, &got.grossPnL, &got.trailStage, &got.mfeInR)
+	).Scan(&got.tradingMode, &got.experimentID, &got.stopMode, &got.ticker, &got.grossPnL, &got.trailStage,
+		&got.mfeInR, &got.maeInR, &got.breakoutUpper, &got.breakoutLower)
 	if err != nil {
 		t.Fatalf("select: %v", err)
 	}
 	if got.tradingMode != "virtual" || got.experimentID != "baseline" || got.stopMode != "range" ||
-		got.ticker != "SBER" || got.grossPnL != 30.0 || got.trailStage != 1 || got.mfeInR != 2.2 {
+		got.ticker != "SBER" || got.grossPnL != 30.0 || got.trailStage != 1 || got.mfeInR != 2.2 ||
+		got.maeInR != 0.8 || got.breakoutUpper != 104.5 || got.breakoutLower != 98.0 {
 		t.Fatalf("unexpected row: %+v", got)
 	}
 }

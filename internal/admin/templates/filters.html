@@ -20,6 +20,14 @@
   <button type="submit">Применить</button>
 </form>
 
+<div id="archive-comment-panel" class="archive-comment-panel" hidden>
+  <div class="archive-comment-header">
+    <span class="archive-comment-title" id="archive-comment-title"></span>
+    <button type="button" class="btn archive-comment-toggle" id="archive-comment-toggle" aria-expanded="true">Свернуть</button>
+  </div>
+  <div class="archive-comment-body" id="archive-comment-body"></div>
+</div>
+
 <div class="modal-overlay" id="archive-modal" hidden>
   <div class="modal" role="dialog" aria-labelledby="archive-modal-title">
     <h2 id="archive-modal-title">Архивировать период</h2>
@@ -48,15 +56,43 @@
   const cancelBtn = document.getElementById('archive-cancel');
   const saveBtn = document.getElementById('archive-save');
   const errorEl = document.getElementById('archive-error');
+  const commentPanel = document.getElementById('archive-comment-panel');
+  const commentTitle = document.getElementById('archive-comment-title');
+  const commentBody = document.getElementById('archive-comment-body');
+  const commentToggle = document.getElementById('archive-comment-toggle');
 
   let archives = [];
 
-  function updateArchiveBtn() {
-    archiveBtn.disabled = !(dateFrom.value && dateTo.value);
+  function findMatchingArchive() {
+    return archives.find((a) => a.date_from === dateFrom.value && a.date_to === dateTo.value) || null;
   }
 
   function findMatchingArchiveId() {
-    return archives.find((a) => a.date_from === dateFrom.value && a.date_to === dateTo.value)?.id || '';
+    return findMatchingArchive()?.id || '';
+  }
+
+  function setCommentExpanded(expanded) {
+    commentBody.hidden = !expanded;
+    commentToggle.textContent = expanded ? 'Свернуть' : 'Развернуть';
+    commentToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  }
+
+  function updateArchiveComment() {
+    const archive = findMatchingArchive();
+    if (!archive?.comment) {
+      commentPanel.hidden = true;
+      commentTitle.textContent = '';
+      commentBody.textContent = '';
+      return;
+    }
+    commentTitle.textContent = archive.name;
+    commentBody.textContent = archive.comment;
+    commentPanel.hidden = false;
+    setCommentExpanded(true);
+  }
+
+  function updateArchiveBtn() {
+    archiveBtn.disabled = !(dateFrom.value && dateTo.value);
   }
 
   function renderArchiveOptions() {
@@ -66,14 +102,12 @@
       const opt = document.createElement('option');
       opt.value = a.id;
       opt.textContent = a.name;
-      if (a.comment) {
-        opt.title = a.comment;
-      }
       if (a.id === selectedId) {
         opt.selected = true;
       }
       archiveSelect.appendChild(opt);
     }
+    updateArchiveComment();
   }
 
   async function loadArchives() {
@@ -118,10 +152,16 @@
   dateFrom.addEventListener('change', () => {
     updateArchiveBtn();
     archiveSelect.value = findMatchingArchiveId();
+    updateArchiveComment();
   });
   dateTo.addEventListener('change', () => {
     updateArchiveBtn();
     archiveSelect.value = findMatchingArchiveId();
+    updateArchiveComment();
+  });
+
+  commentToggle.addEventListener('click', () => {
+    setCommentExpanded(commentBody.hidden);
   });
 
   archiveBtn.addEventListener('click', openModal);

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"testing"
 
 	"bcs-trading-bot/pkg/interfaces"
@@ -11,18 +12,18 @@ type smokeExecutor struct {
 	orders []models.Order
 }
 
-func (e *smokeExecutor) ExecuteOrder(order models.Order) error {
+func (e *smokeExecutor) ExecuteOrder(_ context.Context, order models.Order) error {
 	e.orders = append(e.orders, order)
 	return nil
 }
 
-func (e *smokeExecutor) GetBalance() (float64, error) { return 0, nil }
+func (e *smokeExecutor) GetBalance(context.Context) (float64, error) { return 0, nil }
 
 var _ interfaces.OrderExecutor = (*smokeExecutor)(nil)
 
 func TestRunSmokeCycle(t *testing.T) {
 	exec := &smokeExecutor{}
-	if err := runSmokeCycle("SBER", 300.0, exec); err != nil {
+	if err := runSmokeCycle(context.Background(), "SBER", 300.0, exec); err != nil {
 		t.Fatal(err)
 	}
 	if len(exec.orders) != 2 {

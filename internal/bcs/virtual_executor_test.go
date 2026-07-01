@@ -1,6 +1,7 @@
 package bcs
 
 import (
+	"context"
 	"math"
 	"testing"
 
@@ -18,7 +19,7 @@ func TestVirtualExecutorLongRoundTrip(t *testing.T) {
 		StopLoss:   295,
 		TakeProfit: 315,
 	}
-	if err := v.ExecuteOrder(open); err != nil {
+	if err := v.ExecuteOrder(context.Background(), open); err != nil {
 		t.Fatalf("open: %v", err)
 	}
 
@@ -29,11 +30,11 @@ func TestVirtualExecutorLongRoundTrip(t *testing.T) {
 		Price:       305,
 		CloseReason: models.CloseReasonStopLoss,
 	}
-	if err := v.ExecuteOrder(close); err != nil {
+	if err := v.ExecuteOrder(context.Background(), close); err != nil {
 		t.Fatalf("close: %v", err)
 	}
 
-	balance, err := v.GetBalance()
+	balance, err := v.GetBalance(context.Background())
 	if err != nil {
 		t.Fatalf("GetBalance: %v", err)
 	}
@@ -54,7 +55,7 @@ func TestVirtualExecutorShortRoundTrip(t *testing.T) {
 		StopLoss:   466.22,
 		TakeProfit: 456.94,
 	}
-	if err := v.ExecuteOrder(open); err != nil {
+	if err := v.ExecuteOrder(context.Background(), open); err != nil {
 		t.Fatalf("open: %v", err)
 	}
 
@@ -65,11 +66,11 @@ func TestVirtualExecutorShortRoundTrip(t *testing.T) {
 		Price:       466.30,
 		CloseReason: models.CloseReasonStopLoss,
 	}
-	if err := v.ExecuteOrder(close); err != nil {
+	if err := v.ExecuteOrder(context.Background(), close); err != nil {
 		t.Fatalf("close: %v", err)
 	}
 
-	balance, err := v.GetBalance()
+	balance, err := v.GetBalance(context.Background())
 	if err != nil {
 		t.Fatalf("GetBalance: %v", err)
 	}

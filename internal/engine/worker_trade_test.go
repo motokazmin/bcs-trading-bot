@@ -27,8 +27,8 @@ func (s *recordingTradeStore) Close() error { return nil }
 
 type stubExecutor struct{}
 
-func (stubExecutor) ExecuteOrder(models.Order) error { return nil }
-func (stubExecutor) GetBalance() (float64, error)  { return 0, nil }
+func (stubExecutor) ExecuteOrder(context.Context, models.Order) error { return nil }
+func (stubExecutor) GetBalance(context.Context) (float64, error)     { return 0, nil }
 
 func TestClosePositionSavesTrade(t *testing.T) {
 	store := &recordingTradeStore{}
@@ -71,10 +71,12 @@ func TestClosePositionSavesTrade(t *testing.T) {
 		rDistance:         5,
 		trailStage:        1,
 		mfePrice:          110,
+		breakoutUpper:     101,
+		breakoutLower:     99,
 		openedAt:          openedAt,
 	}
 
-	worker.closePosition(stubExecutor{}, 110, models.CloseReasonTakeProfit)
+	worker.closePosition(context.Background(), stubExecutor{}, 110, models.CloseReasonTakeProfit)
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -109,5 +111,56 @@ func TestClosePositionSavesTrade(t *testing.T) {
 	}
 	if tr.MFEinR != 2 {
 		t.Fatalf("mfe_in_r: got %.2f, want 2", tr.MFEinR)
+	}
+	if tr.BreakoutUpper != 101 || tr.BreakoutLower != 99 {
+		t.Fatalf("breakout: upper=%.2f lower=%.2f", tr.BreakoutUpper, tr.BreakoutLower)
+	}
+}
+
+type countingExecutor struct {
+	calls int
+}
+
+func (e *countingExecutor) ExecuteOrder(context.Context, models.Order) error {
+	e.calls++
+	return nil
+}
+
+func (e *countingExecutor) GetBalance(context.Context) (float64, error) { return 0, nil }
+
+func TestClosePositionIgnoresSecondCall(t *testing.T) {
+	store := &recordingTradeStore{}
+	exp := config.ResolvedExperiment{
+		ID:       "baseline",
+		Strategy: config.StrategyConfig{Lookback: 20, StopMode: strategy.StopModeRange},
+		Risk:     config.RiskConfig{Deposit: 100_000, MaxDailyLoss: 2_000, RiskPerTradePercent: 0.5},
+	}
+	worker, err := NewTickerWorker(
+		"SBER", exp, 1, 1.0, exp.Strategy.StrategyOptions(),
+		config.SessionConfig{Timezone: "Europe/Moscow", EODCloseTime: "23:40", SessionOpenTime: "10:00"},
+		config.TradingModeVirtual, "test-run", "TQBR", "M5", store,
+	)
+	if err != nil {
+		t.Fatalf("NewTickerWorker: %v", err)
+	}
+	worker.position = &openPosition{
+		direction:  "BUY",
+		quantity:   1,
+		entryPrice: 100,
+		stopLoss:   95,
+		rDistance:  5,
+		openedAt:   time.Now(),
+	}
+
+	exec := &countingExecutor{}
+	ctx := context.Background()
+	worker.closePosition(ctx, exec, 110, models.CloseReasonTakeProfit)
+	worker.closePosition(ctx, exec, 110, models.CloseReasonTakeProfit)
+
+	if exec.calls != 1 {
+		t.Fatalf("ExecuteOrder calls: got %d, want 1", exec.calls)
+	}
+	if worker.position != nil {
+		t.Fatal("position should stay nil after successful close")
 	}
 }
