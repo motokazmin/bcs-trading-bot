@@ -7,13 +7,13 @@
   <title>{{.Title}} — BCS Admin</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body class="page-{{.ActiveNav}}">
   <header class="topbar">
     <div class="brand">BCS Trading Bot</div>
     <nav>
-      <a href="/{{querySuffix .FilterQuery}}" class="{{if eq .ActiveNav "dashboard"}}active{{end}}">Дашборд</a>
-      <a href="/trades{{querySuffix .FilterQuery}}" class="{{if eq .ActiveNav "trades"}}active{{end}}">Сделки</a>
-      <a href="/export{{querySuffix .FilterQuery}}" class="{{if eq .ActiveNav "export"}}active{{end}}">Экспорт для ИИ</a>
+      <a href="{{pageURL "/" .FilterQuery}}" class="{{if eq .ActiveNav "dashboard"}}active{{end}}">Дашборд</a>
+      <a href="{{pageURL "/trades" .FilterQuery}}" class="{{if eq .ActiveNav "trades"}}active{{end}}">Сделки</a>
+      <a href="{{pageURL "/export" .FilterQuery}}" class="{{if eq .ActiveNav "export"}}active{{end}}">Экспорт для ИИ</a>
     </nav>
   </header>
   <main class="container">

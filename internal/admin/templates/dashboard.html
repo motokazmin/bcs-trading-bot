@@ -15,23 +15,25 @@
 {{if .Comparison}}
 <section>
   <h2>Сравнение экспериментов</h2>
-  <table>
+  <div class="table-scroll">
+  <table class="data-table">
     <thead>
-      <tr><th>experiment_id</th><th>Сделок</th><th>Win%</th><th>PnL</th><th>PF</th><th>Avg R</th></tr>
+      <tr><th>experiment_id</th><th class="num">Сделок</th><th class="num">Win%</th><th class="num">PnL</th><th class="num">PF</th><th class="num">Avg R</th></tr>
     </thead>
     <tbody>
       {{range .Comparison}}
       <tr>
         <td><code>{{.Key}}</code></td>
-        <td>{{.TradeCount}}</td>
-        <td>{{fmtPct .WinRate}}</td>
-        <td class="{{pnlClass .TotalPnL}}">{{fmtMoney .TotalPnL}}</td>
-        <td>{{printf "%.2f" .ProfitFactor}}</td>
-        <td>{{printf "%.2f" .AvgPnLR}}</td>
+        <td class="num">{{.TradeCount}}</td>
+        <td class="num">{{fmtPct .WinRate}}</td>
+        <td class="num {{pnlClass .TotalPnL}}">{{fmtMoney .TotalPnL}}</td>
+        <td class="num">{{printf "%.2f" .ProfitFactor}}</td>
+        <td class="num">{{printf "%.2f" .AvgPnLR}}</td>
       </tr>
       {{end}}
     </tbody>
   </table>
+  </div>
 </section>
 {{end}}
 {{end}}

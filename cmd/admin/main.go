@@ -16,13 +16,14 @@ func main() {
 	}
 	defer store.Close()
 
-	handler := admin.NewHandler(store)
+	archives := admin.NewArchiveStore(cfg.ArchivesPath)
+	handler := admin.NewHandler(store, archives)
 	server, err := admin.NewServer(cfg, handler)
 	if err != nil {
 		log.Fatalf("сервер: %v", err)
 	}
 
-	log.Printf("админка: http://%s (БД: %s)", cfg.Listen, cfg.DBPath)
+	log.Printf("админка: http://%s (БД: %s, архивы: %s)", cfg.Listen, cfg.DBPath, cfg.ArchivesPath)
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}

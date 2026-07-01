@@ -34,3 +34,20 @@ type ClosedTrade struct {
 	RiskPerTradePct   float64
 	DepositPerTicker  float64
 }
+
+func (t ClosedTrade) effectiveStepPrice() float64 {
+	if t.StepPriceValue > 0 {
+		return t.StepPriceValue
+	}
+	return 1
+}
+
+// LotValueRub — стоимость одного лота в рублях на цене входа.
+func (t ClosedTrade) LotValueRub() float64 {
+	return t.EntryPrice * t.effectiveStepPrice()
+}
+
+// NotionalRub — общая сумма позиции на входе в рублях.
+func (t ClosedTrade) NotionalRub() float64 {
+	return t.LotValueRub() * float64(t.Quantity)
+}

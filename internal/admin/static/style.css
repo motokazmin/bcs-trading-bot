@@ -22,7 +22,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem clamp(1rem, 2.5vw, 2.5rem);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
@@ -34,7 +34,12 @@ nav a {
 }
 nav a.active, nav a:hover { color: var(--text); }
 
-.container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+.container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 1.25rem clamp(1rem, 2.5vw, 2.5rem);
+}
 h1 { margin-top: 0; }
 h2 { font-size: 1.1rem; margin-top: 2rem; }
 
@@ -78,6 +83,15 @@ h2 { font-size: 1.1rem; margin-top: 2rem; }
   border-radius: 4px;
   cursor: pointer;
 }
+.filters .btn.secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.filters .btn.secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 table {
   width: 100%;
@@ -90,6 +104,52 @@ th, td {
   border-bottom: 1px solid var(--border);
 }
 th { color: var(--muted); font-weight: 500; }
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+table.data-table {
+  width: max-content;
+  min-width: 100%;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+table.data-table th,
+table.data-table td {
+  padding: 0.45rem 0.7rem;
+}
+table.data-table th.num,
+table.data-table td.num {
+  text-align: right;
+}
+table.data-table td code {
+  white-space: nowrap;
+}
+
+.page-trades .table-scroll {
+  margin-top: 0.25rem;
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+.pagination-info {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.btn.disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
 
 .positive { color: var(--positive); }
 .negative { color: var(--negative); }
@@ -197,3 +257,107 @@ th { color: var(--muted); font-weight: 500; }
 }
 
 code { background: #243044; padding: 0.1rem 0.35rem; border-radius: 3px; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 100;
+}
+.modal-overlay[hidden] {
+  display: none;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  width: min(100%, 420px);
+}
+.modal h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+.modal-label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 1rem;
+}
+.modal-label textarea {
+  margin-top: 0.35rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.5rem;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+.modal-error {
+  margin: 0.75rem 0 0;
+  color: var(--negative);
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+}
+.pager-info { color: var(--muted); font-size: 0.9rem; }
+.pager-controls { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+.pager-btn:hover { border-color: var(--accent); }
+.pager-btn.current {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  cursor: default;
+  pointer-events: none;
+}
+.pager-btn[aria-disabled="true"] {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.pager-size {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.pager-size select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.3rem 0.4rem;
+  border-radius: 4px;
+}

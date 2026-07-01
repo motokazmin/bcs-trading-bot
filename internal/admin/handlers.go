@@ -3,7 +3,9 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -13,14 +15,16 @@ import (
 
 // Handler обслуживает HTTP-запросы админки.
 type Handler struct {
-	reader interfaces.TradeReader
-	export *ExportService
+	reader   interfaces.TradeReader
+	export   *ExportService
+	archives *ArchiveStore
 }
 
-func NewHandler(reader interfaces.TradeReader) *Handler {
+func NewHandler(reader interfaces.TradeReader, archives *ArchiveStore) *Handler {
 	return &Handler{
-		reader: reader,
-		export: NewExportService(reader),
+		reader:   reader,
+		export:   NewExportService(reader),
+		archives: archives,
 	}
 }
 
@@ -76,11 +80,7 @@ func (h *Handler) handleAPIComparison(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleAPITrades(w http.ResponseWriter, r *http.Request) {
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	if limit <= 0 {
-		limit = 50
-	}
+	limit, offset := parseTradesPaging(r)
 	result, err := h.reader.ListClosedTrades(r.Context(), h.parseFilter(r), limit, offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -101,22 +101,55 @@ func (h *Handler) handleAPIPrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]string{
-		"mode":     string(mode),
-		"prompt":   prompt,
+		"mode":      string(mode),
+		"prompt":    prompt,
 		"data_file": mode.DataFilename(),
 	})
 }
 
+type pageLink struct {
+	Page    int
+	Offset  int
+	QS      string
+	Current bool
+}
+
+type perPageOption struct {
+	Value   int
+	QS      string
+	Current bool
+}
+
+type tradesPagination struct {
+	Limit          int
+	Offset         int
+	Total          int
+	From           int
+	To             int
+	HasPrev        bool
+	HasNext        bool
+	PrevQS         string
+	NextQS         string
+	FirstQS        string
+	LastQS         string
+	CurrentPage    int
+	TotalPages     int
+	Pages          []pageLink
+	PerPageOptions []perPageOption
+	Empty          bool // Total > 0, но на этой странице нет строк (протухший offset)
+}
+
 type pageData struct {
-	Title       string
-	ActiveNav   string
-	FilterQuery string
-	Filter      models.TradeFilter
-	Summary     models.TradeSummary
-	Comparison  []models.BreakdownRow
-	Trades      models.TradeListResult
-	DateRange   models.DateRange
-	Experiments []string
+	Title            string
+	ActiveNav        string
+	FilterQuery      string
+	Filter           models.TradeFilter
+	Summary          models.TradeSummary
+	Comparison       []models.BreakdownRow
+	Trades           models.TradeListResult
+	TradesPagination tradesPagination
+	DateRange        models.DateRange
+	Experiments      []string
 }
 
 func (h *Handler) buildPageData(ctx context.Context, r *http.Request, title, nav string) (pageData, error) {
@@ -158,12 +191,126 @@ func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	renderTemplate(w, "dashboard.html", data)
 }
 
-func (h *Handler) handleTrades(w http.ResponseWriter, r *http.Request) {
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+func parseTradesPaging(r *http.Request) (limit, offset int) {
+	limit, _ = strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ = strconv.Atoi(r.URL.Query().Get("offset"))
 	if limit <= 0 {
 		limit = 50
 	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	return limit, offset
+}
+
+func tradesPageQuery(values url.Values, limit, offset int) string {
+	q := url.Values{}
+	for k, vs := range values {
+		for _, v := range vs {
+			q.Add(k, v)
+		}
+	}
+	q.Set("limit", strconv.Itoa(limit))
+	if offset <= 0 {
+		q.Del("offset")
+	} else {
+		q.Set("offset", strconv.Itoa(offset))
+	}
+	return q.Encode()
+}
+
+var perPageChoices = []int{25, 50, 100, 200}
+
+func buildTradesPagination(r *http.Request, limit, offset int, result models.TradeListResult) tradesPagination {
+	total := result.Total
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + limit - 1) / limit
+	}
+	currentPage := offset/limit + 1
+	if totalPages > 0 && currentPage > totalPages {
+		currentPage = totalPages
+	}
+	if currentPage < 1 {
+		currentPage = 1
+	}
+
+	from, to := 0, 0
+	if len(result.Trades) > 0 {
+		from = offset + 1
+		to = offset + len(result.Trades)
+	}
+
+	prevOffset := offset - limit
+	if prevOffset < 0 {
+		prevOffset = 0
+	}
+	nextOffset := offset + limit
+	lastOffset := (totalPages - 1) * limit
+	if lastOffset < 0 {
+		lastOffset = 0
+	}
+
+	q := r.URL.Query()
+	qsFor := func(off int) string { return tradesPageQuery(q, limit, off) }
+
+	// Окно номеров страниц: максимум 7 штук вокруг текущей.
+	var pages []pageLink
+	if totalPages > 0 {
+		const window = 7
+		start := currentPage - window/2
+		if start < 1 {
+			start = 1
+		}
+		end := start + window - 1
+		if end > totalPages {
+			end = totalPages
+			start = end - window + 1
+			if start < 1 {
+				start = 1
+			}
+		}
+		for p := start; p <= end; p++ {
+			off := (p - 1) * limit
+			pages = append(pages, pageLink{Page: p, Offset: off, QS: qsFor(off), Current: p == currentPage})
+		}
+	}
+
+	var perPage []perPageOption
+	for _, v := range perPageChoices {
+		perPage = append(perPage, perPageOption{
+			Value:   v,
+			QS:      tradesPageQuery(q, v, 0), // смена размера страницы всегда возвращает на страницу 1
+			Current: v == limit,
+		})
+	}
+
+	return tradesPagination{
+		Limit:          limit,
+		Offset:         offset,
+		Total:          total,
+		From:           from,
+		To:             to,
+		HasPrev:        offset > 0,
+		HasNext:        offset+len(result.Trades) < total,
+		PrevQS:         qsFor(prevOffset),
+		NextQS:         qsFor(nextOffset),
+		FirstQS:        qsFor(0),
+		LastQS:         qsFor(lastOffset),
+		CurrentPage:    currentPage,
+		TotalPages:     totalPages,
+		Pages:          pages,
+		PerPageOptions: perPage,
+		Empty:          total > 0 && len(result.Trades) == 0,
+	}
+}
+
+func (h *Handler) handleTrades(w http.ResponseWriter, r *http.Request) {
+	limit, offset := parseTradesPaging(r)
 	trades, err := h.reader.ListClosedTrades(r.Context(), h.parseFilter(r), limit, offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -175,7 +322,69 @@ func (h *Handler) handleTrades(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data.Trades = trades
+	data.TradesPagination = buildTradesPagination(r, limit, offset, trades)
 	renderTemplate(w, "trades.html", data)
+}
+
+func (h *Handler) handleAPIArchivesList(w http.ResponseWriter, r *http.Request) {
+	archives, err := h.archives.List()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if archives == nil {
+		archives = []models.ViewArchive{}
+	}
+	writeJSON(w, archives)
+}
+
+type createArchiveRequest struct {
+	DateFrom string `json:"date_from"`
+	DateTo   string `json:"date_to"`
+	Comment  string `json:"comment"`
+}
+
+func (h *Handler) handleAPIArchivesCreate(w http.ResponseWriter, r *http.Request) {
+	var req createArchiveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "некорректный JSON", http.StatusBadRequest)
+		return
+	}
+	archive, err := h.archives.Create(req.DateFrom, req.DateTo, req.Comment)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrArchiveDuplicate):
+			http.Error(w, err.Error(), http.StatusConflict)
+		case errors.Is(err, ErrInvalidDateRange):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			if strings.Contains(err.Error(), "date_from:") || strings.Contains(err.Error(), "date_to:") {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		}
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, archive)
+}
+
+func (h *Handler) handleAPIArchivesDelete(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/archives/")
+	if id == "" || strings.Contains(id, "/") {
+		http.Error(w, "id обязателен", http.StatusBadRequest)
+		return
+	}
+	if err := h.archives.Delete(id); err != nil {
+		if errors.Is(err, ErrArchiveNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) handleExportPage(w http.ResponseWriter, r *http.Request) {

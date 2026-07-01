@@ -2,34 +2,109 @@
 <h1>{{.Title}}</h1>
 {{template "filters" .}}
 
-<p class="muted">Показано {{len .Trades.Trades}} из {{.Trades.Total}}</p>
-<table>
+{{if gt .TradesPagination.Total 0}}
+<nav class="pager">
+  <div class="pager-info">
+    {{if .TradesPagination.Empty}}
+      На странице {{.TradesPagination.CurrentPage}} нет записей —
+      <a href="{{tradesURL .TradesPagination.FirstQS}}">к первой странице</a>
+    {{else}}
+      {{.TradesPagination.From}}–{{.TradesPagination.To}} из {{.TradesPagination.Total}}
+    {{end}}
+  </div>
+
+  <div class="pager-controls">
+    <a class="pager-btn" href="{{tradesURL .TradesPagination.FirstQS}}" {{if not .TradesPagination.HasPrev}}aria-disabled="true" tabindex="-1"{{end}}>«</a>
+    <a class="pager-btn" href="{{tradesURL .TradesPagination.PrevQS}}" {{if not .TradesPagination.HasPrev}}aria-disabled="true" tabindex="-1"{{end}}>‹</a>
+
+    {{range .TradesPagination.Pages}}
+      <a class="pager-btn pager-num {{if .Current}}current{{end}}" href="{{tradesURL .QS}}" {{if .Current}}aria-current="page"{{end}}>{{.Page}}</a>
+    {{end}}
+
+    <a class="pager-btn" href="{{tradesURL .TradesPagination.NextQS}}" {{if not .TradesPagination.HasNext}}aria-disabled="true" tabindex="-1"{{end}}>›</a>
+    <a class="pager-btn" href="{{tradesURL .TradesPagination.LastQS}}" {{if not .TradesPagination.HasNext}}aria-disabled="true" tabindex="-1"{{end}}>»</a>
+  </div>
+
+  <label class="pager-size">
+    На странице
+    <select onchange="if(this.value) window.location.href=this.value">
+      {{range .TradesPagination.PerPageOptions}}
+      <option value="{{tradesURL .QS}}" {{if .Current}}selected{{end}}>{{.Value}}</option>
+      {{end}}
+    </select>
+  </label>
+</nav>
+{{else}}
+<p class="muted">Нет сделок</p>
+{{end}}
+
+<div class="table-scroll">
+<table class="data-table">
   <thead>
     <tr>
-      <th>Эксперимент</th><th>Тикер</th><th>Напр.</th>
+      <th class="num">№</th>
+      <th>Эксп.</th><th>Тикер</th><th>Напр.</th>
+      <th class="num">Лоты</th><th class="num">₽/лот</th><th class="num">Сумма</th>
       <th>Открыта</th><th>Закрыта</th><th>Удерж.</th>
-      <th>Цена вх.</th><th>Цена вых.</th>
-      <th>PnL</th><th>R</th><th>Причина</th>
+      <th class="num">Цена вх.</th><th class="num">Цена вых.</th>
+      <th class="num">PnL</th><th class="num">R</th><th>Причина</th>
     </tr>
   </thead>
   <tbody>
-    {{range .Trades.Trades}}
+    {{range $i, $t := .Trades.Trades}}
     <tr>
-      <td><code>{{.ExperimentID}}</code></td>
-      <td>{{.Ticker}}</td>
-      <td>{{.Direction}}</td>
-      <td>{{fmtTime .OpenedAt}}</td>
-      <td>{{fmtTime .ClosedAt}}</td>
-      <td>{{fmtHold .HoldSeconds}}</td>
-      <td>{{printf "%.2f" .EntryPrice}}</td>
-      <td>{{printf "%.2f" .ExitPrice}}</td>
-      <td class="{{pnlClass .GrossPnL}}">{{fmtMoney .GrossPnL}}</td>
-      <td>{{printf "%.2f" .PnLR}}</td>
-      <td>{{.CloseReason}}</td>
+      <td class="num muted">{{add $.TradesPagination.Offset $i 1}}</td>
+      <td><code>{{$t.ExperimentID}}</code></td>
+      <td>{{$t.Ticker}}</td>
+      <td>{{$t.Direction}}</td>
+      <td class="num">{{$t.Quantity}}</td>
+      <td class="num">{{fmtMoney $t.LotValueRub}}</td>
+      <td class="num">{{fmtMoney $t.NotionalRub}}</td>
+      <td>{{fmtTime $t.OpenedAt}}</td>
+      <td>{{fmtTime $t.ClosedAt}}</td>
+      <td>{{fmtHold $t.HoldSeconds}}</td>
+      <td class="num">{{printf "%.2f" $t.EntryPrice}}</td>
+      <td class="num">{{printf "%.2f" $t.ExitPrice}}</td>
+      <td class="num {{pnlClass $t.GrossPnL}}">{{fmtMoney $t.GrossPnL}}</td>
+      <td class="num">{{printf "%.2f" $t.PnLR}}</td>
+      <td>{{$t.CloseReason}}</td>
     </tr>
-    {{else}}
-    <tr><td colspan="11" class="muted">Нет сделок</td></tr>
     {{end}}
   </tbody>
 </table>
+</div>
+
+{{if gt .TradesPagination.Total 0}}
+<nav class="pager">
+  <div class="pager-info">
+    {{if .TradesPagination.Empty}}
+      На странице {{.TradesPagination.CurrentPage}} нет записей —
+      <a href="{{tradesURL .TradesPagination.FirstQS}}">к первой странице</a>
+    {{else}}
+      {{.TradesPagination.From}}–{{.TradesPagination.To}} из {{.TradesPagination.Total}}
+    {{end}}
+  </div>
+
+  <div class="pager-controls">
+    <a class="pager-btn" href="{{tradesURL .TradesPagination.FirstQS}}" {{if not .TradesPagination.HasPrev}}aria-disabled="true" tabindex="-1"{{end}}>«</a>
+    <a class="pager-btn" href="{{tradesURL .TradesPagination.PrevQS}}" {{if not .TradesPagination.HasPrev}}aria-disabled="true" tabindex="-1"{{end}}>‹</a>
+
+    {{range .TradesPagination.Pages}}
+      <a class="pager-btn pager-num {{if .Current}}current{{end}}" href="{{tradesURL .QS}}" {{if .Current}}aria-current="page"{{end}}>{{.Page}}</a>
+    {{end}}
+
+    <a class="pager-btn" href="{{tradesURL .TradesPagination.NextQS}}" {{if not .TradesPagination.HasNext}}aria-disabled="true" tabindex="-1"{{end}}>›</a>
+    <a class="pager-btn" href="{{tradesURL .TradesPagination.LastQS}}" {{if not .TradesPagination.HasNext}}aria-disabled="true" tabindex="-1"{{end}}>»</a>
+  </div>
+
+  <label class="pager-size">
+    На странице
+    <select onchange="if(this.value) window.location.href=this.value">
+      {{range .TradesPagination.PerPageOptions}}
+      <option value="{{tradesURL .QS}}" {{if .Current}}selected{{end}}>{{.Value}}</option>
+      {{end}}
+    </select>
+  </label>
+</nav>
+{{end}}
 {{end}}

@@ -1,5 +1,10 @@
 {{define "filters"}}
-<form class="filters" method="get">
+<form class="filters" method="get" id="filters-form">
+  <label>Архив
+    <select id="archive-select">
+      <option value="">— текущий период —</option>
+    </select>
+  </label>
   <label>Эксперимент
     <select name="experiment_id">
       <option value="" {{if not .Filter.ExperimentID}}selected{{end}}>все</option>
@@ -9,8 +14,155 @@
     </select>
   </label>
   <label>Тикер <input name="ticker" value="{{.Filter.Ticker}}" placeholder="SBER"></label>
-  <label>С <input type="date" name="date_from" value="{{.Filter.DateFrom}}"></label>
-  <label>По <input type="date" name="date_to" value="{{.Filter.DateTo}}"></label>
+  <label>С <input type="date" name="date_from" id="date-from" value="{{.Filter.DateFrom}}"></label>
+  <label>По <input type="date" name="date_to" id="date-to" value="{{.Filter.DateTo}}"></label>
+  <button type="button" class="btn secondary" id="archive-btn" disabled>Архивировать</button>
   <button type="submit">Применить</button>
 </form>
+
+<div class="modal-overlay" id="archive-modal" hidden>
+  <div class="modal" role="dialog" aria-labelledby="archive-modal-title">
+    <h2 id="archive-modal-title">Архивировать период</h2>
+    <p class="muted" id="archive-modal-period"></p>
+    <label class="modal-label">Комментарий
+      <textarea id="archive-comment" rows="4" placeholder="Заметка к периоду…"></textarea>
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="archive-cancel">Отмена</button>
+      <button type="button" class="btn primary" id="archive-save">Сохранить</button>
+    </div>
+    <p class="modal-error muted" id="archive-error" hidden></p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const form = document.getElementById('filters-form');
+  const archiveSelect = document.getElementById('archive-select');
+  const dateFrom = document.getElementById('date-from');
+  const dateTo = document.getElementById('date-to');
+  const archiveBtn = document.getElementById('archive-btn');
+  const modal = document.getElementById('archive-modal');
+  const modalPeriod = document.getElementById('archive-modal-period');
+  const commentInput = document.getElementById('archive-comment');
+  const cancelBtn = document.getElementById('archive-cancel');
+  const saveBtn = document.getElementById('archive-save');
+  const errorEl = document.getElementById('archive-error');
+
+  let archives = [];
+
+  function updateArchiveBtn() {
+    archiveBtn.disabled = !(dateFrom.value && dateTo.value);
+  }
+
+  function findMatchingArchiveId() {
+    return archives.find((a) => a.date_from === dateFrom.value && a.date_to === dateTo.value)?.id || '';
+  }
+
+  function renderArchiveOptions() {
+    const selectedId = findMatchingArchiveId();
+    archiveSelect.innerHTML = '<option value="">— текущий период —</option>';
+    for (const a of archives) {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = a.name;
+      if (a.comment) {
+        opt.title = a.comment;
+      }
+      if (a.id === selectedId) {
+        opt.selected = true;
+      }
+      archiveSelect.appendChild(opt);
+    }
+  }
+
+  async function loadArchives() {
+    const res = await fetch('/api/archives');
+    if (!res.ok) {
+      return;
+    }
+    archives = await res.json();
+    renderArchiveOptions();
+  }
+
+  function openModal() {
+    modalPeriod.textContent = dateFrom.value + ' — ' + dateTo.value;
+    commentInput.value = '';
+    errorEl.hidden = true;
+    errorEl.textContent = '';
+    modal.hidden = false;
+    commentInput.focus();
+  }
+
+  function closeModal() {
+    modal.hidden = true;
+  }
+
+  archiveSelect.addEventListener('change', () => {
+    const id = archiveSelect.value;
+    if (!id) {
+      dateFrom.value = '';
+      dateTo.value = '';
+      form.submit();
+      return;
+    }
+    const archive = archives.find((a) => a.id === id);
+    if (!archive) {
+      return;
+    }
+    dateFrom.value = archive.date_from;
+    dateTo.value = archive.date_to;
+    form.submit();
+  });
+
+  dateFrom.addEventListener('change', () => {
+    updateArchiveBtn();
+    archiveSelect.value = findMatchingArchiveId();
+  });
+  dateTo.addEventListener('change', () => {
+    updateArchiveBtn();
+    archiveSelect.value = findMatchingArchiveId();
+  });
+
+  archiveBtn.addEventListener('click', openModal);
+  cancelBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeModal();
+    }
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    errorEl.hidden = true;
+    saveBtn.disabled = true;
+    try {
+      const res = await fetch('/api/archives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date_from: dateFrom.value,
+          date_to: dateTo.value,
+          comment: commentInput.value,
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        errorEl.textContent = text || 'Ошибка сохранения';
+        errorEl.hidden = false;
+        return;
+      }
+      closeModal();
+      await loadArchives();
+    } catch (e) {
+      errorEl.textContent = 'Ошибка: ' + e;
+      errorEl.hidden = false;
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  updateArchiveBtn();
+  loadArchives();
+})();
+</script>
 {{end}}

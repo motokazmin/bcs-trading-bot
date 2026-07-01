@@ -33,6 +33,10 @@ func NewServer(cfg Config, handler *Handler) (*http.Server, error) {
 
 	mux.HandleFunc("GET /api/export/data", handler.handleExportData)
 
+	mux.HandleFunc("GET /api/archives", handler.handleAPIArchivesList)
+	mux.HandleFunc("POST /api/archives", handler.handleAPIArchivesCreate)
+	mux.HandleFunc("DELETE /api/archives/{id}", handler.handleAPIArchivesDelete)
+
 	return &http.Server{
 		Addr:         cfg.Listen,
 		Handler:      mux,
@@ -48,6 +52,18 @@ var templateFuncs = template.FuncMap{
 			return ""
 		}
 		return "?" + q
+	},
+	"pageURL": func(path, qs string) template.URL {
+		if qs == "" {
+			return template.URL(path)
+		}
+		return template.URL(path + "?" + qs)
+	},
+	"tradesURL": func(qs string) template.URL {
+		if qs == "" {
+			return "/trades"
+		}
+		return template.URL("/trades?" + qs)
 	},
 	"pnlClass": func(v float64) string {
 		if v > 0 {
@@ -77,6 +93,13 @@ var templateFuncs = template.FuncMap{
 		return formatHoldDuration(int(sec + 0.5))
 	},
 	"join": strings.Join,
+	"add": func(nums ...int) int {
+		sum := 0
+		for _, n := range nums {
+			sum += n
+		}
+		return sum
+	},
 }
 
 func formatHoldDuration(sec int) string {
