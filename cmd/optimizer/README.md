@@ -1,116 +1,327 @@
 # bcs-strategy-optimizer
 
-Offline-сервис подбора гиперпараметров стратегии MomentumBreakout через walk-forward backtest и Random Search.
+Offline-подбор гиперпараметров торговых стратегий: walk-forward backtest + Random Search.
 
-Отдельный бинарник — не меняет runtime `cmd/bot` напрямую, но переиспользует общие пакеты:
-`internal/position`, `internal/trailing`, `internal/simulation`, `internal/strategy`, `internal/risk`.
+Отдельный бинарник — не трогает `cmd/bot`, но использует **тот же код стратегий и тот же торговый цикл** (`internal/simulation` ≈ `engine.TickerWorker`).
 
-## Сборка
+## Содержание
 
-```bash
-go build -o bin/optimizer ./cmd/optimizer
+- [Подход](#подход)
+- [Как интерпретировать результат](#как-интерпретировать-результат)
+- [Быстрый старт](#быстрый-старт)
+- [Команды и флаги](#команды-и-флаги)
+- [Конфигурация](#конфигурация)
+- [Scoring и комиссия](#scoring-и-комиссия)
+- [Производительность](#производительность)
+- [Архитектура (для разработчиков)](#архитектура-для-разработчиков)
+
+---
+
+## Подход
+
+### Какой вопрос мы задаём
+
+Optimizer отвечает не на «какой максимальный PnL на всей истории», а на:
+
+> **Если подобрать параметры на прошлом и торговать на следующем куске времени — будет ли это хоть сколько-нибудь устойчиво?**
+
+```mermaid
+flowchart TB
+    subgraph question["Вопрос"]
+        Q["Параметры, найденные на прошлом,<br/>работают на будущем?"]
+    end
+
+    subgraph input["Вход"]
+        H["~2 года M5-истории<br/>9 акций MOEX"]
+        P["Search space:<br/>lookback, ATR, trailing…"]
+    end
+
+    subgraph method["Метод"]
+        WF["Walk-forward<br/>17 окон train → test"]
+        RS["Random Search<br/>200 случайных наборов"]
+    end
+
+    subgraph output["Выход"]
+        RANK["Ранжирование по OOS test score"]
+        YAML["best-config.yaml"]
+        DEPLOY{"OOS в плюсе?"}
+    end
+
+    H --> WF
+    P --> RS
+    WF --> RS
+    RS --> RANK --> YAML
+    RANK --> DEPLOY
+    DEPLOY -->|да| OK["Можно рассматривать вручную"]
+    DEPLOY -->|нет| WARN["WARN: не деплоить"]
 ```
 
-## Подкоманды
+### Walk-forward — почему не один backtest на всём периоде
 
-### fetch-history — загрузка CSV с BCS API
+Один прогон на 2024–2026 легко **переобучить**: параметры запомнят конкретные движения. Walk-forward режет историю на скользящие окна и каждый раз проверяет на **невидимом** куске (out-of-sample).
 
-Требует `BCS_REFRESH_TOKEN` в окружении.
-
-```bash
-optimizer fetch-history \
-  -tickers SBER,ROSN,NVTK \
-  -class-code TQBR \
-  -timeframe M5 \
-  -date-from 2024-01-01 \
-  -date-to 2026-06-01 \
-  -output-dir data/history
+```mermaid
+flowchart LR
+    subgraph timeline["Временная шкала (пример)"]
+        direction LR
+        A1["Train<br/>6 мес"] --> B1["Test<br/>2 мес ✓ OOS"]
+        B1 -.сдвиг 1 мес.-> A2["Train<br/>6 мес"]
+        A2 --> B2["Test<br/>2 мес ✓ OOS"]
+        B2 -.…-> DOT["× 17 окон"]
+    end
 ```
 
-API: `GET .../candles-chart` (до 1000 баров за запрос, пагинация автоматическая).
+| Часть окна | Роль |
+|------------|------|
+| **Train** (6 мес) | Период, в контексте которого оценивается trial |
+| **Test** (2 мес) | Следующий кусок — **честный OOS**, по нему сравниваем trials |
+| **Шаг** (1 мес) | Сдвиг → ~17 независимых проверок за 2 года |
 
-### sync-history — инкрементальная догрузка (рекомендуется)
+**Итоговый test score trial** = **медиана** OOS по всем окнам (устойчивость важнее одного удачного квартала).
 
-Список инструментов берётся из `config/optimizer/universe.yaml` (полный universe = 10 акций MOEX).
+### Random Search — что ищем
 
-- **Первый запуск:** загружает `initial_history_years` (default 2) назад → сейчас
-- **Повторный:** догружает только новые свечи с последней в CSV до текущего момента
-- Если уже актуально — тикер пропускается
+Из YAML search space случайно выбирается 200 комбинаций параметров (`-trials`, `-seed`). Grid search на 10+ измерениях взорвался бы; Bayesian/TPE — возможное расширение (интерфейс `Searcher` уже есть).
+
+**Внутри одного прогона не перебираются** (отдельные запуски CLI):
+
+- `stop_mode` — `atr` vs `range` (`-stop-mode`)
+- universe — 3 vs 9 тикеров (`-tickers`)
+- тип стратегии (`-strategy` + свой search space)
+
+### Optimizer и бот
+
+```mermaid
+flowchart LR
+    subgraph offline["Optimizer — offline"]
+        API["BCS API"] --> CSV["data/history/*.csv"]
+        CSV --> SIM["simulation.Runner"]
+        SIM --> OUT["best-config.yaml<br/>+ JSON отчёт"]
+    end
+
+    subgraph live["Бот — live"]
+        WS["WebSocket M5"] --> W["TickerWorker"]
+        CFG["configs/*.yaml"] --> W
+        W --> DB["SQLite сделки"]
+    end
+
+    OUT -. "ручное копирование<br/>(no auto-deploy)" .-> CFG
+```
+
+| | Optimizer | Бот |
+|---|-----------|-----|
+| Данные | CSV-история | Live свечи |
+| Цель | «Стоит ли эта гипотеза?» | «Торгуем по конфигу» |
+| Параметры | Тысячи trials | Один YAML на эксперимент |
+| Исполнение | `VirtualExecutor` в памяти | virtual / real |
+
+### Scoring — как выбираем «лучший» trial
+
+```mermaid
+flowchart TD
+    M[Метрики backtest] --> T{Сделок ≥ min-trades?}
+    T -->|нет| INF["score = −∞<br/>trial отбракован"]
+    T -->|да| P{Total PnL > 0?}
+    P -->|нет| PNL["score = PnL в руб.<br/>(кто меньше теряет)"]
+    P -->|да| CAL["score = Calmar<br/>PnL / MaxDrawdown"]
+```
+
+Комиссия вычитается в optimizer вручную — иначе поиск завышал бы частые сделки.
+
+### Двухфазный режим (опционально)
+
+Ускорение, **не** улучшение метода: фаза 1 — random search на 3 lean-тикерах; фаза 2 — top-20 пересчитываются на всех 9. Включение: `-two-phase`.
+
+---
+
+## Как интерпретировать результат
+
+### Если OOS убыточен (как в текущих прогонах)
+
+Лог: `WARN optimizer: OOS убыточен`. Это значит:
+
+- optimizer **отработал штатно** — нашёл наименее плохой trial;
+- **не** «сломался» и **не** обязательно переобучение (train тоже в минусе → edge в данных не виден);
+- **не** доказательство, что прибыль невозможна в принципе — только что **в этом search space, на этом периоде и universe устойчивого плюса нет**.
+
+| Следует | Не следует |
+|---------|------------|
+| Не деплоить `best-config` | Думать, что «ещё 500 trials найдут плюс» |
+| Менять **гипотезу** (логику стратегии), а не только цифры | Ждать чуда от live vs backtest |
+| Разобрать убыток по тикерам/окнам | Считать optimizer бесполезным |
+
+### Если OOS в плюсе
+
+`best-config.yaml` — **предложение**, не автодеплой. Проверить вручную: стабильность по окнам, число сделок, поведение на отдельных тикерах, затем paper → real.
+
+---
+
+## Быстрый старт
 
 ```bash
-optimizer sync-history
-# или
+export BCS_REFRESH_TOKEN=...   # только для sync-history
+
+make build-optimizer
 make sync-history
+make optimizer-run               # parallel = NumCPU
+make strategy-matrix             # 4 стратегии, ~1–2 ч
 ```
 
-По умолчанию `-parallel-tickers 5` (переопределение: `PARALLEL_TICKERS=3 make sync-history`).
+Стратегии и search space:
 
-`fetch-history` оставлен для полной перезагрузки диапазона (legacy).
+| `-strategy` | Search space |
+|-------------|--------------|
+| `momentum_breakout` | `config/optimizer/search-space-momentum.yaml` |
+| `momentum_filtered` | `config/optimizer/search-space-momentum-filtered.yaml` |
+| `opening_range` | `config/optimizer/search-space-orb.yaml` |
+| `mean_reversion` | `config/optimizer/search-space-meanrev.yaml` |
 
-### Rate limit (429)
+---
 
-BCS API ограничивает частоту запросов к `candles-chart`. `sync-history` по умолчанию:
+## Команды и флаги
 
-- **адаптивная пауза** (`-adaptive-delay`, default on): старт ~50 ms, ускоряется при успехе, замедляется при 429
-- макс. пауза **3 s** (`-max-chunk-delay`)
-- **retry с backoff** при 429/503 (до 6 попыток, 5s → 10s → … → 60s), учитывается заголовок `Retry-After`
-- **append-checkpoint**: новые свечи дописываются в CSV после каждого чанка (без перезаписи всего файла)
-- **лог прогресса** после каждого чанка
-- **параллельная загрузка**: `-parallel-tickers 5` (общий rate limiter)
+### Makefile
 
-Фиксированная пауза:
+| Target | Описание |
+|--------|----------|
+| `make sync-history` | Догрузка CSV |
+| `make optimizer-run` | sync + оптимизация |
+| `make strategy-matrix` | 4 стратегии подряд |
+
+| Переменная | Default | Назначение |
+|------------|---------|------------|
+| `OPTIMIZER_PARALLEL` | `0` | Trials параллельно (`0` = все ядра) |
+| `OPTIMIZER_TWO_PHASE` | — | `1` — двухфазный поиск |
+| `SEARCH_SPACE` | `search-space.yaml` | YAML для `optimizer-run` |
+
+### `optimizer run` — основные флаги
+
+| Флаг | Default | Описание |
+|------|---------|----------|
+| `-strategy` | `momentum_breakout` | ID стратегии |
+| `-trials` | `200` | Random search trials |
+| `-train-months` / `-test-months` / `-step-months` | 6 / 2 / 1 | Walk-forward окна |
+| `-min-trades` | `20` | Мин. сделок для валидного score |
+| `-stop-mode` | `atr` | `atr` или `range` |
+| `-parallel` | `0` | Параллельные trials |
+| `-two-phase` | `false` | Lean → full universe |
+| `-phase2-top` | `20` | Top-N для фазы 2 |
+| `-output` | `results/` | JSON + YAML |
+
+Полный список: `optimizer run -h`.
+
+### Другие подкоманды
 
 ```bash
-bin/optimizer sync-history -adaptive-delay=false -chunk-delay 400ms
+optimizer sync-history          # инкрементальная догрузка CSV
+optimizer backtest ...          # один прогон без оптимизации
+optimizer fetch-history ...     # полная перезагрузка (legacy)
 ```
 
-При повторном 429 увеличьте макс. паузу:
+---
 
-```bash
-bin/optimizer sync-history -max-chunk-delay 10s -parallel-tickers 1
+## Конфигурация
+
+### `config/optimizer/universe.yaml`
+
+```yaml
+lean_tickers: [SBER, ROSN, NVTK]   # для -two-phase
+tickers: [SBER, GAZP, ...]         # полный universe
 ```
 
-Или уменьшите глубину первичной загрузки: `-initial-years 1`
+### Search space
 
-### run — walk-forward оптимизация
+Параметры с `min`/`max` — в random search. Секция `fixed` — риск, EOD (не ищутся).
 
-Тикеры и class_code — из `config/optimizer/universe.yaml` (флаг `-tickers` для override).
-Даты по умолчанию — из загруженных CSV.
+---
 
-```bash
-optimizer run
-# или
-make optimizer-run
+## Scoring и комиссия
+
+- Train score = **mean** по train-окнам
+- Test score = **median** по test-окнам → **ранжирование trials**
+- `VirtualExecutor` не вычитает комиссию из `GrossPnL`; optimizer вычитает `-commission-per-trade × quantity`
+- `AggregateTrades` сортирует сделки всех тикеров по `ClosedAt` перед MaxDrawdown/Calmar
+
+---
+
+## Производительность
+
+Объём: `trials × окна × 2 × тикеры` backtest'ов (~61 000 на 200 trials × 17 окон × 9 тикеров).
+
+| Оптимизация | Что делает |
+|-------------|------------|
+| `PrecomputeWindowSlices` | Свечи по окнам нарезаются один раз |
+| `-parallel 0` | Trials на всех ядрах CPU |
+| `trialContext` | trailCfg и params — один раз на trial |
+
+Двухфазный режим: ~3× быстрее фаза 1 (3 тикера), фаза 2 — только top-N без random search.
+
+---
+
+## Архитектура (для разработчиков)
+
+```mermaid
+flowchart TB
+    CLI["cmd/optimizer/main.go"]
+
+    CLI --> RUN["run"]
+    CLI --> SYNC["sync-history"]
+    CLI --> BT["backtest"]
+
+    RUN --> E["Evaluator"]
+    SYNC --> CSV[("data/history/*.csv")]
+    CSV --> E
+
+    E --> SL["window_slices<br/>преднарезка"]
+    E --> OPT["optimization.go<br/>parallel trials"]
+    OPT --> TE["trial_eval.go<br/>evaluateTrial"]
+
+    TE --> SIM["simulation.Runner"]
+    SIM --> STR["strategy"]
+    SIM --> RISK["risk + trailing + position"]
+
+    OPT --> REP["report.go<br/>JSON + best-config"]
 ```
 
-Полный пример:
+### Модули `internal/optimizer/`
 
-```bash
-optimizer run \
-  -universe config/optimizer/universe.yaml \
-  -history-dir data/history \
-  -search-space config/optimizer/search-space.yaml \
-  -trials 200 \
-  -output results/
+| Модуль | Назначение |
+|--------|------------|
+| `walkforward.go` | Генерация train/test окон |
+| `window_slices.go` | Преднарезка свечей |
+| `config.go` | Search space, `Sample()` |
+| `trial_eval.go` | Один trial = все окна × тикеры |
+| `objective.go` | `Score`, `Metrics`, комиссия |
+| `optimization.go` | Worker pool, random search |
+| `two_phase.go` | Lean → full |
+| `history.go`, `fetch.go` | CSV и BCS API |
+| `report.go` | Отчёты |
+
+### Ключевые типы
+
+```go
+type TrialResult struct {
+    Params     ParameterSet
+    TrainScore float64   // mean по окнам
+    TestScore  float64   // median OOS — ранжирование
+    Windows    []WindowResult
+}
 ```
 
-## Формат CSV (`data/history/{ticker}.csv`)
+### Design decisions
 
-```csv
-timestamp,open,high,low,close,volume
-2024-01-02T10:00:00+03:00,250.50,251.00,250.00,250.80,12345
-```
+- **No auto-deploy** — `best-config` применяется вручную
+- **`stop_mode` / universe** — вне search space, отдельные CLI-запуски
+- **`Searcher`** — задел под TPE/Bayesian (`search.go`)
 
-- Разделитель: запятая
-- Первая строка — заголовок (обязателен)
-- `timestamp`: RFC3339 с timezone
-- `volume`: целое число
+### Известные исправления (старые прогоны)
 
-## Walk-forward scoring
+- **`rangeUseCap`** у `momentum_breakout` был инвертирован — перезапустить `-stop-mode range`
+- **Equity curve** — сортировка по `ClosedAt` across тикеров (влияет на Calmar при прибыли)
 
-- **Train score** (mean по окнам) — используется `Searcher.Report` во время поиска
-- **Test score** (median OOS по окнам) — финальное сравнение trials и ранжирование
+---
 
+<<<<<<< Updated upstream
 Целевая метрика: **Calmar** = TotalPnL / MaxDrawdown. При `num_trades < min-trades` → score = −∞.
 
 ## Учёт комиссии
@@ -230,3 +441,6 @@ universe/периоде для данного набора стратегий н
 ## Расширение алгоритма поиска
 
 Интерфейс `optimizer.Searcher` готов для замены Random Search на TPE/Bayesian (см. TODO в `internal/optimizer/search.go`).
+=======
+Сборка: `go build -o bin/optimizer ./cmd/optimizer`
+>>>>>>> Stashed changes

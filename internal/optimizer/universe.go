@@ -16,6 +16,7 @@ type UniverseConfig struct {
 	ClassCode           string   `yaml:"class_code"`
 	CandleTimeframe     string   `yaml:"candle_timeframe"`
 	InitialHistoryYears int      `yaml:"initial_history_years"`
+	LeanTickers         []string `yaml:"lean_tickers"`
 	Tickers             []string `yaml:"tickers"`
 }
 
@@ -49,6 +50,7 @@ func (u *UniverseConfig) normalize() {
 		u.InitialHistoryYears = defaultInitialHistoryYears
 	}
 	u.Tickers = normalizeSymbols(u.Tickers)
+	u.LeanTickers = normalizeSymbols(u.LeanTickers)
 }
 
 // ResolveTickers возвращает список тикеров из universe или явный override (-tickers).

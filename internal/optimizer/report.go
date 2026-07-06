@@ -1,7 +1,6 @@
 package optimizer
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -40,6 +39,7 @@ type RunResult struct {
 	BestByTest TrialResult   `json:"best_by_test"`
 }
 
+<<<<<<< Updated upstream
 // RunOptimization выполняет walk-forward random search.
 func RunOptimization(ctx context.Context, evaluator *Evaluator, space *SearchSpace, windows []Window, trials, minTrades int, seed int64) *RunResult {
 	searcher := NewRandomSearcher(space, trials, seed)
@@ -128,6 +128,8 @@ func RunOptimization(ctx context.Context, evaluator *Evaluator, space *SearchSpa
 	}
 }
 
+=======
+>>>>>>> Stashed changes
 func optimizerProgressInterval(total int) int {
 	switch {
 	case total <= 5:

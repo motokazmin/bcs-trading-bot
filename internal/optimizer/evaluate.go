@@ -8,10 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
-	"bcs-trading-bot/internal/simulation"
-	"bcs-trading-bot/internal/storage/memory"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/trailing"
 	"bcs-trading-bot/pkg/logx"
@@ -35,11 +32,12 @@ type RunSettings struct {
 
 // Evaluator запускает backtest для набора параметров.
 type Evaluator struct {
-	settings   RunSettings
-	strategyID string
-	buildCtx   strategy.BuildContext
-	candleData map[string][]models.Candle
-	space      *SearchSpace
+	settings     RunSettings
+	strategyID   string
+	buildCtx     strategy.BuildContext
+	candleData   map[string][]models.Candle
+	windowSlices []WindowCandleSlices
+	space        *SearchSpace
 }
 
 // NewEvaluator создаёт evaluator с предзагруженной историей.
@@ -66,58 +64,18 @@ func NewEvaluator(settings RunSettings, space *SearchSpace, candleData map[strin
 
 // EvaluatePeriod прогоняет backtest на заданном периоде для всех тикеров.
 func (e *Evaluator) EvaluatePeriod(ctx context.Context, params ParameterSet, from, to time.Time) Metrics {
-	var trades []models.ClosedTrade
-
+	byTicker := make(map[string][]models.Candle, len(e.settings.Tickers))
 	for _, ticker := range e.settings.Tickers {
 		candles, ok := e.candleData[ticker]
 		if !ok {
 			continue
 		}
 		filtered := FilterCandles(candles, from, to)
-		if len(filtered) == 0 {
-			continue
+		if len(filtered) > 0 {
+			byTicker[ticker] = filtered
 		}
-
-		store := memory.NewTradeStore()
-		executor := bcs.NewVirtualExecutor(e.settings.Deposit)
-
-		strat, err := e.buildStrategy(params)
-		if err != nil {
-			continue
-		}
-		trailCfg := e.trailCfg(params)
-
-		maxLoss := e.settings.Deposit * e.space.FixedValue("dailyLossLimitPercent", 2.0) / 100
-		riskPct := e.space.FixedValue("riskPerTradePercent", 0.5)
-
-		runner, err := simulation.NewRunner(simulation.RunnerConfig{
-			Ticker:          ticker,
-			ClassCode:       e.settings.ClassCode,
-			CandleTimeframe: e.settings.CandleTimeframe,
-			TradingMode:     config.TradingModeVirtual,
-			RunID:           "optimizer",
-			ExperimentID:    "optimizer",
-			StepPriceValue:  e.settings.StepPriceValue,
-			Deposit:         e.settings.Deposit,
-			MaxDailyLoss:    maxLoss,
-			RiskPerTradePct: riskPct,
-			MaxTradesPerDay: params.IntParam("maxEntriesPerTickerPerDay"),
-			Strategy:        strat,
-			StrategyID:      e.strategyID,
-			StopMode:        e.settings.StopMode,
-			Lookback:        params.IntParam("lookback"),
-			TrailCfg:        trailCfg,
-			SessionCfg:      e.settings.Session,
-		}, store)
-		if err != nil {
-			continue
-		}
-
-		_ = runner.Run(ctx, filtered, executor)
-		trades = append(trades, store.Trades()...)
 	}
-
-	return AggregateTrades(trades, e.settings.CommissionPerTrade)
+	return e.evaluateCandles(ctx, e.newTrialContext(params), byTicker)
 }
 
 // AggregateTrades сортирует сделки по времени закрытия и считает Metrics
@@ -151,17 +109,6 @@ func AggregateTrades(trades []models.ClosedTrade, commissionPerTrade float64) Me
 	}
 
 	return ComputeMetrics(netPnLs, returns)
-}
-
-func (e *Evaluator) buildStrategy(params ParameterSet) (strategy.CandleStrategy, error) {
-	p := make(strategy.Params, len(params)+4)
-	for k, v := range params {
-		p[k] = v
-	}
-	if p["atrPeriod"] == 0 {
-		p["atrPeriod"] = 14
-	}
-	return strategy.NewFromParams(e.strategyID, p, e.buildCtx)
 }
 
 func (e *Evaluator) trailCfg(params ParameterSet) trailing.Config {

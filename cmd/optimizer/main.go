@@ -53,7 +53,7 @@ Usage:
   optimizer backtest [flags]     один прогон стратегии на истории
   optimizer fetch-history [flags] полная перезагрузка диапазона (legacy)
 
-Подробности: cmd/optimizer/README.md`)
+Подробности: cmd/optimizer/README.md (подход, флаги, scoring)`)
 }
 
 func runCmd(args []string) {
@@ -76,6 +76,10 @@ func runCmd(args []string) {
 	stepPrice := fs.Float64("step-price-value", 1.0, "стоимость шага цены")
 	output := fs.String("output", "results/", "директория для результатов")
 	seed := fs.Int64("seed", time.Now().UnixNano(), "seed для random search")
+	parallel := fs.Int("parallel", 0, "параллельных trials (0 = NumCPU)")
+	twoPhase := fs.Bool("two-phase", false, "двухфазный поиск: random search на lean, финал на полном universe")
+	phase1Tickers := fs.String("phase1-tickers", "", "тикеры фазы 1 (default: lean_tickers из universe)")
+	phase2Top := fs.Int("phase2-top", 20, "сколько лучших конфигов фазы 1 пересчитать на полном universe")
 	_ = fs.Parse(args)
 
 	spacePath := *searchSpace
@@ -134,11 +138,33 @@ func runCmd(args []string) {
 	}
 
 	evaluator := optimizer.NewEvaluator(settings, space, candleData)
+	evaluator.PrecomputeWindowSlices(windows)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	result := optimizer.RunOptimization(ctx, evaluator, space, windows, *trials, *minTrades, *seed)
+	optCfg := optimizer.OptimizationConfig{
+		Trials:      *trials,
+		MinTrades:   *minTrades,
+		Seed:        *seed,
+		Parallelism: *parallel,
+	}
+
+	var result *optimizer.RunResult
+	if *twoPhase {
+		phase1, err := optimizer.ResolvePhase1Tickers(*phase1Tickers, u.LeanTickers, tickerList)
+		if err != nil {
+			logx.Fatalf("two-phase: %v", err)
+		}
+		logx.Info("two-phase: включён | фаза 1: %s | top %d → полный universe", strings.Join(phase1, ","), *phase2Top)
+		result = optimizer.RunTwoPhaseOptimization(ctx, settings, space, candleData, windows, optimizer.TwoPhaseConfig{
+			OptimizationConfig: optCfg,
+			Phase1Tickers:      phase1,
+			Phase2Top:          *phase2Top,
+		})
+	} else {
+		result = optimizer.RunOptimizationWithConfig(ctx, evaluator, space, windows, optCfg)
+	}
 
 	jsonPath, yamlPath, err := optimizer.WriteResults(*output, result, settings, space)
 	if err != nil {

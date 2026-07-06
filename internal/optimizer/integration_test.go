@@ -100,6 +100,7 @@ fixed:
 			TestEnd:    to,
 		}}
 	}
+	evaluator.PrecomputeWindowSlices(windows)
 
 	result := optimizer.RunOptimization(context.Background(), evaluator, space, windows, 3, 1, rand.Int63())
 	if len(result.Trials) != 3 {

@@ -16,6 +16,8 @@ HISTORY_DIR       ?= data/history
 SEARCH_SPACE      ?= config/optimizer/search-space.yaml
 OPTIMIZER_OUT     ?= results/
 PARALLEL_TICKERS  ?= 5
+OPTIMIZER_PARALLEL ?= 0
+OPTIMIZER_TWO_PHASE ?=
 
 BOT_CONFIG ?= configs/experiments-all.yaml
 
@@ -38,7 +40,8 @@ help:
 	@echo "  make bot-smoke          — smoke test OAuth+WS"
 	@echo "  make admin              — веб-админка"
 	@echo ""
-	@echo "Переменные: UNIVERSE, HISTORY_DIR, PARALLEL_TICKERS, BOT_CONFIG, BCS_REFRESH_TOKEN"
+	@echo "Переменные: UNIVERSE, HISTORY_DIR, PARALLEL_TICKERS, OPTIMIZER_PARALLEL,"
+	@echo "            OPTIMIZER_TWO_PHASE=1, SEARCH_SPACE, OPTIMIZER_OUT, BOT_CONFIG, BCS_REFRESH_TOKEN"
 
 build: build-bot build-optimizer build-admin
 
@@ -72,6 +75,8 @@ optimizer-run: build-optimizer sync-history
 		-universe $(UNIVERSE) \
 		-history-dir $(HISTORY_DIR) \
 		-search-space $(SEARCH_SPACE) \
+		-parallel $(OPTIMIZER_PARALLEL) \
+		$(if $(OPTIMIZER_TWO_PHASE),-two-phase,) \
 		-output $(OPTIMIZER_OUT)
 
 strategy-matrix: build-optimizer

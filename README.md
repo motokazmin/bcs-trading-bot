@@ -87,9 +87,12 @@ go build -o bot ./cmd/bot
 make help          # список команд
 make build         # bin/bot, bin/optimizer, bin/admin
 make bot             # paper trading, все A/B-эксперименты
-make sync-history       # догрузить CSV-историю для optimizer (10 акций)
-make optimizer-run      # sync + walk-forward оптимизация
+make sync-history       # догрузить CSV-историю для optimizer (9 акций)
+make optimizer-run      # sync + walk-forward оптимизация (parallel = NumCPU)
+make strategy-matrix    # сравнить 4 стратегии, ~1–2 ч
 ```
+
+Переменные optimizer: `OPTIMIZER_PARALLEL`, `OPTIMIZER_TWO_PHASE=1`, `SEARCH_SPACE`. Документация: [`cmd/optimizer/README.md`](cmd/optimizer/README.md) ([подход](cmd/optimizer/README.md#подход), [архитектура](cmd/optimizer/README.md#архитектура-для-разработчиков)).
 
 Требуется `export BCS_REFRESH_TOKEN=...` (см. ниже).
 
