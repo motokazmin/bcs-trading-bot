@@ -125,12 +125,21 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 	logx.Info("optimizer: готово %d/%d trials за %s, best test_score=%s",
 		completed, trials, elapsed, formatOptimizerScore(best.TestScore))
 	if completed > 0 {
+		bestPnL := totalTestPnL(best)
 		switch {
 		case math.IsInf(best.TestScore, -1):
 			logx.Warn("optimizer: ни один trial не набрал min-trades на OOS — уменьшите -min-trades или сузьте search-space (breakoutThreshold > 0.05 почти не даёт сделок)")
 		case best.TestScore < 0:
 			logx.Warn("optimizer: OOS убыточен (score=%s, test PnL=%.0f руб.) — см. JSON",
-				formatOptimizerScore(best.TestScore), totalTestPnL(best))
+				formatOptimizerScore(best.TestScore), bestPnL)
+		case bestPnL <= 0:
+			// TestScore — медиана Calmar по окнам: у части окон может быть неплохой
+			// Calmar (мало сделок, маленькая просадка), а сумма PnL по всем окнам
+			// всё равно в минусе. Положительный score НЕ означает, что конфигурация
+			// заработала деньги за весь период — явно предупреждаем, иначе можно
+			// принять "score > 0, предупреждения нет" за признак прибыльности.
+			logx.Warn("optimizer: best test_score=%s положителен (медиана Calmar по окнам), но суммарный OOS PnL по всем окнам = %.0f руб. — конфигурация НЕ прибыльна в деньгах, см. JSON по окнам",
+				formatOptimizerScore(best.TestScore), bestPnL)
 		}
 	}
 

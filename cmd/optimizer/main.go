@@ -137,9 +137,6 @@ func runCmd(args []string) {
 		Session:            optimizer.DefaultSession(),
 	}
 
-	evaluator := optimizer.NewEvaluator(settings, space, candleData)
-	evaluator.PrecomputeWindowSlices(windows)
-
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
@@ -163,6 +160,12 @@ func runCmd(args []string) {
 			Phase2Top:          *phase2Top,
 		})
 	} else {
+		// PrecomputeWindowSlices нарезает свечи по всем окнам сразу для полного
+		// universe — нужно только в этой ветке; в -two-phase свои evaluator'ы
+		// создаёт и нарезает RunTwoPhaseOptimization (сначала на lean, потом на
+		// полном), пересоздавать их здесь заранее было бы лишней работой.
+		evaluator := optimizer.NewEvaluator(settings, space, candleData)
+		evaluator.PrecomputeWindowSlices(windows)
 		result = optimizer.RunOptimizationWithConfig(ctx, evaluator, space, windows, optCfg)
 	}
 
