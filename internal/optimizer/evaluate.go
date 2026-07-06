@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -65,8 +66,7 @@ func NewEvaluator(settings RunSettings, space *SearchSpace, candleData map[strin
 
 // EvaluatePeriod прогоняет backtest на заданном периоде для всех тикеров.
 func (e *Evaluator) EvaluatePeriod(ctx context.Context, params ParameterSet, from, to time.Time) Metrics {
-	var netPnLs []float64
-	var returns []float64
+	var trades []models.ClosedTrade
 
 	for _, ticker := range e.settings.Tickers {
 		candles, ok := e.candleData[ticker]
@@ -114,17 +114,38 @@ func (e *Evaluator) EvaluatePeriod(ctx context.Context, params ParameterSet, fro
 		}
 
 		_ = runner.Run(ctx, filtered, executor)
+		trades = append(trades, store.Trades()...)
+	}
 
-		for _, trade := range store.Trades() {
-			net := NetPnLFromGross(trade.GrossPnL, trade.Quantity, e.settings.CommissionPerTrade)
-			netPnLs = append(netPnLs, net)
-			if trade.PnLR != 0 {
-				returns = append(returns, trade.PnLR)
-			} else {
-				riskAmt := trade.RDistance * float64(trade.Quantity) * trade.StepPriceValue
-				if riskAmt > 0 {
-					returns = append(returns, net/riskAmt)
-				}
+	return AggregateTrades(trades, e.settings.CommissionPerTrade)
+}
+
+// AggregateTrades сортирует сделки по времени закрытия и считает Metrics
+// по всему портфелю. Сортировка обязательна: сделки по разным тикерам
+// закрываются в частично перекрывающиеся моменты времени, а собираются
+// они тикер за тикером (сначала все сделки SBER, потом все сделки GAZP,
+// и т.д.). Без сортировки по ClosedAt equity curve не отражает реальный
+// порядок закрытия позиций на уровне портфеля — MaxDrawdown/Calmar
+// считались бы по бессмысленной "сначала весь SBER, потом весь GAZP"
+// последовательности вместо настоящей хронологии.
+func AggregateTrades(trades []models.ClosedTrade, commissionPerTrade float64) Metrics {
+	sorted := make([]models.ClosedTrade, len(trades))
+	copy(sorted, trades)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].ClosedAt.Before(sorted[j].ClosedAt)
+	})
+
+	var netPnLs []float64
+	var returns []float64
+	for _, trade := range sorted {
+		net := NetPnLFromGross(trade.GrossPnL, trade.Quantity, commissionPerTrade)
+		netPnLs = append(netPnLs, net)
+		if trade.PnLR != 0 {
+			returns = append(returns, trade.PnLR)
+		} else {
+			riskAmt := trade.RDistance * float64(trade.Quantity) * trade.StepPriceValue
+			if riskAmt > 0 {
+				returns = append(returns, net/riskAmt)
 			}
 		}
 	}
