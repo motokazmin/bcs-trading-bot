@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"bcs-trading-bot/internal/strategy"
+	"bcs-trading-bot/internal/trailing"
 
 	"gopkg.in/yaml.v3"
 )
@@ -114,6 +115,7 @@ type RiskConfig struct {
 }
 
 type StrategyConfig struct {
+	Type                      string  `yaml:"type"`
 	Lookback                  int     `yaml:"lookback"`
 	StopMode                  string  `yaml:"stop_mode"`
 	ATRPeriod                 int     `yaml:"atr_period"`
@@ -123,6 +125,15 @@ type StrategyConfig struct {
 	MaxTradesPerTickerPerDay  int     `yaml:"max_trades_per_ticker_per_day"`
 	VolumeFilter              *bool   `yaml:"volume_filter"`
 	VolumeMinRatio            float64 `yaml:"volume_min_ratio"`
+	BreakoutThreshold         float64 `yaml:"breakout_threshold"`
+	TrailActivationR          float64 `yaml:"trail_activation_r"`
+	TrailDiscreteStepR        float64 `yaml:"trail_discrete_step_r"`
+	TrailStageMax             int     `yaml:"trail_stage_max"`
+	LongOnly                  *bool   `yaml:"long_only"`
+	TrendSMAPeriod            int     `yaml:"trend_sma_period"`
+	StrategyEntryDelayMinutes int     `yaml:"strategy_entry_delay_minutes"`
+	ORBMinutes                int     `yaml:"orb_minutes"`
+	FadeThreshold             float64 `yaml:"fade_threshold"`
 }
 
 type VirtualConfig struct {
@@ -251,7 +262,76 @@ func (e ResolvedExperiment) PerTickerMaxDailyLoss(tickerCount int) float64 {
 	return e.Risk.MaxDailyLoss / float64(tickerCount)
 }
 
-// StrategyOptions конвертирует конфиг стратегии в параметры MomentumBreakout.
+// TypeOrDefault возвращает type стратегии (default momentum_breakout).
+func (s StrategyConfig) TypeOrDefault() string {
+	t := strings.TrimSpace(s.Type)
+	if t == "" {
+		return strategy.DefaultType()
+	}
+	return t
+}
+
+func (s StrategyConfig) LongOnlyEnabled() bool {
+	if s.LongOnly == nil {
+		return false
+	}
+	return *s.LongOnly
+}
+
+// StrategyConfigFromMap собирает StrategyConfig из полей optimizer (snake_case keys).
+func StrategyConfigFromMap(fields map[string]interface{}, stopMode string) StrategyConfig {
+	cfg := StrategyConfig{StopMode: stopMode}
+	if v, ok := fields["type"].(string); ok {
+		cfg.Type = v
+	}
+	if v, ok := fields["lookback"].(int); ok {
+		cfg.Lookback = v
+	}
+	if v, ok := fields["stop_mode"].(string); ok && v != "" {
+		cfg.StopMode = v
+	}
+	if v, ok := fields["atr_period"].(int); ok {
+		cfg.ATRPeriod = v
+	}
+	if v, ok := fields["atr_multiplier"].(float64); ok {
+		cfg.ATRMultiplier = v
+	}
+	if v, ok := fields["reward_ratio"].(float64); ok {
+		cfg.RewardRatio = v
+	}
+	if v, ok := fields["breakout_threshold"].(float64); ok {
+		cfg.BreakoutThreshold = v
+	}
+	if v, ok := fields["fade_threshold"].(float64); ok {
+		cfg.FadeThreshold = v
+	}
+	if v, ok := fields["orb_minutes"].(int); ok {
+		cfg.ORBMinutes = v
+	}
+	if v, ok := fields["trend_sma_period"].(int); ok {
+		cfg.TrendSMAPeriod = v
+	}
+	if v, ok := fields["strategy_entry_delay_minutes"].(int); ok {
+		cfg.StrategyEntryDelayMinutes = v
+	}
+	if v, ok := fields["max_trades_per_ticker_per_day"].(int); ok {
+		cfg.MaxTradesPerTickerPerDay = v
+	}
+	if v, ok := fields["volume_filter"].(bool); ok {
+		b := v
+		cfg.VolumeFilter = &b
+	}
+	if v, ok := fields["volume_min_ratio"].(float64); ok {
+		cfg.VolumeMinRatio = v
+	}
+	if v, ok := fields["long_only"].(bool); ok {
+		b := v
+		cfg.LongOnly = &b
+	}
+	return cfg
+}
+
+// StrategyOptions конвертирует конфиг стратегии в параметры MomentumBreakout (legacy).
 func (s StrategyConfig) StrategyOptions() strategy.Options {
 	rangeUseCap := true
 	if s.RangeUseCap != nil {
@@ -259,16 +339,33 @@ func (s StrategyConfig) StrategyOptions() strategy.Options {
 	}
 
 	opts := strategy.Options{
-		Lookback:       s.Lookback,
-		StopMode:       strings.ToLower(strings.TrimSpace(s.StopMode)),
-		ATRPeriod:      s.ATRPeriod,
-		ATRMultiplier:  s.ATRMultiplier,
-		RewardRatio:    s.RewardRatio,
-		RangeUseCap:    rangeUseCap,
-		VolumeFilter:   s.VolumeFilterEnabled(),
-		VolumeMinRatio: s.VolumeMinRatio,
+		Lookback:          s.Lookback,
+		StopMode:          strings.ToLower(strings.TrimSpace(s.StopMode)),
+		ATRPeriod:         s.ATRPeriod,
+		ATRMultiplier:     s.ATRMultiplier,
+		RewardRatio:       s.RewardRatio,
+		RangeUseCap:       rangeUseCap,
+		VolumeFilter:      s.VolumeFilterEnabled(),
+		VolumeMinRatio:    s.VolumeMinRatio,
+		BreakoutThreshold: s.BreakoutThreshold,
 	}
 	return opts
+}
+
+// TrailingConfig конвертирует параметры трейлинга из YAML в trailing.Config.
+func (s StrategyConfig) TrailingConfig(stepPriceValue float64) trailing.Config {
+	cfg := trailing.DefaultConfig()
+	cfg.StepPriceValue = stepPriceValue
+	if s.TrailActivationR > 0 {
+		cfg.ActivationR = s.TrailActivationR
+	}
+	if s.TrailDiscreteStepR > 0 {
+		cfg.DiscreteStepR = s.TrailDiscreteStepR
+	}
+	if s.TrailStageMax > 0 {
+		cfg.StageMax = s.TrailStageMax
+	}
+	return cfg
 }
 
 func (s StrategyConfig) VolumeFilterEnabled() bool {
@@ -461,6 +558,12 @@ func (c *Config) validate() error {
 }
 
 func validateStrategyConfig(s StrategyConfig) error {
+	if err := ValidateStrategyType(s.TypeOrDefault()); err != nil {
+		return err
+	}
+	if s.StopMode == "" {
+		return nil
+	}
 	switch s.StopMode {
 	case strategy.StopModeRange, strategy.StopModeATR:
 	default:

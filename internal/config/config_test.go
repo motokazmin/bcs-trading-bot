@@ -6,74 +6,59 @@ import (
 	"bcs-trading-bot/internal/config"
 )
 
-func TestLoadVirtualSber(t *testing.T) {
-	cfg, err := config.Load("../../configs/virtual-sber.yaml")
+func TestLoadExperimentsAll(t *testing.T) {
+	cfg, err := config.Load("../../configs/experiments-all.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if cfg.TradingMode != config.TradingModeVirtual {
+		t.Fatalf("trading_mode: got %q", cfg.TradingMode)
+	}
+	exps := cfg.ResolvedExperiments()
+	if len(exps) != 6 {
+		t.Fatalf("experiments: got %d, want 6", len(exps))
+	}
+	if len(cfg.AllTickerSymbols()) != 9 {
+		t.Fatalf("all tickers: got %d, want 9", len(cfg.AllTickerSymbols()))
+	}
+	if len(cfg.TickersForExperiment(exps[0])) != 3 {
+		t.Fatalf("atr-2-lean tickers: got %d, want 3", len(cfg.TickersForExperiment(exps[0])))
+	}
+	if cfg.SessionForExperiment(exps[0]).EntryDelayMinutes != 0 {
+		t.Fatalf("atr-2-lean delay: got %d, want 0", cfg.SessionForExperiment(exps[0]).EntryDelayMinutes)
+	}
+	if cfg.SessionForExperiment(exps[2]).EntryDelayMinutes != 30 {
+		t.Fatalf("atr-2-delayed delay: got %d, want 30", cfg.SessionForExperiment(exps[2]).EntryDelayMinutes)
+	}
+	if len(cfg.TickersForExperiment(exps[2])) != 9 {
+		t.Fatalf("atr-2-delayed tickers: got %d, want 9", len(cfg.TickersForExperiment(exps[2])))
+	}
+
+	vol := exps[3]
+	if vol.ID != "atr-2-lean-vol" || !vol.Strategy.VolumeFilterEnabled() {
+		t.Fatalf("atr-2-lean-vol: %+v", vol)
+	}
+	if vol.Strategy.VolumeMinRatio != 1.5 {
+		t.Fatalf("volume_min_ratio: got %f", vol.Strategy.VolumeMinRatio)
+	}
+	if len(cfg.TickersForExperiment(vol)) != 9 {
+		t.Fatalf("atr-2-lean-vol tickers: got %d, want 9", len(cfg.TickersForExperiment(vol)))
+	}
+	if exps[5].ID != "atr-2-delayed-vol" || cfg.SessionForExperiment(exps[5]).EntryDelayMinutes != 30 {
+		t.Fatalf("atr-2-delayed-vol: %+v", exps[5])
+	}
+}
+
+func TestLoadRealStocks(t *testing.T) {
+	cfg, err := config.Load("../../configs/real-stocks.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TradingMode != config.TradingModeReal {
 		t.Fatalf("trading_mode: got %q", cfg.TradingMode)
 	}
 	if len(cfg.Tickers) != 1 || cfg.Tickers[0].Symbol != "SBER" {
 		t.Fatalf("tickers: %v", cfg.Tickers)
-	}
-	if cfg.Tickers[0].StepPriceValue != 1.0 {
-		t.Fatalf("step_price_value: got %f, want 1.0", cfg.Tickers[0].StepPriceValue)
-	}
-	if cfg.ClassCode != "TQBR" {
-		t.Fatalf("class_code: %q", cfg.ClassCode)
-	}
-	if cfg.PerTickerDeposit() != cfg.Risk.Deposit {
-		t.Fatalf("per-ticker deposit: %f", cfg.PerTickerDeposit())
-	}
-}
-
-func TestLoadMultiTickerSplit(t *testing.T) {
-	cfg, err := config.Load("../../configs/virtual-multi.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(cfg.Tickers) != 10 {
-		t.Fatalf("expected 10 tickers, got %d", len(cfg.Tickers))
-	}
-	if cfg.PerTickerDeposit() != 20_000 {
-		t.Fatalf("expected 20000 per ticker, got %f", cfg.PerTickerDeposit())
-	}
-	if cfg.PerTickerMaxDailyLoss() != 400 {
-		t.Fatalf("expected 400 max loss per ticker, got %f", cfg.PerTickerMaxDailyLoss())
-	}
-}
-
-func TestLoadExperimentsMulti(t *testing.T) {
-	cfg, err := config.Load("../../configs/experiments-multi.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !cfg.HasExperiments() {
-		t.Fatal("expected experiments section")
-	}
-	if len(cfg.ResolvedExperiments()) != 3 {
-		t.Fatalf("experiments: got %d, want 3", len(cfg.ResolvedExperiments()))
-	}
-	if len(cfg.Tickers) != 10 {
-		t.Fatalf("tickers: got %d, want 10", len(cfg.Tickers))
-	}
-
-	exp := cfg.ResolvedExperiments()[1]
-	if exp.ID != "atr-2" {
-		t.Fatalf("experiment id: %q", exp.ID)
-	}
-	if exp.Strategy.StopMode != "atr" {
-		t.Fatalf("stop_mode: %q", exp.Strategy.StopMode)
-	}
-	if exp.Strategy.ATRMultiplier != 2.0 {
-		t.Fatalf("atr_multiplier: %f", exp.Strategy.ATRMultiplier)
-	}
-	if exp.PerTickerDeposit(10) != 20_000 {
-		t.Fatalf("per-ticker deposit: %f", exp.PerTickerDeposit(10))
 	}
 }
 
@@ -114,72 +99,5 @@ risk:
 	}
 	if cfg.Tickers[0].StepPriceValue != 2.5 {
 		t.Fatalf("step_price_value: %f", cfg.Tickers[0].StepPriceValue)
-	}
-}
-
-func TestLoadExperimentsAtr2Lean(t *testing.T) {
-	cfg, err := config.Load("../../configs/experiments-atr2-lean.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(cfg.Tickers) != 3 {
-		t.Fatalf("tickers: got %d, want 3", len(cfg.Tickers))
-	}
-	exp := cfg.ResolvedExperiments()[0]
-	if exp.ID != "atr-2-lean" || exp.Strategy.ATRMultiplier != 2.0 {
-		t.Fatalf("experiment: %+v", exp)
-	}
-}
-
-func TestLoadExperimentsAtr2Delayed(t *testing.T) {
-	cfg, err := config.Load("../../configs/experiments-atr2-delayed.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.Session.EntryDelayMinutes != 30 {
-		t.Fatalf("entry_delay_minutes: got %d, want 30", cfg.Session.EntryDelayMinutes)
-	}
-	if len(cfg.Tickers) != 10 {
-		t.Fatalf("tickers: got %d, want 10", len(cfg.Tickers))
-	}
-}
-
-func TestLoadExperimentsAll(t *testing.T) {
-	cfg, err := config.Load("../../configs/experiments-all.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	exps := cfg.ResolvedExperiments()
-	if len(exps) != 6 {
-		t.Fatalf("experiments: got %d, want 6", len(exps))
-	}
-	if len(cfg.AllTickerSymbols()) != 10 {
-		t.Fatalf("all tickers: got %d, want 10", len(cfg.AllTickerSymbols()))
-	}
-	if len(cfg.TickersForExperiment(exps[0])) != 3 {
-		t.Fatalf("atr-2-lean tickers: got %d, want 3", len(cfg.TickersForExperiment(exps[0])))
-	}
-	if cfg.SessionForExperiment(exps[0]).EntryDelayMinutes != 0 {
-		t.Fatalf("atr-2-lean delay: got %d, want 0", cfg.SessionForExperiment(exps[0]).EntryDelayMinutes)
-	}
-	if cfg.SessionForExperiment(exps[2]).EntryDelayMinutes != 30 {
-		t.Fatalf("atr-2-delayed delay: got %d, want 30", cfg.SessionForExperiment(exps[2]).EntryDelayMinutes)
-	}
-	if len(cfg.TickersForExperiment(exps[2])) != 10 {
-		t.Fatalf("atr-2-delayed tickers: got %d, want 10", len(cfg.TickersForExperiment(exps[2])))
-	}
-
-	vol := exps[3]
-	if vol.ID != "atr-2-lean-vol" || !vol.Strategy.VolumeFilterEnabled() {
-		t.Fatalf("atr-2-lean-vol: %+v", vol)
-	}
-	if vol.Strategy.VolumeMinRatio != 1.5 {
-		t.Fatalf("volume_min_ratio: got %f", vol.Strategy.VolumeMinRatio)
-	}
-	if len(cfg.TickersForExperiment(vol)) != 10 {
-		t.Fatalf("atr-2-lean-vol tickers: got %d, want 10", len(cfg.TickersForExperiment(vol)))
-	}
-	if exps[5].ID != "atr-2-delayed-vol" || cfg.SessionForExperiment(exps[5]).EntryDelayMinutes != 30 {
-		t.Fatalf("atr-2-delayed-vol: %+v", exps[5])
 	}
 }

@@ -2,10 +2,12 @@
 configs/local*.yaml
 
 # Бинарник
-bot
+#bot
 
 # Локальная БД сделок
 data/
+bin/
+results/
 
 # IDE
 .idea/

@@ -1,0 +1,186 @@
+package optimizer
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"bcs-trading-bot/internal/bcs"
+	"bcs-trading-bot/internal/config"
+	"bcs-trading-bot/internal/simulation"
+	"bcs-trading-bot/internal/storage/memory"
+	"bcs-trading-bot/internal/strategy"
+	"bcs-trading-bot/internal/trailing"
+	"bcs-trading-bot/pkg/logx"
+	"bcs-trading-bot/pkg/models"
+)
+
+// RunSettings — общие настройки прогона оптимизатора.
+type RunSettings struct {
+	Tickers            []string
+	HistoryDir         string
+	StrategyID         string
+	StopMode           string
+	ClassCode          string
+	CandleTimeframe    string
+	Deposit            float64
+	StepPriceValue     float64
+	CommissionPerTrade float64
+	MinTrades          int
+	Session            config.SessionConfig
+}
+
+// Evaluator запускает backtest для набора параметров.
+type Evaluator struct {
+	settings   RunSettings
+	strategyID string
+	buildCtx   strategy.BuildContext
+	candleData map[string][]models.Candle
+	space      *SearchSpace
+}
+
+// NewEvaluator создаёт evaluator с предзагруженной историей.
+func NewEvaluator(settings RunSettings, space *SearchSpace, candleData map[string][]models.Candle) *Evaluator {
+	sid := strategy.ResolveType(settings.StrategyID)
+	if space != nil && space.Strategy != "" {
+		sid = strategy.ResolveType(space.Strategy)
+	}
+	return &Evaluator{
+		settings:   settings,
+		strategyID: sid,
+		buildCtx: strategy.BuildContext{
+			StopMode: settings.StopMode,
+			Session: strategy.SessionTimes{
+				Timezone:          settings.Session.Timezone,
+				SessionOpenTime:   settings.Session.SessionOpenTime,
+				EntryDelayMinutes: settings.Session.EntryDelayMinutes,
+			},
+		},
+		candleData: candleData,
+		space:      space,
+	}
+}
+
+// EvaluatePeriod прогоняет backtest на заданном периоде для всех тикеров.
+func (e *Evaluator) EvaluatePeriod(ctx context.Context, params ParameterSet, from, to time.Time) Metrics {
+	var netPnLs []float64
+	var returns []float64
+
+	for _, ticker := range e.settings.Tickers {
+		candles, ok := e.candleData[ticker]
+		if !ok {
+			continue
+		}
+		filtered := FilterCandles(candles, from, to)
+		if len(filtered) == 0 {
+			continue
+		}
+
+		store := memory.NewTradeStore()
+		executor := bcs.NewVirtualExecutor(e.settings.Deposit)
+
+		strat, err := e.buildStrategy(params)
+		if err != nil {
+			continue
+		}
+		trailCfg := e.trailCfg(params)
+
+		maxLoss := e.settings.Deposit * e.space.FixedValue("dailyLossLimitPercent", 2.0) / 100
+		riskPct := e.space.FixedValue("riskPerTradePercent", 0.5)
+
+		runner, err := simulation.NewRunner(simulation.RunnerConfig{
+			Ticker:          ticker,
+			ClassCode:       e.settings.ClassCode,
+			CandleTimeframe: e.settings.CandleTimeframe,
+			TradingMode:     config.TradingModeVirtual,
+			RunID:           "optimizer",
+			ExperimentID:    "optimizer",
+			StepPriceValue:  e.settings.StepPriceValue,
+			Deposit:         e.settings.Deposit,
+			MaxDailyLoss:    maxLoss,
+			RiskPerTradePct: riskPct,
+			MaxTradesPerDay: params.IntParam("maxEntriesPerTickerPerDay"),
+			Strategy:        strat,
+			StrategyID:      e.strategyID,
+			StopMode:        e.settings.StopMode,
+			Lookback:        params.IntParam("lookback"),
+			TrailCfg:        trailCfg,
+			SessionCfg:      e.settings.Session,
+		}, store)
+		if err != nil {
+			continue
+		}
+
+		_ = runner.Run(ctx, filtered, executor)
+
+		for _, trade := range store.Trades() {
+			net := NetPnLFromGross(trade.GrossPnL, trade.Quantity, e.settings.CommissionPerTrade)
+			netPnLs = append(netPnLs, net)
+			if trade.PnLR != 0 {
+				returns = append(returns, trade.PnLR)
+			} else {
+				riskAmt := trade.RDistance * float64(trade.Quantity) * trade.StepPriceValue
+				if riskAmt > 0 {
+					returns = append(returns, net/riskAmt)
+				}
+			}
+		}
+	}
+
+	return ComputeMetrics(netPnLs, returns)
+}
+
+func (e *Evaluator) buildStrategy(params ParameterSet) (strategy.CandleStrategy, error) {
+	p := make(strategy.Params, len(params)+4)
+	for k, v := range params {
+		p[k] = v
+	}
+	if p["atrPeriod"] == 0 {
+		p["atrPeriod"] = 14
+	}
+	return strategy.NewFromParams(e.strategyID, p, e.buildCtx)
+}
+
+func (e *Evaluator) trailCfg(params ParameterSet) trailing.Config {
+	cfg := trailing.DefaultConfig()
+	cfg.StepPriceValue = e.settings.StepPriceValue
+	cfg.CommissionPerLot = e.settings.CommissionPerTrade
+	if v := params.FloatParam("trailActivationR"); v > 0 {
+		cfg.ActivationR = v
+	}
+	if v := params.FloatParam("trailDiscreteStepR"); v > 0 {
+		cfg.DiscreteStepR = v
+	}
+	if v := params.IntParam("trailStageMax"); v > 0 {
+		cfg.StageMax = v
+	}
+	return cfg
+}
+
+// LoadCandleData загружает CSV-историю для списка тикеров.
+// Тикеры без файла или с пустым CSV пропускаются (WARN в лог).
+func LoadCandleData(historyDir string, tickers []string) (map[string][]models.Candle, error) {
+	out := make(map[string][]models.Candle, len(tickers))
+	var skipped []string
+	for _, ticker := range tickers {
+		path := filepath.Join(historyDir, ticker+".csv")
+		candles, err := TryLoadCSV(path, ticker)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", ticker, err)
+		}
+		if len(candles) == 0 {
+			skipped = append(skipped, ticker)
+			continue
+		}
+		out[ticker] = candles
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("нет загруженной истории ни по одному тикеру (запустите: optimizer sync-history)")
+	}
+	if len(skipped) > 0 {
+		logx.Warn("история пропущена (нет данных): %s", strings.Join(skipped, ", "))
+	}
+	return out, nil
+}

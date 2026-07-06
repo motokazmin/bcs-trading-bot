@@ -66,6 +66,11 @@ func (s *SessionClock) today(t time.Time) string {
 	return t.In(s.loc).Format("2006-01-02")
 }
 
+// Today возвращает торговую дату в формате YYYY-MM-DD.
+func (s *SessionClock) Today(t time.Time) string {
+	return s.today(t)
+}
+
 // EntriesAllowed возвращает false после eod_close_time, до session_open_time + entry_delay и до открытия сессии.
 func (s *SessionClock) EntriesAllowed(now time.Time) bool {
 	m := s.nowMinutes(now)

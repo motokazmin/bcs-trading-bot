@@ -20,7 +20,7 @@ import (
 )
 
 func main() {
-	configPath := flag.String("config", "configs/virtual-sber.yaml", "путь к YAML-конфигу")
+	configPath := flag.String("config", "configs/experiments-all.yaml", "путь к YAML-конфигу")
 	noColor := flag.Bool("no-color", false, "отключить цветной вывод в терминале")
 	smokeTest := flag.Bool("smoke-test", false, "быстрая проверка: OAuth + WebSocket + виртуальная сделка без записи в БД")
 	flag.Parse()
@@ -132,7 +132,6 @@ func main() {
 
 	for _, exp := range experiments {
 		executor := executors[exp.ID]
-		strategyOpts := exp.Strategy.StrategyOptions()
 		expTickers := cfg.TickersForExperiment(exp)
 		session := cfg.SessionForExperiment(exp)
 		tickerCount := len(expTickers)
@@ -143,7 +142,6 @@ func main() {
 				exp,
 				tickerCount,
 				tc.StepPriceValue,
-				strategyOpts,
 				session,
 				cfg.TradingMode,
 				runID,

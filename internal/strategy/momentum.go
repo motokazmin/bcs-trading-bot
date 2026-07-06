@@ -1,209 +1,193 @@
 package strategy
 
 import (
-	"math"
 	"sync"
 
 	"bcs-trading-bot/pkg/models"
 )
 
-const (
-	defaultLookback = 20
-	riskRewardRatio = 3.0
-)
+func init() {
+	Register(Descriptor{
+		ID:                 IDMomentumBreakout,
+		DefaultSearchSpace: "config/optimizer/search-space-momentum.yaml",
+		NewFromParams:      newMomentumBreakoutFromParams,
+		ParamsToConfigFields: momentumBreakoutConfigFields,
+	})
+}
 
-// MomentumBreakout — стратегия пробоя локальных уровней поддержки/сопротивления.
+// MomentumBreakout — пробой локальных high/low за lookback.
 type MomentumBreakout struct {
 	mu sync.Mutex
 
-	opts           Options
-	history        []models.Candle
-	lastSignalTime int64
+	opts   momentumBreakoutOpts
+	buffer *candleBuffer
 }
 
+type momentumBreakoutOpts struct {
+	Lookback          int
+	StopMode          string
+	ATRPeriod         int
+	ATRMultiplier     float64
+	RewardRatio       float64
+	RangeUseCap       bool
+	VolumeFilter      bool
+	VolumeMinRatio    float64
+	BreakoutThreshold float64
+}
+
+// NewMomentumBreakout создаёт стратегию (legacy API для тестов).
 func NewMomentumBreakout(opts Options) *MomentumBreakout {
+	return newMomentumBreakout(momentumBreakoutOptsFromOptions(opts))
+}
+
+func newMomentumBreakout(opts momentumBreakoutOpts) *MomentumBreakout {
 	opts = opts.normalized()
 	return &MomentumBreakout{
-		opts:    opts,
-		history: make([]models.Candle, 0, opts.Lookback),
+		opts:   opts,
+		buffer: newCandleBuffer(opts.Lookback),
 	}
 }
 
-// OnCandle принимает новую свечу и возвращает торговый сигнал или nil.
+func (s *MomentumBreakout) ID() string { return IDMomentumBreakout }
+
 func (s *MomentumBreakout) OnCandle(candle models.Candle) *models.Order {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.isDuplicate(candle) {
+	if s.buffer.isDuplicateUpdate(candle) {
+		return nil
+	}
+	s.buffer.push(candle)
+	if len(s.buffer.history) < s.opts.Lookback {
 		return nil
 	}
 
-	s.pushHistory(candle)
-
-	if len(s.history) < s.opts.Lookback {
+	upper, lower, ok := rangeLevels(s.buffer.history)
+	if !ok {
 		return nil
 	}
 
-	upper, lower := s.levels()
 	close := candle.Close
-
+	th := s.opts.BreakoutThreshold
 	var direction string
 	switch {
-	case close > upper:
+	case close > upper*(1+th):
 		direction = "BUY"
-	case close < lower:
+	case close < lower*(1-th):
 		direction = "SELL"
 	default:
 		return nil
 	}
 
-	if !s.passesVolumeFilter(candle) {
+	if !passesVolumeFilter(s.buffer.history, candle, s.opts.VolumeFilter, s.opts.VolumeMinRatio) {
 		return nil
 	}
 
 	entry := close
-	stopLoss, takeProfit := s.calcLevels(direction, entry, upper, lower)
-	if stopLoss == 0 {
+	stopCfg := stopConfig{
+		StopMode: s.opts.StopMode, ATRPeriod: s.opts.ATRPeriod,
+		ATRMultiplier: s.opts.ATRMultiplier, RangeUseCap: s.opts.RangeUseCap,
+		RewardRatio: s.opts.RewardRatio,
+	}
+	sl, tp := calcStopTP(direction, entry, upper, lower, s.buffer.history, stopCfg)
+	order := buildOrder(candle, direction, entry, sl, tp, upper, lower)
+	if order == nil {
 		return nil
 	}
+	s.buffer.markSignal(candle)
+	return order
+}
 
-	s.lastSignalTime = candle.Timestamp.UnixNano()
+func newMomentumBreakoutFromParams(params Params, ctx BuildContext) (CandleStrategy, error) {
+	return newMomentumBreakout(momentumBreakoutOptsFromParams(params, ctx)), nil
+}
 
-	return &models.Order{
-		Ticker:        candle.Ticker,
-		Direction:     direction,
-		Price:         entry,
-		StopLoss:      stopLoss,
-		TakeProfit:    takeProfit,
-		BreakoutUpper: upper,
-		BreakoutLower: lower,
+func momentumBreakoutOptsFromParams(params Params, ctx BuildContext) momentumBreakoutOpts {
+	stopMode := ctx.StopMode
+	if stopMode == "" {
+		stopMode = StopModeRange
+	}
+	volFilter := true
+	if _, ok := params["volumeFilter"]; ok {
+		volFilter = params.Bool("volumeFilter")
+	} else if _, ok := params["volumeFilterMultiplier"]; ok {
+		volFilter = true
+	}
+	volMin := params.Float("volumeMinRatio")
+	if volMin <= 0 {
+		volMin = params.Float("volumeFilterMultiplier")
+	}
+	return momentumBreakoutOpts{
+		Lookback:          params.Int("lookback"),
+		StopMode:          stopMode,
+		ATRPeriod:         params.Int("atrPeriod"),
+		ATRMultiplier:     params.Float("atrMultiplier"),
+		RewardRatio:       params.Float("rewardRatio"),
+		RangeUseCap:       !paramsBoolDefault(params, "rangeUseCap", true),
+		VolumeFilter:      volFilter,
+		VolumeMinRatio:    volMin,
+		BreakoutThreshold: params.Float("breakoutThreshold"),
+	}.normalized()
+}
+
+func momentumBreakoutOptsFromOptions(o Options) momentumBreakoutOpts {
+	n := o.normalized()
+	return momentumBreakoutOpts{
+		Lookback: n.Lookback, StopMode: n.StopMode, ATRPeriod: n.ATRPeriod,
+		ATRMultiplier: n.ATRMultiplier, RewardRatio: n.RewardRatio,
+		RangeUseCap: n.RangeUseCap, VolumeFilter: n.VolumeFilter,
+		VolumeMinRatio: n.VolumeMinRatio, BreakoutThreshold: n.BreakoutThreshold,
+	}.normalized()
+}
+
+func (o momentumBreakoutOpts) normalized() momentumBreakoutOpts {
+	out := o
+	if out.Lookback < 2 {
+		out.Lookback = defaultLookback
+	}
+	if out.StopMode == "" {
+		out.StopMode = StopModeRange
+	}
+	if out.ATRPeriod < 2 {
+		out.ATRPeriod = defaultATRPeriod
+	}
+	if out.ATRMultiplier <= 0 {
+		out.ATRMultiplier = defaultATRMultiplier
+	}
+	if out.RewardRatio <= 0 {
+		out.RewardRatio = defaultRiskRewardRatio
+	}
+	if out.VolumeMinRatio <= 0 {
+		out.VolumeMinRatio = defaultVolumeMinRatio
+	}
+	return out
+}
+
+func momentumBreakoutConfigFields(params Params, ctx BuildContext) map[string]interface{} {
+	vol := params.Bool("volumeFilter")
+	if _, ok := params["volumeFilter"]; !ok {
+		vol = params.Float("volumeFilterMultiplier") > 0
+	}
+	volMin := params.Float("volumeMinRatio")
+	if volMin <= 0 {
+		volMin = params.Float("volumeFilterMultiplier")
+	}
+	return map[string]interface{}{
+		"lookback":                     params.Int("lookback"),
+		"stop_mode":                    ctx.StopMode,
+		"atr_period":                   params.Int("atrPeriod"),
+		"atr_multiplier":               params.Float("atrMultiplier"),
+		"reward_ratio":                 params.Float("rewardRatio"),
+		"breakout_threshold":           params.Float("breakoutThreshold"),
+		"volume_filter":                vol,
+		"volume_min_ratio":             volMin,
+		"max_trades_per_ticker_per_day": params.Int("maxEntriesPerTickerPerDay"),
 	}
 }
 
-func (s *MomentumBreakout) isDuplicate(candle models.Candle) bool {
-	ts := candle.Timestamp.UnixNano()
-	if ts == s.lastSignalTime {
-		return true
+func paramsBoolDefault(p Params, key string, def bool) bool {
+	if _, ok := p[key]; !ok {
+		return def
 	}
-	if len(s.history) > 0 {
-		last := s.history[len(s.history)-1]
-		if last.Timestamp.Equal(candle.Timestamp) {
-			s.history[len(s.history)-1] = candle
-			return true
-		}
-	}
-	return false
-}
-
-func (s *MomentumBreakout) pushHistory(candle models.Candle) {
-	if len(s.history) > 0 {
-		last := s.history[len(s.history)-1]
-		if last.Timestamp.Equal(candle.Timestamp) {
-			s.history[len(s.history)-1] = candle
-			return
-		}
-	}
-
-	s.history = append(s.history, candle)
-	if len(s.history) > s.opts.Lookback {
-		s.history = s.history[len(s.history)-s.opts.Lookback:]
-	}
-}
-
-func (s *MomentumBreakout) levels() (upper, lower float64) {
-	window := s.history[:len(s.history)-1]
-	upper = window[0].High
-	lower = window[0].Low
-	for _, c := range window[1:] {
-		if c.High > upper {
-			upper = c.High
-		}
-		if c.Low < lower {
-			lower = c.Low
-		}
-	}
-	return upper, lower
-}
-
-func (s *MomentumBreakout) calcLevels(direction string, entry, upper, lower float64) (stopLoss, takeProfit float64) {
-	stopDistance := s.stopDistance(entry, upper, lower)
-	if stopDistance <= 0 {
-		return 0, 0
-	}
-
-	switch direction {
-	case "BUY":
-		stopLoss = entry - stopDistance
-		takeProfit = entry + stopDistance*s.opts.RewardRatio
-	case "SELL":
-		stopLoss = entry + stopDistance
-		takeProfit = entry - stopDistance*s.opts.RewardRatio
-	}
-
-	return stopLoss, takeProfit
-}
-
-func (s *MomentumBreakout) passesVolumeFilter(candle models.Candle) bool {
-	if !s.opts.VolumeFilter {
-		return true
-	}
-	if len(s.history) < 2 {
-		return false
-	}
-	window := s.history[:len(s.history)-1]
-	var sum int64
-	for _, c := range window {
-		sum += c.Volume
-	}
-	avg := float64(sum) / float64(len(window))
-	if avg <= 0 {
-		return false
-	}
-	return float64(candle.Volume) > avg*s.opts.VolumeMinRatio
-}
-
-func (s *MomentumBreakout) stopDistance(entry, upper, lower float64) float64 {
-	rangeSize := upper - lower
-	if rangeSize <= 0 {
-		return 0
-	}
-
-	switch s.opts.StopMode {
-	case StopModeATR:
-		if atr := s.calcATR(); atr > 0 {
-			return atr * s.opts.ATRMultiplier
-		}
-		return s.rangeStopDistance(entry, rangeSize)
-	default:
-		return s.rangeStopDistance(entry, rangeSize)
-	}
-}
-
-func (s *MomentumBreakout) rangeStopDistance(entry, rangeSize float64) float64 {
-	stopDistance := rangeSize * 0.5
-	if s.opts.RangeUseCap {
-		cap := entry * defaultRangeCapPct / 100
-		stopDistance = math.Min(stopDistance, cap)
-	}
-	if stopDistance <= 0 {
-		stopDistance = rangeSize * 0.25
-	}
-	return stopDistance
-}
-
-func (s *MomentumBreakout) calcATR() float64 {
-	period := s.opts.ATRPeriod
-	if len(s.history) < period+1 {
-		return 0
-	}
-
-	start := len(s.history) - period
-	var sum float64
-	for i := start; i < len(s.history); i++ {
-		c := s.history[i]
-		prevClose := s.history[i-1].Close
-		tr := math.Max(c.High-c.Low, math.Max(math.Abs(c.High-prevClose), math.Abs(c.Low-prevClose)))
-		sum += tr
-	}
-	return sum / float64(period)
+	return p.Bool(key)
 }

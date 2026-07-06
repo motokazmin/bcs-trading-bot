@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/config"
+	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/pkg/models"
 )
@@ -47,7 +48,6 @@ func TestClosePositionSavesTrade(t *testing.T) {
 		exp,
 		1,
 		1.0,
-		exp.Strategy.StrategyOptions(),
 		config.SessionConfig{Timezone: "Europe/Moscow", EODCloseTime: "23:40", SessionOpenTime: "10:00"},
 		config.TradingModeVirtual,
 		"test-run",
@@ -60,20 +60,20 @@ func TestClosePositionSavesTrade(t *testing.T) {
 	}
 
 	openedAt := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
-	worker.position = &openPosition{
-		direction:         "BUY",
-		quantity:          10,
-		entryPrice:        100,
-		initialStopLoss:   95,
-		initialTakeProfit: 115,
-		stopLoss:          100,
-		takeProfit:        115,
-		rDistance:         5,
-		trailStage:        1,
-		mfePrice:          110,
-		breakoutUpper:     101,
-		breakoutLower:     99,
-		openedAt:          openedAt,
+	worker.position = &position.State{
+		Direction:         "BUY",
+		Quantity:          10,
+		EntryPrice:        100,
+		InitialStopLoss:   95,
+		InitialTakeProfit: 115,
+		StopLoss:          100,
+		TakeProfit:        115,
+		RDistance:         5,
+		TrailStage:        1,
+		MFEPrice:          110,
+		BreakoutUpper:     101,
+		BreakoutLower:     99,
+		OpenedAt:          openedAt,
 	}
 
 	worker.closePosition(context.Background(), stubExecutor{}, 110, models.CloseReasonTakeProfit)
@@ -136,20 +136,20 @@ func TestClosePositionIgnoresSecondCall(t *testing.T) {
 		Risk:     config.RiskConfig{Deposit: 100_000, MaxDailyLoss: 2_000, RiskPerTradePercent: 0.5},
 	}
 	worker, err := NewTickerWorker(
-		"SBER", exp, 1, 1.0, exp.Strategy.StrategyOptions(),
+		"SBER", exp, 1, 1.0,
 		config.SessionConfig{Timezone: "Europe/Moscow", EODCloseTime: "23:40", SessionOpenTime: "10:00"},
 		config.TradingModeVirtual, "test-run", "TQBR", "M5", store,
 	)
 	if err != nil {
 		t.Fatalf("NewTickerWorker: %v", err)
 	}
-	worker.position = &openPosition{
-		direction:  "BUY",
-		quantity:   1,
-		entryPrice: 100,
-		stopLoss:   95,
-		rDistance:  5,
-		openedAt:   time.Now(),
+	worker.position = &position.State{
+		Direction:  "BUY",
+		Quantity:   1,
+		EntryPrice: 100,
+		StopLoss:   95,
+		RDistance:  5,
+		OpenedAt:   time.Now(),
 	}
 
 	exec := &countingExecutor{}

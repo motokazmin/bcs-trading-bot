@@ -1,0 +1,16 @@
+class_code: TQBR
+candle_timeframe: M5
+# Глубина первичной загрузки, если CSV ещё нет
+initial_history_years: 2
+
+# Полный universe акций MOEX (как в configs/experiments-all.yaml)
+tickers:
+  - SBER
+  - GAZP
+  - LKOH
+  - NVTK
+  - ROSN
+  - MGNT
+  - CHMF
+  - TATN
+  - MOEX

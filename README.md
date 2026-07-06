@@ -81,6 +81,18 @@ cd bcs-trading-bot
 go build -o bot ./cmd/bot
 ```
 
+Или через **Makefile** (бот, optimizer, админка):
+
+```bash
+make help          # список команд
+make build         # bin/bot, bin/optimizer, bin/admin
+make bot             # paper trading, все A/B-эксперименты
+make sync-history       # догрузить CSV-историю для optimizer (10 акций)
+make optimizer-run      # sync + walk-forward оптимизация
+```
+
+Требуется `export BCS_REFRESH_TOKEN=...` (см. ниже).
+
 ### 2. Токен (единственная переменная окружения)
 
 ```bash
@@ -89,48 +101,34 @@ export BCS_REFRESH_TOKEN="ваш_refresh_token"
 
 Токен **не хранится в конфиге** — только в env.
 
-### 3. Виртуальная торговля — один тикер (по умолчанию)
-
-```bash
-go run ./cmd/bot -config configs/virtual-sber.yaml
-```
-
-### 4. Виртуальная торговля — несколько акций
-
-```bash
-go run ./cmd/bot -config configs/virtual-multi.yaml
-```
-
-### 5. Параллельные A/B-эксперименты (стоп range vs ATR)
-
-```bash
-go run ./cmd/bot -config configs/experiments-multi.yaml
-```
-
-3 эксперимента × 10 тикеров = 30 воркеров, один WebSocket. Сделки пишутся в `data/trades.db` с полем `experiment_id`.
-
-### 5a. Все запланированные опыты (atr-1/atr-2 lean + delayed)
+### 3. Paper trading — все A/B-эксперименты (по умолчанию)
 
 ```bash
 go run ./cmd/bot -config configs/experiments-all.yaml
+# или
+make bot
 ```
 
-3 эксперимента, 16 воркеров: lean universe (SBER, ROSN, NVTK) для atr-1/atr-2 и полный universe для atr-2-delayed. У эксперимента можно задать свои `tickers` и `entry_delay_minutes`.
+6 экспериментов × до 10 тикеров, один WebSocket. Сделки пишутся в `data/trades.db` с полем `experiment_id`.
 
-### 6. Виртуальная торговля — фьючерсы
+### 4. Paper trading — фьючерсы
 
 ```bash
 go run ./cmd/bot -config configs/virtual-futures.yaml
+# или
+make bot-futures
 ```
 
-### 7. Реальная торговля
+### 5. Реальная торговля
 
 ```bash
 # нужен refresh token со скоупом trade-api-write
 go run ./cmd/bot -config configs/real-stocks.yaml
+# или
+make bot-real
 ```
 
-### 7a. Быстрая проверка перед сессией (smoke-test)
+### 5a. Быстрая проверка перед сессией (smoke-test)
 
 Проверяет OAuth, WebSocket и виртуальное исполнение **без ожидания lookback** и **без записи в БД**:
 
@@ -151,7 +149,7 @@ Smoke-test: OK — OAuth, WebSocket и виртуальное исполнени
 Скопируйте профиль и настройте под себя (файлы `configs/local*.yaml` в `.gitignore`):
 
 ```bash
-cp configs/virtual-sber.yaml configs/local.yaml
+cp configs/experiments-all.yaml configs/local.yaml
 # отредактируйте configs/local.yaml
 go run ./cmd/bot -config configs/local.yaml
 ```
@@ -196,17 +194,16 @@ go run ./cmd/bot
 
 ```
 10:00:00 [SYS] Запуск торгового робота БКС на Go...
-10:00:00 [SYS] Конфиг: configs/experiments-multi.yaml | Режим: virtual | Тикеры: SBER, GAZP, ... | Эксперименты: baseline (...), atr-2 (...), atr-3 (...) | Класс: TQBR | Свечи: M5
+10:00:00 [SYS] Конфиг: configs/experiments-all.yaml | Режим: virtual | Тикеры: SBER, GAZP, ... | Эксперименты: atr-2-lean (...), atr-1-lean (...), ... | Класс: TQBR | Свечи: M5
 10:00:00 [SYS] Шаг 1: Авторизация через БКС OAuth...
 10:00:01 [SYS] Access Token получен.
 10:00:01 [SYS] Хранилище сделок: data/trades.db
-10:00:01 [MODE] virtual [baseline] баланс 200000 руб.
-10:00:01 [MODE] virtual [atr-2] баланс 200000 руб.
-10:00:01 [MODE] virtual [atr-3] баланс 200000 руб.
-10:00:01 [baseline/SBER] воркер запущен
-10:00:01 [atr-2/SBER] воркер запущен
+10:00:01 [MODE] virtual [atr-2-lean] баланс 200000 руб.
+10:00:01 [MODE] virtual [atr-1-lean] баланс 200000 руб.
+10:00:01 [atr-2-lean/SBER] воркер запущен
+10:00:01 [atr-1-lean/SBER] воркер запущен
 ...
-10:00:01 [SYS] Шаг 2: Запущено 30 воркеров (3 экспериментов × 10 тикеров, EOD: 18:40 МСК)
+10:00:01 [SYS] Шаг 2: Запущено 46 воркеров (6 экспериментов, EOD: 18:40 МСК)
 10:00:01 [SYS] Шаг 3: Торговый цикл активен. Мониторинг SL/TP и EOD включён.
 10:00:02 [WS] подписка 10 инструмент(ов) [SBER GAZP ...] — свечи M5 + котировки
 ```
@@ -305,17 +302,11 @@ go run ./cmd/bot
 
 | Файл | Назначение |
 |---|---|
-| `configs/virtual-sber.yaml` | Paper trading, один тикер SBER |
-| `configs/virtual-multi.yaml` | Paper trading, топ-10 акций TQBR |
-| `configs/experiments-multi.yaml` | A/B: baseline (range) vs ATR×2 vs ATR×3, 30 воркеров |
-| `configs/experiments-atr2-lean.yaml` | ATR×2 на lean universe (SBER, ROSN, NVTK) |
-| `configs/experiments-atr1-lean.yaml` | ATR×1 на lean universe — сравнение с atr-2-lean |
-| `configs/experiments-atr2-delayed.yaml` | ATR×2, полный universe, вход с 10:30 МСК |
-| `configs/experiments-all.yaml` | **Все опыты разом**: atr-2-lean + atr-1-lean + atr-2-delayed (16 воркеров) |
+| `configs/experiments-all.yaml` | **Paper trading, все A/B-опыты** (6 экспериментов, 10 акций TQBR) |
 | `configs/virtual-futures.yaml` | Paper trading, фьючерсы SPBFUT |
 | `configs/real-stocks.yaml` | Реальные ордера, акции TQBR |
 
-Запуск: `go run ./cmd/bot -config configs/virtual-sber.yaml`
+Запуск: `go run ./cmd/bot -config configs/experiments-all.yaml` или `make bot`
 
 ### Поля конфига
 
@@ -379,7 +370,7 @@ go run ./cmd/admin -db data/trades.db -listen 127.0.0.1:8090
 
 ### Как анализировать с ИИ
 
-1. Накопите сделки ботом (`configs/experiments-multi.yaml` и т.п.).
+1. Накопите сделки ботом (`make bot` / `configs/experiments-all.yaml`).
 2. В админке задайте фильтры → откройте `/export`.
 3. Выберите вариант:
    - **Краткий** — метрики и сравнение экспериментов (`data-summary.json`);
@@ -468,12 +459,6 @@ bcs-trading-bot/
 │   ├── bot/main.go                    # Точка входа, оркестрация, fan-out
 │   └── admin/main.go                  # Веб-админка и экспорт для ИИ
 ├── configs/
-│   ├── virtual-sber.yaml
-│   ├── virtual-multi.yaml
-│   ├── experiments-multi.yaml
-│   ├── experiments-atr2-lean.yaml
-│   ├── experiments-atr1-lean.yaml
-│   ├── experiments-atr2-delayed.yaml
 │   ├── experiments-all.yaml
 │   ├── virtual-futures.yaml
 │   └── real-stocks.yaml
