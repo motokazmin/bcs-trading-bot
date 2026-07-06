@@ -123,7 +123,7 @@ func momentumBreakoutOptsFromParams(params Params, ctx BuildContext) momentumBre
 		ATRPeriod:         params.Int("atrPeriod"),
 		ATRMultiplier:     params.Float("atrMultiplier"),
 		RewardRatio:       params.Float("rewardRatio"),
-		RangeUseCap:       !paramsBoolDefault(params, "rangeUseCap", true),
+		RangeUseCap:       paramsBoolDefault(params, "rangeUseCap", true),
 		VolumeFilter:      volFilter,
 		VolumeMinRatio:    volMin,
 		BreakoutThreshold: params.Float("breakoutThreshold"),

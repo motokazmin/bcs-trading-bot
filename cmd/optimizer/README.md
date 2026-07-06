@@ -127,6 +127,32 @@ timestamp,open,high,low,close,volume
 
 Optimizer **только предлагает** конфиг. Ручное применение: скопировать `best-config-*.yaml` в `configs/` и запустить бота отдельно.
 
+## Известные баги (исправлены)
+
+**`rangeUseCap` был инвертирован для `momentum_breakout` (fixed после первого прогона).**
+`momentumBreakoutOptsFromParams` считал `RangeUseCap: !paramsBoolDefault(...)` — с
+отрицанием, в отличие от `mean_reversion`/`opening_range`, где та же функция
+вызывается без `!`. Из-за этого при `stop_mode=range` (и как fallback у `atr`,
+если ATR не считается) стоп всегда ставился без капа — `0.5 × range` вместо
+`~0.5% от цены`, т.е. в разы шире, чем задумано и чем в runtime-боте
+(`internal/config.StrategyOptions`/`BuildStrategy`, где `rangeUseCap` по
+умолчанию `true`). Это напрямую бьёт не только по optimizer: тот же
+`momentumBreakoutOptsFromParams` — единственный путь построения стратегии в
+`cmd/bot` (`internal/engine/worker.go` → `StrategyConfig.BuildStrategy` →
+`strategy.NewFromParams`). Баг был внесён в этом же коммите (до него —
+`if s.opts.RangeUseCap { ... }` без инверсии). Сейчас все продовые конфиги
+(`configs/*.yaml`) используют `stop_mode: atr`, так что live-бот на практике
+не пострадал, но при переключении на `range` получил бы кратно расширенные
+стопы. См. регрессионный тест
+`TestMomentumBreakoutFromParamsDefaultsRangeUseCapTrue`.
+
+Это, вероятно, основная причина катастрофического результата эксперимента
+"range stop" (−430k из выжимки) — с капом в разы шире реального стопа
+кардинально меняет R-дистанцию, размер позиции и достижимость тейк-профита.
+**Рекомендация: перезапустить `stop_mode=range` эксперименты и
+`strategy-matrix` после этого фикса** — прежние range-результаты не отражают
+задуманную стратегию.
+
 ## Калибровка min-trades
 
 Порог по умолчанию `20` — стартовая гипотеза. После первого прогона проверьте распределение `num_trades` в JSON-отчёте. Если большинство trials отбраковывается — снизьте до 10–15 или увеличьте `-train-months`.
