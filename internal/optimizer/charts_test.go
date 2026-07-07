@@ -232,16 +232,22 @@ func TestChartStats(t *testing.T) {
 		WinRate:     0.25,
 		MaxDrawdown: 200,
 	}, []models.ClosedTrade{
-		{GrossPnL: 50, Quantity: 1},
-		{GrossPnL: -30, Quantity: 1},
-		{GrossPnL: -40, Quantity: 1},
-		{GrossPnL: -100, Quantity: 1},
+		{GrossPnL: 50, Quantity: 1, RDistance: 1, StepPriceValue: 1, PnLR: 0.5},
+		{GrossPnL: -30, Quantity: 1, RDistance: 1, StepPriceValue: 1, PnLR: -0.3},
+		{GrossPnL: -40, Quantity: 1, RDistance: 1, StepPriceValue: 1, PnLR: -0.4},
+		{GrossPnL: -100, Quantity: 1, RDistance: 1, StepPriceValue: 1, PnLR: -1.0},
 	}, 0)
-	if len(stats) < 5 {
+	if len(stats) < 6 {
 		t.Fatalf("stats: %d", len(stats))
 	}
-	if stats[0].Value != "4" || stats[1].Value != "-120 ₽" {
-		t.Fatalf("unexpected stats: %+v", stats)
+	if stats[0].Value != "4" {
+		t.Fatalf("trades stat: %+v", stats[0])
+	}
+	if stats[1].Label != "Expectancy (R)" {
+		t.Fatalf("expected expectancy first, got: %+v", stats[1])
+	}
+	if stats[2].Value != "-120 ₽" {
+		t.Fatalf("unexpected pnl stat: %+v", stats[2])
 	}
 }
 

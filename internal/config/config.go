@@ -273,6 +273,14 @@ func (s StrategyConfig) TypeOrDefault() string {
 	return t
 }
 
+// EffectiveRewardRatio — фактический R:R (с дефолтом по типу стратегии).
+func (s StrategyConfig) EffectiveRewardRatio() float64 {
+	if s.RewardRatio > 0 {
+		return s.RewardRatio
+	}
+	return strategy.DefaultRewardRatio(s.TypeOrDefault())
+}
+
 func (s StrategyConfig) LongOnlyEnabled() bool {
 	if s.LongOnly == nil {
 		return false

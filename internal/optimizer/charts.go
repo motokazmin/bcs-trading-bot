@@ -37,6 +37,7 @@ type ChartsOptions struct {
 type ChartsResult struct {
 	Experiment string
 	ChartsDir  string
+	ExportDir  string
 	Files      []ChartFileInfo
 }
 
@@ -110,6 +111,23 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 		ChartsDir:  chartsDir,
 	}
 
+	var allTrades []models.ClosedTrade
+	portfolioSettings := RunSettings{
+		Tickers:          tickers,
+		StrategyID:       cfg.Strategy.TypeOrDefault(),
+		StopMode:         cfg.Strategy.StopMode,
+		ClassCode:        cfg.ClassCode,
+		CandleTimeframe:  cfg.CandleTimeFrame,
+		Deposit:          cfg.Risk.Deposit,
+		StepPriceValue:   1.0,
+		CommissionPerLot: commission,
+		Session:          cfg.Session,
+	}
+	portfolioEvaluator := NewEvaluator(portfolioSettings, space, candleData)
+	portfolio := portfolioEvaluator.EvaluatePeriodDetailed(ctx, params, from, to)
+	allTrades = append(allTrades, portfolio.Trades...)
+	sortTradesByClose(allTrades)
+
 	for _, ticker := range tickers {
 		if ctx.Err() != nil {
 			return result, ctx.Err()
@@ -176,6 +194,17 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 	if len(result.Files) == 0 {
 		return nil, fmt.Errorf("не создано ни одного графика")
 	}
+
+	meta := loadOptimizerRunMeta(expDir)
+	if meta != nil {
+		meta.BestConfig = filepath.Base(cfgPath)
+	}
+	exportResult, err := WriteAnalysisExport(expDir, expName, cfg, cfgPath, allTrades, commission, meta)
+	if err != nil {
+		return result, fmt.Errorf("export: %w", err)
+	}
+	result.ExportDir = exportResult.Dir
+
 	return result, nil
 }
 
@@ -344,15 +373,45 @@ func chartStats(m Metrics, trades []models.ClosedTrade, commission float64) []ch
 		avgPnL = m.TotalPnL / float64(m.NumTrades)
 	}
 
+	expectancyR := avgExpectancyR(trades, commission)
+	expClass := "neutral"
+	if expectancyR > 0 {
+		expClass = "positive"
+	} else if expectancyR < 0 {
+		expClass = "negative"
+	}
+
 	return []chartStatItem{
 		{Label: "Сделок", Value: fmt.Sprintf("%d", m.NumTrades), Class: "neutral"},
+		{Label: "Expectancy (R)", Value: fmt.Sprintf("%+.2f R", expectancyR), Class: expClass},
 		{Label: "PnL", Value: fmt.Sprintf("%.0f ₽", m.TotalPnL), Class: pnlClass},
-		{Label: "Средний PnL", Value: fmt.Sprintf("%.0f ₽", avgPnL), Class: pnlClass},
+		{Label: "Expectancy (₽)", Value: fmt.Sprintf("%+.0f ₽", avgPnL), Class: pnlClass},
 		{Label: "Win rate", Value: fmt.Sprintf("%.0f%%", m.WinRate*100), Class: "neutral"},
 		{Label: "В плюсе", Value: fmt.Sprintf("%d", wins), Class: "positive"},
 		{Label: "В минусе", Value: fmt.Sprintf("%d", losses), Class: "negative"},
 		{Label: "Max DD", Value: fmt.Sprintf("%.0f ₽", m.MaxDrawdown), Class: "negative"},
 	}
+}
+
+func avgExpectancyR(trades []models.ClosedTrade, commission float64) float64 {
+	if len(trades) == 0 {
+		return 0
+	}
+	sum := 0.0
+	for _, t := range trades {
+		net := NetPnLFromGross(t.GrossPnL, t.Quantity, commission)
+		step := t.StepPriceValue
+		if step <= 0 {
+			step = 1.0
+		}
+		riskAmt := t.RDistance * float64(t.Quantity) * step
+		if riskAmt > 0 {
+			sum += net / riskAmt
+		} else {
+			sum += t.PnLR
+		}
+	}
+	return sum / float64(len(trades))
 }
 
 func candlesToChartCandles(candles []models.Candle) []chartCandle {

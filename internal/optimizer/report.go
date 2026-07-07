@@ -289,6 +289,9 @@ func strategyYAMLFromConfig(cfg config.StrategyConfig, params ParameterSet) stra
 	if y.RewardRatio == 0 {
 		y.RewardRatio = params.FloatParam("rewardRatio")
 	}
+	if y.RewardRatio == 0 {
+		y.RewardRatio = strategy.DefaultRewardRatio(cfg.TypeOrDefault())
+	}
 	return y
 }
 

@@ -189,6 +189,9 @@ func runCmd(args []string) {
 		logx.Warn("charts: %v", chartsErr)
 	} else {
 		logx.Info("charts: %d files → %s", len(chartsResult.Files), chartsResult.ChartsDir)
+		if chartsResult.ExportDir != "" {
+			logx.Info("export: %s", chartsResult.ExportDir)
+		}
 	}
 }
 
@@ -288,6 +291,9 @@ func chartsCmd(args []string) {
 	}
 
 	fmt.Printf("charts: experiment=%s dir=%s files=%d\n", result.Experiment, result.ChartsDir, len(result.Files))
+	if result.ExportDir != "" {
+		fmt.Printf("export: dir=%s (data-summary.json, data-trades.json, prompt-*.md)\n", result.ExportDir)
+	}
 	for _, f := range result.Files {
 		fmt.Printf("  %s (%d trades, PnL %.0f руб.)\n", f.Path, f.Trades, f.PnL)
 	}

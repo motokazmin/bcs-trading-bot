@@ -383,7 +383,7 @@ go run ./cmd/admin -db data/trades.db -listen 127.0.0.1:8090
 
 Промпт содержит только инструкции; данные — в приложенном файле (без дублирования).
 
-Шаблоны: `internal/admin/prompts/strategy_summary.md`, `strategy_detailed.md`.
+Шаблоны: `internal/export/prompts/strategy_summary.md`, `strategy_detailed.md`.
 
 ---
 

@@ -211,18 +211,25 @@ make strategy-matrix             # 4 стратегии, ~1–2 ч
 | `-phase2-top` | `20` | Top-N для фазы 2 |
 | `-output` | `results/` | JSON + YAML + `charts/` |
 
-После завершения оптимизации автоматически генерируются HTML-графики сделок в `{output}/charts/`.
+После завершения оптимизации автоматически генерируются HTML-графики сделок в `{output}/charts/` и пакет для ИИ-анализа в `{output}/export/`.
 
-### `optimizer charts` — графики сделок
+### `optimizer charts` — графики сделок и экспорт для ИИ
 
-Графики создаются автоматически после `optimizer run`. Подкоманду можно вызвать отдельно для перегенерации:
+Графики и экспорт создаются автоматически после `optimizer run`. Подкоманду можно вызвать отдельно для перегенерации:
 
 ```bash
 optimizer charts -experiment mean_reversion
 # → results/exp-mean_reversion/charts/SBER.html, GAZP.html, …
+# → results/exp-mean_reversion/export/data-summary.json, data-trades.json, prompt-*.md
 ```
 
 Свечи + маркеры входа/выхода + панель сделок. Открыть в браузере (нужен интернет для CDN Lightweight Charts).
+
+**Экспорт для ИИ** — тот же формат, что в веб-админке (`/export`):
+- `data-summary.json` + `prompt-summary.md` — агрегаты без списка сделок
+- `data-trades.json` + `prompt-detailed.md` — полный список сделок
+
+PnL в optimizer-экспорте — **net** (комиссия вычтена). В JSON также `optimizer.walk_forward_score` и `optimizer.total_window_pnl` из последнего `optimizer-run-*.json`.
 
 | Флаг | Default | Описание |
 |------|---------|----------|

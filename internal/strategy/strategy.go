@@ -19,3 +19,17 @@ type CandleStrategy interface {
 func DefaultType() string {
 	return IDMomentumBreakout
 }
+
+// DefaultRewardRatio — R:R take-profit при отсутствии reward_ratio в конфиге.
+func DefaultRewardRatio(typeID string) float64 {
+	switch typeID {
+	case IDMeanReversion:
+		return 1.5
+	case IDOpeningRange:
+		return 2.0
+	case IDMomentumFiltered:
+		return 2.0
+	default:
+		return 3.0
+	}
+}

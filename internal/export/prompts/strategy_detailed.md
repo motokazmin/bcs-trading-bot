@@ -6,10 +6,11 @@
 
 ## Структура `data-trades.json`
 
+- `key_metrics` — **главные метрики**: `expectancy_r` (матожидание в R на сделку), `expectancy_rub`, win rate, profit factor
 - `strategy_context` — философия и правила стратегии
 - `date_range`, `filters` — период и фильтры выборки
 - `comparison` — сводка по `experiment_id`
-- `experiments[]` — полный отчёт: `summary`, разбивки, `daily_pnl`, `equity_curve`, **`trades`** (каждая сделка: цены, SL/TP, `pnl_r`, `mfe_in_r`, `mae_in_r`, `breakout_upper`/`breakout_lower`, `close_reason`, `trail_stage`, время удержания)
+- `experiments[]` — полный отчёт: `summary` (в т.ч. `expectancy_r`), разбивки, `daily_pnl`, `equity_curve`, **`trades`** (каждая сделка: цены, SL/TP, `pnl_r`, `mfe_in_r`, `mae_in_r`, `breakout_upper`/`breakout_lower`, `close_reason`, `trail_stage`, время удержания)
 
 Мета: версия {{EXPORT_VERSION}}, выгрузка {{EXPORTED_AT}}, период {{DATE_FROM}} — {{DATE_TO}}, сделок в выборке: {{TOTAL_TRADES}}.
 
@@ -21,8 +22,8 @@
 2. Успешные сделки — дошли ли до TP, сработал ли трейлинг; `mfe_in_r` vs итоговый `pnl_r` (срезал ли трейлинг прибыль).
 3. Сравнение экспериментов на уровне сделок — одинаковые тикеры/дни, разный `stop_mode`.
 4. Аномалии — выбросы по PnL, длинное удержание, серии убытков.
-5. Философия R:R 1:3 — соответствуют ли сделки ожиданиям системы.
-6. Ограничения — `gross_pnl` без комиссии, virtual mode.
+5. **Главная метрика — `key_metrics.expectancy_r` / `summary.expectancy_r`** (средний PnL в R). Соответствуют ли сделки ожиданиям системы по R:R.
+6. Ограничения — `gross_pnl` без комиссии (live), virtual mode.
 
 ## Формат ответа (русский)
 

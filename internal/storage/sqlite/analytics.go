@@ -100,6 +100,7 @@ func (s *Store) GetSummary(ctx context.Context, f models.TradeFilter) (models.Tr
 		lossRate = float64(summary.LossCount) / float64(summary.TradeCount)
 	}
 	summary.Expectancy = winRate*avgWin + lossRate*avgLoss
+	summary.ExpectancyR = summary.AvgPnLR
 
 	return summary, nil
 }
