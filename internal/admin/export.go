@@ -2,57 +2,29 @@ package admin
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
-	"strings"
-	"time"
 
+	"bcs-trading-bot/internal/export"
 	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/models"
 )
 
-//go:embed prompts/strategy_summary.md
-var strategySummaryPromptTemplate string
-
-//go:embed prompts/strategy_detailed.md
-var strategyDetailedPromptTemplate string
-
-const exportVersion = "2.1"
-
 // ExportMode — вариант выгрузки для ИИ.
-type ExportMode string
+type ExportMode = export.Mode
 
 const (
-	ExportModeSummary  ExportMode = "summary"
-	ExportModeDetailed ExportMode = "detailed"
+	ExportModeSummary  = export.ModeSummary
+	ExportModeDetailed = export.ModeDetailed
 )
 
 func ParseExportMode(s string) (ExportMode, error) {
-	switch strings.TrimSpace(s) {
+	switch s {
 	case "", "summary":
 		return ExportModeSummary, nil
 	case "detailed":
 		return ExportModeDetailed, nil
 	default:
 		return "", fmt.Errorf("неизвестный mode: %q (ожидается summary или detailed)", s)
-	}
-}
-
-func (m ExportMode) DataFilename() string {
-	switch m {
-	case ExportModeDetailed:
-		return "data-trades.json"
-	default:
-		return "data-summary.json"
-	}
-}
-
-func (m ExportMode) Label() string {
-	switch m {
-	case ExportModeDetailed:
-		return "Подробный (с разбором сделок)"
-	default:
-		return "Краткий (по метрикам)"
 	}
 }
 
@@ -63,20 +35,6 @@ type ExportService struct {
 
 func NewExportService(reader interfaces.TradeReader) *ExportService {
 	return &ExportService{reader: reader}
-}
-
-func defaultStrategyContext() models.StrategyContext {
-	return models.StrategyContext{
-		Name:           "Momentum Breakout (Неидеальный агент)",
-		Philosophy:     "Рынок непредсказуем; управляем только риском. Прибыльность при win rate 30–40% за счёт R:R 1:3.",
-		SignalLogic:    "Пробой high/low за lookback-1 свечей M5; вход лимитным ордером. В сделке: breakout_upper/breakout_lower — уровни окна на входе.",
-		RiskReward:     "Stop-Loss и Take-Profit в соотношении 1:3 (1R риск, 3R цель).",
-		RiskPerTrade:   "Размер лота из 0.5% депозита на тикер при срабатывании начального SL.",
-		TrailingStop:   "+1R → безубыток; +2R → фиксация +1R; далее SL = MFE − 1R на каждом тике; выход по SL/TP/EOD.",
-		CircuitBreaker: "2% дневного убытка на эксперимент → блокировка новых входов до следующего дня.",
-		PnLNote:        "gross_pnl в рублях, комиссия не вычтена. pnl_r — результат в R; mfe_in_r / mae_in_r — экскурсии внутри позиции в R.",
-		ExperimentNote: "Параллельные experiment_id — разные virtual-счета на одних рыночных данных (stop_mode: range | atr).",
-	}
 }
 
 type exportBase struct {
@@ -132,21 +90,15 @@ func (s *ExportService) BuildExportData(ctx context.Context, f models.TradeFilte
 		return models.ExportData{}, err
 	}
 
-	experiments := base.experiments
-	if mode == ExportModeSummary {
-		experiments = stripTrades(experiments)
-	}
-
-	return models.ExportData{
-		ExportVersion:   exportVersion,
-		ExportMode:      string(mode),
-		ExportedAt:      time.Now().UTC(),
+	return export.BuildData(export.PackageOptions{
+		Mode:            mode,
+		Source:          "live",
+		StrategyContext: export.DefaultLiveStrategyContext(),
 		Filters:         f,
-		DateRange:       base.dateRange,
-		StrategyContext: defaultStrategyContext(),
-		Experiments:     experiments,
+		Experiments:     base.experiments,
 		Comparison:      base.comparison,
-	}, nil
+		DateRange:       base.dateRange,
+	}), nil
 }
 
 // BuildPrompt — только инструкции для вставки в чат (без данных).
@@ -155,37 +107,7 @@ func (s *ExportService) BuildPrompt(ctx context.Context, f models.TradeFilter, m
 	if err != nil {
 		return "", err
 	}
-	return renderPrompt(mode, base.dateRange, base.totalTrades), nil
-}
-
-func stripTrades(experiments []models.ExperimentReport) []models.ExperimentReport {
-	out := make([]models.ExperimentReport, len(experiments))
-	for i, exp := range experiments {
-		exp.Trades = nil
-		out[i] = exp
-	}
-	return out
-}
-
-func renderPrompt(mode ExportMode, dateRange models.DateRange, totalTrades int) string {
-	tmpl := strategySummaryPromptTemplate
-	if mode == ExportModeDetailed {
-		tmpl = strategyDetailedPromptTemplate
-	}
-
-	replacements := map[string]string{
-		"{{EXPORT_VERSION}}": exportVersion,
-		"{{EXPORTED_AT}}":    time.Now().UTC().Format(time.RFC3339),
-		"{{DATE_FROM}}":      orDash(dateRange.From),
-		"{{DATE_TO}}":        orDash(dateRange.To),
-		"{{TOTAL_TRADES}}":   fmt.Sprintf("%d", totalTrades),
-	}
-
-	out := tmpl
-	for k, v := range replacements {
-		out = strings.ReplaceAll(out, k, v)
-	}
-	return out
+	return export.RenderPrompt(mode, base.dateRange, base.totalTrades), nil
 }
 
 func (s *ExportService) buildExperimentReport(ctx context.Context, f models.TradeFilter) (models.ExperimentReport, error) {
@@ -248,11 +170,4 @@ func (s *ExportService) listAllTrades(ctx context.Context, f models.TradeFilter)
 		offset += pageSize
 	}
 	return all, nil
-}
-
-func orDash(s string) string {
-	if s == "" {
-		return "—"
-	}
-	return s
 }

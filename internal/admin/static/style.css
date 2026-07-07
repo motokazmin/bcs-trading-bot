@@ -55,6 +55,10 @@ h2 { font-size: 1.1rem; margin-top: 2rem; }
   border-radius: 8px;
   padding: 1rem;
 }
+.card.highlight {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, var(--surface) 0%, #1e2a3d 100%);
+}
 .card .label { color: var(--muted); font-size: 0.85rem; }
 .card .value { font-size: 1.4rem; font-weight: 600; margin-top: 0.25rem; }
 .card .value.small { font-size: 0.95rem; }

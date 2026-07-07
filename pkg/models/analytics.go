@@ -28,11 +28,22 @@ type TradeSummary struct {
 	TotalPnL      float64 `json:"total_pnl"`
 	AvgPnL        float64 `json:"avg_pnl"`
 	AvgPnLR       float64 `json:"avg_pnl_r"`
+	ExpectancyR   float64 `json:"expectancy_r"`   // матожидание в R на сделку — главная метрика edge
+	Expectancy    float64 `json:"expectancy"`     // матожидание в ₽ на сделку
 	ProfitFactor  float64 `json:"profit_factor"`
-	Expectancy    float64 `json:"expectancy"`
 	AvgHoldSec    float64 `json:"avg_hold_seconds"`
 	BestTradePnL  float64 `json:"best_trade_pnl"`
 	WorstTradePnL float64 `json:"worst_trade_pnl"`
+}
+
+// KeyMetrics — ключевые метрики портфеля/выборки (для быстрого анализа ИИ).
+type KeyMetrics struct {
+	TradeCount    int     `json:"trade_count"`
+	ExpectancyR   float64 `json:"expectancy_r"`   // средний PnL в R на сделку
+	ExpectancyRub float64 `json:"expectancy_rub"` // средний PnL в ₽ на сделку
+	TotalPnLRub   float64 `json:"total_pnl_rub"`
+	WinRate       float64 `json:"win_rate"`
+	ProfitFactor  float64 `json:"profit_factor"`
 }
 
 // BreakdownRow — метрики по одному ключу группировки.
@@ -89,11 +100,23 @@ type ExportData struct {
 	ExportVersion   string             `json:"export_version"`
 	ExportMode      string             `json:"export_mode"`
 	ExportedAt      time.Time          `json:"exported_at"`
+	Source          string             `json:"source,omitempty"` // live | optimizer
 	Filters         TradeFilter        `json:"filters"`
 	DateRange       DateRange          `json:"date_range"`
 	StrategyContext StrategyContext    `json:"strategy_context"`
+	KeyMetrics      KeyMetrics         `json:"key_metrics"`
 	Experiments     []ExperimentReport `json:"experiments"`
 	Comparison      []BreakdownRow     `json:"comparison"`
+	Optimizer       *OptimizerExportInfo `json:"optimizer,omitempty"`
+}
+
+// OptimizerExportInfo — метаданные walk-forward прогона (только для source=optimizer).
+type OptimizerExportInfo struct {
+	ExperimentName string  `json:"experiment_name"`
+	BestConfig     string  `json:"best_config,omitempty"`
+	WalkForwardScore float64 `json:"walk_forward_score,omitempty"`
+	TotalWindowPnL   float64 `json:"total_window_pnl,omitempty"`
+	CommissionPerLot float64 `json:"commission_per_lot"`
 }
 
 // DateRange — фактический диапазон дат в выборке.

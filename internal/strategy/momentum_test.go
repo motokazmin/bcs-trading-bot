@@ -1,6 +1,7 @@
 package strategy
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -98,6 +99,54 @@ func TestRangeWithoutCapUsesHalfRange(t *testing.T) {
 	wideDist := wide.Price - wide.StopLoss
 	if wideDist <= cappedDist {
 		t.Fatalf("no-cap stop should be wider: capped=%.4f wide=%.4f", cappedDist, wideDist)
+	}
+}
+
+// TestMomentumBreakoutFromParamsDefaultsRangeUseCapTrue проверяет, что путь
+// NewFromParams (используемый optimizer) по умолчанию включает капирование
+// range-стопа так же, как это делает runtime-бот (internal/config.StrategyOptions).
+// Регрессия: momentumBreakoutOptsFromParams инвертировал флаг rangeUseCap,
+// из-за чего optimizer всегда считал range-стоп без капа (0.5*range вместо
+// капа ~0.5% от цены) — стопы были в разы шире, чем в проде, что портило
+// walk-forward результаты в stop_mode=range.
+func TestMomentumBreakoutFromParamsDefaultsRangeUseCapTrue(t *testing.T) {
+	base := time.Date(2026, 6, 25, 10, 0, 0, 0, time.UTC)
+	bars := []models.Candle{
+		candle(base, 100, 110, 90, 100),
+		candle(base.Add(5*time.Minute), 100, 110, 90, 100),
+		candle(base.Add(10*time.Minute), 100, 110, 90, 100),
+		candle(base.Add(15*time.Minute), 100, 110, 90, 100),
+		candle(base.Add(20*time.Minute), 200, 210, 190, 200),
+	}
+
+	fromParams, err := newMomentumBreakoutFromParams(Params{
+		"lookback":     5,
+		"volumeFilter": 0,
+	}, BuildContext{StopMode: StopModeRange})
+	if err != nil {
+		t.Fatalf("newMomentumBreakoutFromParams: %v", err)
+	}
+	reference := NewMomentumBreakout(Options{Lookback: 5, StopMode: StopModeRange, RangeUseCap: true})
+
+	var fromParamsOrder, referenceOrder *models.Order
+	for _, bar := range bars {
+		if o := fromParams.OnCandle(bar); o != nil {
+			fromParamsOrder = o
+		}
+		if o := reference.OnCandle(bar); o != nil {
+			referenceOrder = o
+		}
+	}
+
+	if fromParamsOrder == nil || referenceOrder == nil {
+		t.Fatal("expected signals on breakout bar")
+	}
+
+	fromParamsDist := fromParamsOrder.Price - fromParamsOrder.StopLoss
+	referenceDist := referenceOrder.Price - referenceOrder.StopLoss
+	if math.Abs(fromParamsDist-referenceDist) > 1e-9 {
+		t.Fatalf("NewFromParams должен по умолчанию капировать range-стоп как runtime-бот: got=%.4f want=%.4f",
+			fromParamsDist, referenceDist)
 	}
 }
 

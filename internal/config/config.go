@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/trailing"
 
@@ -38,6 +39,7 @@ type Config struct {
 	Tickers         []TickerConfig     `yaml:"tickers"`
 	ClassCode       string             `yaml:"class_code"`
 	CandleTimeFrame string             `yaml:"candle_timeframe"`
+	Costs           costs.Config       `yaml:"costs"`
 	Risk            RiskConfig         `yaml:"risk"`
 	Strategy        StrategyConfig     `yaml:"strategy"`
 	Virtual         VirtualConfig      `yaml:"virtual"`
@@ -271,6 +273,14 @@ func (s StrategyConfig) TypeOrDefault() string {
 	return t
 }
 
+// EffectiveRewardRatio — фактический R:R (с дефолтом по типу стратегии).
+func (s StrategyConfig) EffectiveRewardRatio() float64 {
+	if s.RewardRatio > 0 {
+		return s.RewardRatio
+	}
+	return strategy.DefaultRewardRatio(s.TypeOrDefault())
+}
+
 func (s StrategyConfig) LongOnlyEnabled() bool {
 	if s.LongOnly == nil {
 		return false
@@ -352,10 +362,18 @@ func (s StrategyConfig) StrategyOptions() strategy.Options {
 	return opts
 }
 
+// CommissionPerLot возвращает комиссию round-trip за единицу quantity.
+func (c *Config) CommissionPerLot() float64 {
+	return c.Costs.PerLot(c.ClassCode)
+}
+
 // TrailingConfig конвертирует параметры трейлинга из YAML в trailing.Config.
-func (s StrategyConfig) TrailingConfig(stepPriceValue float64) trailing.Config {
+func (s StrategyConfig) TrailingConfig(stepPriceValue, commissionPerLot float64) trailing.Config {
 	cfg := trailing.DefaultConfig()
 	cfg.StepPriceValue = stepPriceValue
+	if commissionPerLot > 0 {
+		cfg.CommissionPerLot = commissionPerLot
+	}
 	if s.TrailActivationR > 0 {
 		cfg.ActivationR = s.TrailActivationR
 	}

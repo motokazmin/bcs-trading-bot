@@ -3,6 +3,8 @@ package optimizer
 import (
 	"math"
 	"sort"
+
+	"bcs-trading-bot/internal/costs"
 )
 
 // Metrics — агрегированные метрики backtest.
@@ -136,6 +138,6 @@ func filterFiniteScores(values []float64) []float64 {
 }
 
 // NetPnLFromGross вычитает комиссию round-trip за сделку.
-func NetPnLFromGross(grossPnL float64, quantity int, commissionPerTrade float64) float64 {
-	return grossPnL - commissionPerTrade*float64(quantity)
+func NetPnLFromGross(grossPnL float64, quantity int, commissionPerLot float64) float64 {
+	return costs.NetPnL(grossPnL, quantity, commissionPerLot)
 }

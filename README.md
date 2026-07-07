@@ -87,9 +87,12 @@ go build -o bot ./cmd/bot
 make help          # список команд
 make build         # bin/bot, bin/optimizer, bin/admin
 make bot             # paper trading, все A/B-эксперименты
-make sync-history       # догрузить CSV-историю для optimizer (10 акций)
-make optimizer-run      # sync + walk-forward оптимизация
+make sync-history       # догрузить CSV-историю для optimizer (9 акций)
+make optimizer-run      # sync + walk-forward оптимизация (parallel = NumCPU)
+make strategy-matrix    # сравнить 4 стратегии, ~1–2 ч
 ```
+
+Переменные optimizer: `OPTIMIZER_PARALLEL`, `OPTIMIZER_TWO_PHASE=1`, `SEARCH_SPACE`. Документация: [`cmd/optimizer/README.md`](cmd/optimizer/README.md) ([подход](cmd/optimizer/README.md#подход), [архитектура](cmd/optimizer/README.md#архитектура-для-разработчиков)).
 
 Требуется `export BCS_REFRESH_TOKEN=...` (см. ниже).
 
@@ -316,6 +319,7 @@ go run ./cmd/bot
 | `tickers` | — | Список тикеров |
 | `class_code` | `TQBR` | Класс инструмента: `TQBR` (акции), `SPBFUT` (фьючерсы) |
 | `candle_timeframe` | `M5` | Таймфрейм свечей WebSocket: M1, M5, M15, ... |
+| `costs.commission_per_lot` | `0.10` (TQBR) / `5.0` (SPBFUT) | Комиссия round-trip за акцию или контракт |
 | `risk.deposit` | `100000` | Депозит для расчёта лота (руб.) |
 | `risk.max_daily_loss` | — | Абсолютный дневной лимит убытков (руб.) |
 | `risk.max_daily_loss_percent` | `2` | % от депозита, если `max_daily_loss` не задан |
@@ -379,7 +383,7 @@ go run ./cmd/admin -db data/trades.db -listen 127.0.0.1:8090
 
 Промпт содержит только инструкции; данные — в приложенном файле (без дублирования).
 
-Шаблоны: `internal/admin/prompts/strategy_summary.md`, `strategy_detailed.md`.
+Шаблоны: `internal/export/prompts/strategy_summary.md`, `strategy_detailed.md`.
 
 ---
 

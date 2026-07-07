@@ -4,13 +4,11 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
-	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
-	"bcs-trading-bot/internal/simulation"
-	"bcs-trading-bot/internal/storage/memory"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/trailing"
 	"bcs-trading-bot/pkg/logx"
@@ -27,18 +25,19 @@ type RunSettings struct {
 	CandleTimeframe    string
 	Deposit            float64
 	StepPriceValue     float64
-	CommissionPerTrade float64
+	CommissionPerLot     float64
 	MinTrades          int
 	Session            config.SessionConfig
 }
 
 // Evaluator запускает backtest для набора параметров.
 type Evaluator struct {
-	settings   RunSettings
-	strategyID string
-	buildCtx   strategy.BuildContext
-	candleData map[string][]models.Candle
-	space      *SearchSpace
+	settings     RunSettings
+	strategyID   string
+	buildCtx     strategy.BuildContext
+	candleData   map[string][]models.Candle
+	windowSlices []WindowCandleSlices
+	space        *SearchSpace
 }
 
 // NewEvaluator создаёт evaluator с предзагруженной историей.
@@ -63,68 +62,77 @@ func NewEvaluator(settings RunSettings, space *SearchSpace, candleData map[strin
 	}
 }
 
+// PeriodResult — метрики и сделки одного backtest-прогона.
+type PeriodResult struct {
+	Metrics Metrics
+	Trades  []models.ClosedTrade
+}
+
 // EvaluatePeriod прогоняет backtest на заданном периоде для всех тикеров.
 func (e *Evaluator) EvaluatePeriod(ctx context.Context, params ParameterSet, from, to time.Time) Metrics {
-	var netPnLs []float64
-	var returns []float64
+	return e.EvaluatePeriodDetailed(ctx, params, from, to).Metrics
+}
 
-	for _, ticker := range e.settings.Tickers {
-		candles, ok := e.candleData[ticker]
+// EvaluatePeriodDetailed как EvaluatePeriod, но возвращает и сделки.
+func (e *Evaluator) EvaluatePeriodDetailed(ctx context.Context, params ParameterSet, from, to time.Time) PeriodResult {
+	byTicker := candlesByTickerInRange(e.candleData, e.settings.Tickers, from, to)
+	return e.evaluateCandles(ctx, e.newTrialContext(params), byTicker)
+}
+
+// EvaluateTickerPeriod прогоняет backtest для одного тикера на заданном периоде.
+func (e *Evaluator) EvaluateTickerPeriod(ctx context.Context, params ParameterSet, ticker string, from, to time.Time) PeriodResult {
+	candles, ok := e.candleData[ticker]
+	if !ok {
+		return PeriodResult{}
+	}
+	filtered := FilterCandles(candles, from, to)
+	if len(filtered) == 0 {
+		return PeriodResult{}
+	}
+	return e.evaluateCandles(ctx, e.newTrialContext(params), map[string][]models.Candle{ticker: filtered})
+}
+
+func candlesByTickerInRange(data map[string][]models.Candle, tickers []string, from, to time.Time) map[string][]models.Candle {
+	byTicker := make(map[string][]models.Candle, len(tickers))
+	for _, ticker := range tickers {
+		candles, ok := data[ticker]
 		if !ok {
 			continue
 		}
 		filtered := FilterCandles(candles, from, to)
-		if len(filtered) == 0 {
-			continue
+		if len(filtered) > 0 {
+			byTicker[ticker] = filtered
 		}
+	}
+	return byTicker
+}
 
-		store := memory.NewTradeStore()
-		executor := bcs.NewVirtualExecutor(e.settings.Deposit)
+// AggregateTrades сортирует сделки по времени закрытия и считает Metrics
+// по всему портфелю. Сортировка обязательна: сделки по разным тикерам
+// закрываются в частично перекрывающиеся моменты времени, а собираются
+// они тикер за тикером (сначала все сделки SBER, потом все сделки GAZP,
+// и т.д.). Без сортировки по ClosedAt equity curve не отражает реальный
+// порядок закрытия позиций на уровне портфеля — MaxDrawdown/Calmar
+// считались бы по бессмысленной "сначала весь SBER, потом весь GAZP"
+// последовательности вместо настоящей хронологии.
+func AggregateTrades(trades []models.ClosedTrade, commissionPerTrade float64) Metrics {
+	sorted := make([]models.ClosedTrade, len(trades))
+	copy(sorted, trades)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].ClosedAt.Before(sorted[j].ClosedAt)
+	})
 
-		strat, err := e.buildStrategy(params)
-		if err != nil {
-			continue
-		}
-		trailCfg := e.trailCfg(params)
-
-		maxLoss := e.settings.Deposit * e.space.FixedValue("dailyLossLimitPercent", 2.0) / 100
-		riskPct := e.space.FixedValue("riskPerTradePercent", 0.5)
-
-		runner, err := simulation.NewRunner(simulation.RunnerConfig{
-			Ticker:          ticker,
-			ClassCode:       e.settings.ClassCode,
-			CandleTimeframe: e.settings.CandleTimeframe,
-			TradingMode:     config.TradingModeVirtual,
-			RunID:           "optimizer",
-			ExperimentID:    "optimizer",
-			StepPriceValue:  e.settings.StepPriceValue,
-			Deposit:         e.settings.Deposit,
-			MaxDailyLoss:    maxLoss,
-			RiskPerTradePct: riskPct,
-			MaxTradesPerDay: params.IntParam("maxEntriesPerTickerPerDay"),
-			Strategy:        strat,
-			StrategyID:      e.strategyID,
-			StopMode:        e.settings.StopMode,
-			Lookback:        params.IntParam("lookback"),
-			TrailCfg:        trailCfg,
-			SessionCfg:      e.settings.Session,
-		}, store)
-		if err != nil {
-			continue
-		}
-
-		_ = runner.Run(ctx, filtered, executor)
-
-		for _, trade := range store.Trades() {
-			net := NetPnLFromGross(trade.GrossPnL, trade.Quantity, e.settings.CommissionPerTrade)
-			netPnLs = append(netPnLs, net)
-			if trade.PnLR != 0 {
-				returns = append(returns, trade.PnLR)
-			} else {
-				riskAmt := trade.RDistance * float64(trade.Quantity) * trade.StepPriceValue
-				if riskAmt > 0 {
-					returns = append(returns, net/riskAmt)
-				}
+	var netPnLs []float64
+	var returns []float64
+	for _, trade := range sorted {
+		net := NetPnLFromGross(trade.GrossPnL, trade.Quantity, commissionPerTrade)
+		netPnLs = append(netPnLs, net)
+		if trade.PnLR != 0 {
+			returns = append(returns, trade.PnLR)
+		} else {
+			riskAmt := trade.RDistance * float64(trade.Quantity) * trade.StepPriceValue
+			if riskAmt > 0 {
+				returns = append(returns, net/riskAmt)
 			}
 		}
 	}
@@ -132,21 +140,10 @@ func (e *Evaluator) EvaluatePeriod(ctx context.Context, params ParameterSet, fro
 	return ComputeMetrics(netPnLs, returns)
 }
 
-func (e *Evaluator) buildStrategy(params ParameterSet) (strategy.CandleStrategy, error) {
-	p := make(strategy.Params, len(params)+4)
-	for k, v := range params {
-		p[k] = v
-	}
-	if p["atrPeriod"] == 0 {
-		p["atrPeriod"] = 14
-	}
-	return strategy.NewFromParams(e.strategyID, p, e.buildCtx)
-}
-
 func (e *Evaluator) trailCfg(params ParameterSet) trailing.Config {
 	cfg := trailing.DefaultConfig()
 	cfg.StepPriceValue = e.settings.StepPriceValue
-	cfg.CommissionPerLot = e.settings.CommissionPerTrade
+	cfg.CommissionPerLot = e.settings.CommissionPerLot
 	if v := params.FloatParam("trailActivationR"); v > 0 {
 		cfg.ActivationR = v
 	}

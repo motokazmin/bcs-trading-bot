@@ -4,10 +4,11 @@
 
 <section class="cards">
   <div class="card"><div class="label">Сделок</div><div class="value">{{.Summary.TradeCount}}</div></div>
+  <div class="card highlight"><div class="label">Expectancy (R)</div><div class="value {{pnlClass .Summary.ExpectancyR}}">{{printf "%+.2f" .Summary.ExpectancyR}}</div></div>
+  <div class="card"><div class="label">Expectancy (₽)</div><div class="value {{pnlClass .Summary.Expectancy}}">{{fmtMoney .Summary.Expectancy}} ₽</div></div>
   <div class="card"><div class="label">Win rate</div><div class="value">{{fmtPct .Summary.WinRate}}</div></div>
   <div class="card"><div class="label">Total PnL</div><div class="value {{pnlClass .Summary.TotalPnL}}">{{fmtMoney .Summary.TotalPnL}} ₽</div></div>
   <div class="card"><div class="label">Profit factor</div><div class="value">{{printf "%.2f" .Summary.ProfitFactor}}</div></div>
-  <div class="card"><div class="label">Avg R</div><div class="value">{{printf "%.2f" .Summary.AvgPnLR}}</div></div>
   <div class="card"><div class="label">Ср. удержание</div><div class="value">{{fmtHoldSec .Summary.AvgHoldSec}}</div></div>
   <div class="card"><div class="label">Период</div><div class="value small">{{.DateRange.From}} — {{.DateRange.To}}</div></div>
 </section>
@@ -18,17 +19,17 @@
   <div class="table-scroll">
   <table class="data-table">
     <thead>
-      <tr><th>experiment_id</th><th class="num">Сделок</th><th class="num">Win%</th><th class="num">PnL</th><th class="num">PF</th><th class="num">Avg R</th></tr>
+      <tr><th>experiment_id</th><th class="num">Сделок</th><th class="num">Exp (R)</th><th class="num">Win%</th><th class="num">PnL</th><th class="num">PF</th></tr>
     </thead>
     <tbody>
       {{range .Comparison}}
       <tr>
         <td><code>{{.Key}}</code></td>
         <td class="num">{{.TradeCount}}</td>
+        <td class="num {{pnlClass .AvgPnLR}}">{{printf "%+.2f" .AvgPnLR}}</td>
         <td class="num">{{fmtPct .WinRate}}</td>
         <td class="num {{pnlClass .TotalPnL}}">{{fmtMoney .TotalPnL}}</td>
         <td class="num">{{printf "%.2f" .ProfitFactor}}</td>
-        <td class="num">{{printf "%.2f" .AvgPnLR}}</td>
       </tr>
       {{end}}
     </tbody>

@@ -9,6 +9,9 @@ tickers:
 class_code: TQBR
 candle_timeframe: M5
 
+costs:
+  commission_per_lot: 0.10
+
 risk:
   deposit: 1000000
   max_daily_loss_percent: 2

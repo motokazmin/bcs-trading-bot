@@ -47,6 +47,9 @@ func TestLoadExperimentsAll(t *testing.T) {
 	if exps[5].ID != "atr-2-delayed-vol" || cfg.SessionForExperiment(exps[5]).EntryDelayMinutes != 30 {
 		t.Fatalf("atr-2-delayed-vol: %+v", exps[5])
 	}
+	if cfg.CommissionPerLot() != 0.10 {
+		t.Fatalf("commission_per_lot: got %v, want 0.10", cfg.CommissionPerLot())
+	}
 }
 
 func TestLoadRealStocks(t *testing.T) {
@@ -77,8 +80,28 @@ func TestLoadFuturesStepPriceValue(t *testing.T) {
 	if cfg.Tickers[1].Symbol != "GAZR" || cfg.Tickers[1].StepPriceValue != 1.0 {
 		t.Fatalf("GAZR: got %+v", cfg.Tickers[1])
 	}
+	if cfg.CommissionPerLot() != 5.0 {
+		t.Fatalf("commission_per_lot: got %v, want 5.0", cfg.CommissionPerLot())
+	}
 }
 
+func TestConfigCommissionDefaultByClassCode(t *testing.T) {
+	const yamlData = `
+trading_mode: virtual
+tickers: [SBER]
+class_code: TQBR
+risk:
+  deposit: 100000
+  max_daily_loss_percent: 2
+`
+	cfg, err := config.LoadFromBytes([]byte(yamlData))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.CommissionPerLot(); got != 0.10 {
+		t.Fatalf("TQBR default commission: got %v, want 0.10", got)
+	}
+}
 func TestTickerConfigUnmarshalObject(t *testing.T) {
 	const yamlData = `
 trading_mode: virtual

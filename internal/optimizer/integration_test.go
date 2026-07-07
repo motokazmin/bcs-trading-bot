@@ -84,22 +84,20 @@ fixed:
 		CandleTimeframe:    "M5",
 		Deposit:            100_000,
 		StepPriceValue:     1.0,
-		CommissionPerTrade: 5.0,
+		CommissionPerLot: 0.10,
 		MinTrades:          1,
 		Session:            optimizer.DefaultSession(),
 	}
 
 	evaluator := optimizer.NewEvaluator(settings, space, data)
-	windows := optimizer.GenerateWindows(from, to.Add(24*time.Hour), 1, 1, 1)
+	windows := optimizer.GenerateWindows(from, to.Add(24*time.Hour), 1, 1)
 	if len(windows) == 0 {
-		// fallback: один синтетический window
 		windows = []optimizer.Window{{
-			TrainStart: from,
-			TrainEnd:   from.Add(48 * time.Hour),
-			TestStart:  from.Add(48 * time.Hour),
-			TestEnd:    to,
+			Start: from,
+			End:   to,
 		}}
 	}
+	evaluator.PrecomputeWindowSlices(windows)
 
 	result := optimizer.RunOptimization(context.Background(), evaluator, space, windows, 3, 1, rand.Int63())
 	if len(result.Trials) != 3 {
@@ -108,7 +106,7 @@ fixed:
 
 	searcher := optimizer.NewRandomSearcher(space, 3, 42)
 	for _, tr := range result.Trials {
-		searcher.Report(tr.Params, tr.TrainScore)
+		searcher.Report(tr.Params, tr.Score)
 	}
 	best, score := searcher.Best()
 	if len(best) == 0 && !mathIsInf(score) {

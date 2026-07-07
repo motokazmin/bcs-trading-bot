@@ -11,6 +11,9 @@ tickers:
 class_code: SPBFUT
 candle_timeframe: M5
 
+costs:
+  commission_per_lot: 5.0
+
 risk:
   deposit: 500000
   max_daily_loss_percent: 2

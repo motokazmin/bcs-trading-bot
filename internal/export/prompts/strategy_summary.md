@@ -6,10 +6,11 @@
 
 ## Структура `data-summary.json`
 
+- `key_metrics` — **главные метрики**: `expectancy_r` (матожидание в R на сделку — основной показатель edge), `expectancy_rub`, win rate, profit factor
 - `strategy_context` — философия и правила стратегии
 - `date_range`, `filters` — период и фильтры выборки
 - `comparison` — сводка по `experiment_id`
-- `experiments[]` — по каждому эксперименту: `summary`, `by_ticker`, `by_close_reason`, `daily_pnl`, `equity_curve` (списка сделок **нет**)
+- `experiments[]` — по каждому эксперименту: `summary` (в т.ч. `expectancy_r`), `by_ticker`, `by_close_reason`, `daily_pnl`, `equity_curve` (списка сделок **нет**)
 
 Мета: версия {{EXPORT_VERSION}}, выгрузка {{EXPORTED_AT}}, период {{DATE_FROM}} — {{DATE_TO}}, сделок в выборке: {{TOTAL_TRADES}}.
 
@@ -21,7 +22,7 @@
 2. Сравнение экспериментов — `stop_mode` (range vs atr), гипотеза «узкий стоп выбивает прибыльные сделки».
 3. Причины закрытия — доля STOP_LOSS / TAKE_PROFIT / EOD.
 4. По тикерам — кто тянет вниз/вверх.
-5. Метрики — win rate, profit factor, expectancy, avg PnL в R; при detailed-выгрузке — средние `mfe_in_r`/`mae_in_r` по экспериментам; достаточность выборки.
+5. **Метрики — в первую очередь `key_metrics.expectancy_r` и `summary.expectancy_r`** (средний PnL в R на сделку: >0 = edge, <0 = убыток). Затем win rate, profit factor, expectancy в ₽; при detailed-выгрузке — средние `mfe_in_r`/`mae_in_r`; достаточность выборки.
 6. Ограничения — `gross_pnl` без комиссии, virtual mode, короткий период.
 
 ## Формат ответа (русский)
@@ -30,7 +31,7 @@
 2–4 предложения: лидер и убедительность выводов.
 
 ### 2. Сравнение экспериментов
-Таблица: experiment_id, сильные/слабые стороны, ключевые метрики.
+Таблица: experiment_id, **expectancy_r**, сильные/слабые стороны, ключевые метрики.
 
 ### 3. Диагностика проблем
 Ранние стопы, EOD, слабые тикеры, трейлинг — со ссылкой на поля JSON.

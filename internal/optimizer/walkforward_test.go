@@ -12,37 +12,31 @@ func TestGenerateWindows(t *testing.T) {
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	windows := optimizer.GenerateWindows(start, end, 6, 2, 1)
+	windows := optimizer.GenerateWindows(start, end, 2, 1)
 	if len(windows) == 0 {
 		t.Fatal("expected windows")
 	}
 
 	for i, w := range windows {
-		if !w.TrainStart.Before(w.TrainEnd) {
-			t.Fatalf("window %d: train start not before end", i)
-		}
-		if !w.TrainEnd.Equal(w.TestStart) {
-			t.Fatalf("window %d: train end != test start", i)
-		}
-		if !w.TestStart.Before(w.TestEnd) {
-			t.Fatalf("window %d: test start not before end", i)
+		if !w.Start.Before(w.End) {
+			t.Fatalf("window %d: start not before end", i)
 		}
 		if i > 0 {
 			prev := windows[i-1]
-			if !w.TrainStart.After(prev.TrainStart) {
+			if !w.Start.After(prev.Start) {
 				t.Fatalf("window %d: step not advancing", i)
 			}
 		}
 	}
 }
 
-func TestGenerateWindowsNoOverlapTrainTest(t *testing.T) {
+func TestGenerateWindowsNoOverlap(t *testing.T) {
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
-	windows := optimizer.GenerateWindows(start, end, 6, 2, 1)
+	windows := optimizer.GenerateWindows(start, end, 2, 1)
 	for i, w := range windows {
-		if w.TrainEnd.After(w.TestStart) {
-			t.Fatalf("window %d: train overlaps test", i)
+		if !w.Start.Before(w.End) {
+			t.Fatalf("window %d: invalid bounds", i)
 		}
 	}
 }
