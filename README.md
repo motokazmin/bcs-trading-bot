@@ -319,6 +319,7 @@ go run ./cmd/bot
 | `tickers` | — | Список тикеров |
 | `class_code` | `TQBR` | Класс инструмента: `TQBR` (акции), `SPBFUT` (фьючерсы) |
 | `candle_timeframe` | `M5` | Таймфрейм свечей WebSocket: M1, M5, M15, ... |
+| `costs.commission_per_lot` | `0.10` (TQBR) / `5.0` (SPBFUT) | Комиссия round-trip за акцию или контракт |
 | `risk.deposit` | `100000` | Депозит для расчёта лота (руб.) |
 | `risk.max_daily_loss` | — | Абсолютный дневной лимит убытков (руб.) |
 | `risk.max_daily_loss_percent` | `2` | % от депозита, если `max_daily_loss` не задан |

@@ -17,20 +17,15 @@ func TestBuildWindowCandleSlices(t *testing.T) {
 	}
 	data := map[string][]models.Candle{"SBER": candles}
 	windows := []Window{{
-		TrainStart: t0,
-		TrainEnd:   t0.Add(48 * time.Hour),
-		TestStart:  t0.Add(48 * time.Hour),
-		TestEnd:    t0.Add(96 * time.Hour),
+		Start: t0,
+		End:   t0.Add(48 * time.Hour),
 	}}
 
 	slices := BuildWindowCandleSlices(windows, []string{"SBER"}, data)
 	if len(slices) != 1 {
 		t.Fatalf("windows: got %d", len(slices))
 	}
-	if len(slices[0].Train["SBER"]) != 2 {
-		t.Fatalf("train candles: got %d want 2", len(slices[0].Train["SBER"]))
-	}
-	if len(slices[0].Test["SBER"]) != 2 {
-		t.Fatalf("test candles: got %d want 2", len(slices[0].Test["SBER"]))
+	if len(slices[0].Candles["SBER"]) != 2 {
+		t.Fatalf("window candles: got %d want 2", len(slices[0].Candles["SBER"]))
 	}
 }

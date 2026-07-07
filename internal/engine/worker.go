@@ -51,6 +51,7 @@ func NewTickerWorker(
 	exp config.ResolvedExperiment,
 	tickerCount int,
 	stepPriceValue float64,
+	commissionPerLot float64,
 	sessionCfg config.SessionConfig,
 	tradingMode, runID, classCode, candleTimeframe string,
 	store interfaces.TradeStore,
@@ -74,7 +75,7 @@ func NewTickerWorker(
 		label = fmt.Sprintf("%s/%s", exp.ID, ticker)
 	}
 
-	trailCfg := exp.Strategy.TrailingConfig(stepPriceValue)
+	trailCfg := exp.Strategy.TrailingConfig(stepPriceValue, commissionPerLot)
 
 	strat, err := exp.Strategy.BuildStrategy(sessionCfg)
 	if err != nil {

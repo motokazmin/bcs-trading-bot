@@ -94,7 +94,7 @@ func RunTwoPhaseOptimization(
 	wg.Wait()
 
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].TestScore > results[j].TestScore
+		return results[i].Score > results[j].Score
 	})
 
 	best := TrialResult{}
@@ -102,13 +102,13 @@ func RunTwoPhaseOptimization(
 		best = results[0]
 	}
 
-	logx.Info("two-phase: фаза 2 лучший test_score=%s (фаза 1 была %s)",
-		formatOptimizerScore(best.TestScore), formatOptimizerScore(phase1.BestByTest.TestScore))
+	logx.Info("two-phase: фаза 2 лучший score=%s (фаза 1 была %s)",
+		formatOptimizerScore(best.Score), formatOptimizerScore(phase1.Best.Score))
 
 	return &RunResult{
-		Timestamp:  time.Now(),
-		Trials:     results,
-		BestByTest: best,
+		Timestamp: time.Now(),
+		Trials:    results,
+		Best:      best,
 	}
 }
 

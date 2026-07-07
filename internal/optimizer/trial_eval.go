@@ -2,6 +2,7 @@ package optimizer
 
 import (
 	"context"
+	"sort"
 
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
@@ -35,8 +36,8 @@ func (e *Evaluator) newTrialContext(params ParameterSet) trialContext {
 		params:      params,
 		stratParams: p,
 		trailCfg:    e.trailCfg(params),
-		maxLoss:     e.settings.Deposit * e.space.FixedValue("dailyLossLimitPercent", 2.0) / 100,
-		riskPct:     e.space.FixedValue("riskPerTradePercent", 0.5),
+		maxLoss:     e.settings.Deposit * e.fixedValue("dailyLossLimitPercent", 2.0) / 100,
+		riskPct:     e.fixedValue("riskPerTradePercent", 0.5),
 		maxTrades:   params.IntParam("maxEntriesPerTickerPerDay"),
 		lookback:    params.IntParam("lookback"),
 	}
@@ -49,32 +50,42 @@ func (e *Evaluator) PrecomputeWindowSlices(windows []Window) {
 
 func (e *Evaluator) evaluateTrial(ctx context.Context, index int, params ParameterSet, minTrades int) TrialResult {
 	tc := e.newTrialContext(params)
-	var trainScores, testScores []float64
+	var scores []float64
 	windowResults := make([]WindowResult, len(e.windowSlices))
 
 	for i, slices := range e.windowSlices {
-		trainM := e.evaluateCandles(ctx, tc, slices.Train)
-		testM := e.evaluateCandles(ctx, tc, slices.Test)
-		trainScores = append(trainScores, Score(trainM, minTrades))
-		testScores = append(testScores, Score(testM, minTrades))
-		windowResults[i] = WindowResult{Train: trainM, Test: testM}
+		pr := e.evaluateCandles(ctx, tc, slices.Candles)
+		scores = append(scores, Score(pr.Metrics, minTrades))
+		windowResults[i] = WindowResult{Metrics: pr.Metrics}
 	}
 
 	return TrialResult{
-		Index:      index,
-		Params:     params,
-		TrainScore: MeanFloat(trainScores),
-		TestScore:  MedianFloat(testScores),
-		Windows:    windowResults,
+		Index:   index,
+		Params:  params,
+		Score:   MedianFloat(scores),
+		Windows: windowResults,
 	}
 }
 
-func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candlesByTicker map[string][]models.Candle) Metrics {
+func (e *Evaluator) fixedValue(key string, fallback float64) float64 {
+	if e.space != nil {
+		return e.space.FixedValue(key, fallback)
+	}
+	return fallback
+}
+
+func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candlesByTicker map[string][]models.Candle) PeriodResult {
 	var trades []models.ClosedTrade
 
-	for _, ticker := range e.settings.Tickers {
-		filtered, ok := candlesByTicker[ticker]
-		if !ok || len(filtered) == 0 {
+	tickers := make([]string, 0, len(candlesByTicker))
+	for ticker := range candlesByTicker {
+		tickers = append(tickers, ticker)
+	}
+	sort.Strings(tickers)
+
+	for _, ticker := range tickers {
+		filtered := candlesByTicker[ticker]
+		if len(filtered) == 0 {
 			continue
 		}
 
@@ -113,5 +124,8 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 		trades = append(trades, store.Trades()...)
 	}
 
-	return AggregateTrades(trades, e.settings.CommissionPerTrade)
+	return PeriodResult{
+		Metrics: AggregateTrades(trades, e.settings.CommissionPerLot),
+		Trades:  trades,
+	}
 }

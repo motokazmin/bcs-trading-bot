@@ -1,17 +1,16 @@
 package trailing
 
 import (
+	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/position"
 )
-
-const defaultCommissionPerLot = 5.0
 
 // Config задаёт параметры дискретного и непрерывного трейлинг-стопа.
 type Config struct {
 	ActivationR      float64 // порог первой стадии в единицах R (default 1.0)
 	DiscreteStepR    float64 // шаг между стадиями в R (default 1.0)
 	StageMax         int     // макс. дискретная стадия (default 2)
-	CommissionPerLot float64 // комиссия за лот для offset безубытка (default 5.0)
+	CommissionPerLot float64 // комиссия round-trip за единицу quantity для offset безубытка
 	StepPriceValue   float64 // стоимость шага цены
 }
 
@@ -21,7 +20,7 @@ func DefaultConfig() Config {
 		ActivationR:      1.0,
 		DiscreteStepR:    1.0,
 		StageMax:         2,
-		CommissionPerLot: defaultCommissionPerLot,
+		CommissionPerLot: costs.DefaultPerLotStocks,
 		StepPriceValue:   1.0,
 	}
 }
@@ -38,7 +37,7 @@ func (c Config) normalized() Config {
 		out.StageMax = 2
 	}
 	if out.CommissionPerLot <= 0 {
-		out.CommissionPerLot = defaultCommissionPerLot
+		out.CommissionPerLot = costs.DefaultPerLotStocks
 	}
 	if out.StepPriceValue <= 0 {
 		out.StepPriceValue = 1.0

@@ -19,24 +19,22 @@ import (
 
 // WindowResult — метрики одного окна.
 type WindowResult struct {
-	Train Metrics `json:"train"`
-	Test  Metrics `json:"test"`
+	Metrics Metrics `json:"metrics"`
 }
 
 // TrialResult — результат одного trial.
 type TrialResult struct {
-	Index      int            `json:"index"`
-	Params     ParameterSet   `json:"params"`
-	TrainScore float64        `json:"train_score"`
-	TestScore  float64        `json:"test_score"`
-	Windows    []WindowResult `json:"windows"`
+	Index   int            `json:"index"`
+	Params  ParameterSet   `json:"params"`
+	Score   float64        `json:"score"`
+	Windows []WindowResult `json:"windows"`
 }
 
 // RunResult — полный результат оптимизации.
 type RunResult struct {
-	Timestamp  time.Time     `json:"timestamp"`
-	Trials     []TrialResult `json:"trials"`
-	BestByTest TrialResult   `json:"best_by_test"`
+	Timestamp time.Time     `json:"timestamp"`
+	Trials    []TrialResult `json:"trials"`
+	Best      TrialResult   `json:"best"`
 }
 
 func optimizerProgressInterval(total int) int {
@@ -54,11 +52,11 @@ func optimizerProgressInterval(total int) int {
 	}
 }
 
-func logOptimizerProgress(done, total int, bestTest float64, started time.Time) {
+func logOptimizerProgress(done, total int, bestScore float64, started time.Time) {
 	elapsed := time.Since(started)
 	pct := done * 100 / total
-	msg := fmt.Sprintf("optimizer: %d/%d (%d%%) best_test=%s elapsed=%s",
-		done, total, pct, formatOptimizerScore(bestTest), elapsed.Round(time.Second))
+	msg := fmt.Sprintf("optimizer: %d/%d (%d%%) best_score=%s elapsed=%s",
+		done, total, pct, formatOptimizerScore(bestScore), elapsed.Round(time.Second))
 	if done > 0 && done < total {
 		eta := time.Duration(int64(elapsed) * int64(total-done) / int64(done))
 		msg += fmt.Sprintf(" eta=%s", eta.Round(time.Second))
@@ -99,7 +97,7 @@ func WriteResults(outputDir string, result *RunResult, settings RunSettings, spa
 		return "", "", err
 	}
 
-	yamlData, err := yaml.Marshal(buildBestConfig(result.BestByTest.Params, settings, space, result.BestByTest))
+	yamlData, err := yaml.Marshal(buildBestConfig(result.Best.Params, settings, space, result.Best))
 	if err != nil {
 		return "", "", err
 	}
@@ -115,29 +113,29 @@ func PrintTopN(result *RunResult, n int) {
 	if n > len(result.Trials) {
 		n = len(result.Trials)
 	}
-	fmt.Println("=== Top configurations by OOS test score ===")
+	fmt.Println("=== Top configurations by walk-forward score ===")
 	for i := 0; i < n; i++ {
 		t := result.Trials[i]
-		fmt.Printf("\n#%d test_score=%s train_score=%s trades(test)=%d test_pnl=%.0f руб\n",
-			i+1, formatOptimizerScore(t.TestScore), formatOptimizerScore(t.TrainScore), totalTestTrades(t), totalTestPnL(t))
+		fmt.Printf("\n#%d score=%s trades=%d pnl=%.0f руб\n",
+			i+1, formatOptimizerScore(t.Score), totalWindowTrades(t), totalWindowPnL(t))
 		for _, key := range sortedParamKeys(t.Params) {
 			fmt.Printf("  %s: %v\n", key, formatParam(t.Params[key]))
 		}
 	}
 }
 
-func totalTestPnL(t TrialResult) float64 {
+func totalWindowPnL(t TrialResult) float64 {
 	var sum float64
 	for _, w := range t.Windows {
-		sum += w.Test.TotalPnL
+		sum += w.Metrics.TotalPnL
 	}
 	return sum
 }
 
-func totalTestTrades(t TrialResult) int {
+func totalWindowTrades(t TrialResult) int {
 	total := 0
 	for _, w := range t.Windows {
-		total += w.Test.NumTrades
+		total += w.Metrics.NumTrades
 	}
 	return total
 }
@@ -159,15 +157,20 @@ func formatParam(v float64) string {
 }
 
 type bestConfigYAML struct {
-	TradingMode     string              `yaml:"trading_mode"`
-	Tickers         []string            `yaml:"tickers"`
-	ClassCode       string              `yaml:"class_code"`
-	CandleTimeframe string              `yaml:"candle_timeframe"`
-	Session         sessionYAML         `yaml:"session"`
-	Strategy        strategyYAML        `yaml:"strategy"`
-	Risk            riskYAML            `yaml:"risk"`
-	Virtual         map[string]float64  `yaml:"virtual"`
-	OptimizerNote   string              `yaml:"optimizer_note,omitempty"`
+	TradingMode     string             `yaml:"trading_mode"`
+	Tickers         []string           `yaml:"tickers"`
+	ClassCode       string             `yaml:"class_code"`
+	CandleTimeframe string             `yaml:"candle_timeframe"`
+	Costs           costsYAML          `yaml:"costs"`
+	Session         sessionYAML        `yaml:"session"`
+	Strategy        strategyYAML       `yaml:"strategy"`
+	Risk            riskYAML           `yaml:"risk"`
+	Virtual         map[string]float64 `yaml:"virtual"`
+	OptimizerNote   string             `yaml:"optimizer_note,omitempty"`
+}
+
+type costsYAML struct {
+	CommissionPerLot float64 `yaml:"commission_per_lot"`
 }
 
 type sessionYAML struct {
@@ -178,24 +181,24 @@ type sessionYAML struct {
 }
 
 type strategyYAML struct {
-	Type                     string  `yaml:"type"`
-	Lookback                 int     `yaml:"lookback,omitempty"`
-	StopMode                 string  `yaml:"stop_mode"`
-	ATRPeriod                int     `yaml:"atr_period,omitempty"`
-	ATRMultiplier            float64 `yaml:"atr_multiplier,omitempty"`
-	RewardRatio              float64 `yaml:"reward_ratio,omitempty"`
-	VolumeFilter             bool    `yaml:"volume_filter,omitempty"`
-	VolumeMinRatio           float64 `yaml:"volume_min_ratio,omitempty"`
-	BreakoutThreshold        float64 `yaml:"breakout_threshold,omitempty"`
-	MaxTradesPerTickerPerDay int     `yaml:"max_trades_per_ticker_per_day,omitempty"`
-	TrailActivationR         float64 `yaml:"trail_activation_r,omitempty"`
-	TrailDiscreteStepR       float64 `yaml:"trail_discrete_step_r,omitempty"`
-	TrailStageMax            int     `yaml:"trail_stage_max,omitempty"`
-	LongOnly                 bool    `yaml:"long_only,omitempty"`
-	TrendSMAPeriod           int     `yaml:"trend_sma_period,omitempty"`
-	StrategyEntryDelayMinutes int    `yaml:"strategy_entry_delay_minutes,omitempty"`
-	ORBMinutes               int     `yaml:"orb_minutes,omitempty"`
-	FadeThreshold            float64 `yaml:"fade_threshold,omitempty"`
+	Type                      string  `yaml:"type"`
+	Lookback                  int     `yaml:"lookback,omitempty"`
+	StopMode                  string  `yaml:"stop_mode"`
+	ATRPeriod                 int     `yaml:"atr_period,omitempty"`
+	ATRMultiplier             float64 `yaml:"atr_multiplier,omitempty"`
+	RewardRatio               float64 `yaml:"reward_ratio,omitempty"`
+	VolumeFilter              bool    `yaml:"volume_filter,omitempty"`
+	VolumeMinRatio            float64 `yaml:"volume_min_ratio,omitempty"`
+	BreakoutThreshold         float64 `yaml:"breakout_threshold,omitempty"`
+	MaxTradesPerTickerPerDay  int     `yaml:"max_trades_per_ticker_per_day,omitempty"`
+	TrailActivationR          float64 `yaml:"trail_activation_r,omitempty"`
+	TrailDiscreteStepR        float64 `yaml:"trail_discrete_step_r,omitempty"`
+	TrailStageMax             int     `yaml:"trail_stage_max,omitempty"`
+	LongOnly                  bool    `yaml:"long_only,omitempty"`
+	TrendSMAPeriod            int     `yaml:"trend_sma_period,omitempty"`
+	StrategyEntryDelayMinutes int     `yaml:"strategy_entry_delay_minutes,omitempty"`
+	ORBMinutes                int     `yaml:"orb_minutes,omitempty"`
+	FadeThreshold             float64 `yaml:"fade_threshold,omitempty"`
 }
 
 type riskYAML struct {
@@ -231,6 +234,9 @@ func buildBestConfig(params ParameterSet, settings RunSettings, space *SearchSpa
 		Tickers:         settings.Tickers,
 		ClassCode:       settings.ClassCode,
 		CandleTimeframe: settings.CandleTimeframe,
+		Costs: costsYAML{
+			CommissionPerLot: settings.CommissionPerLot,
+		},
 		Session: sessionYAML{
 			Timezone:          settings.Session.Timezone,
 			EODCloseTime:      settings.Session.EODCloseTime,
@@ -247,8 +253,8 @@ func buildBestConfig(params ParameterSet, settings RunSettings, space *SearchSpa
 			"balance": settings.Deposit,
 		},
 		OptimizerNote: fmt.Sprintf(
-			"generated by optimizer; strategy=%s; OOS test_score=%s; apply manually — no auto-deploy",
-			stratID, formatOptimizerScore(best.TestScore),
+			"generated by optimizer; strategy=%s; walk-forward score=%s; apply manually — no auto-deploy",
+			stratID, formatOptimizerScore(best.Score),
 		),
 	}
 }
@@ -292,24 +298,23 @@ func ParseDate(s string) (time.Time, error) {
 }
 
 type jsonSafeRunResult struct {
-	Timestamp  time.Time             `json:"timestamp"`
-	Trials     []jsonSafeTrialResult `json:"trials"`
-	BestByTest jsonSafeTrialResult   `json:"best_by_test"`
+	Timestamp time.Time             `json:"timestamp"`
+	Trials    []jsonSafeTrialResult `json:"trials"`
+	Best      jsonSafeTrialResult   `json:"best"`
 }
 
 type jsonSafeTrialResult struct {
-	Index      int            `json:"index"`
-	Params     ParameterSet   `json:"params"`
-	TrainScore *float64       `json:"train_score"`
-	TestScore  *float64       `json:"test_score"`
-	Windows    []WindowResult `json:"windows"`
+	Index   int            `json:"index"`
+	Params  ParameterSet   `json:"params"`
+	Score   *float64       `json:"score"`
+	Windows []WindowResult `json:"windows"`
 }
 
 func marshalRunResultJSON(result *RunResult) ([]byte, error) {
 	safe := jsonSafeRunResult{
-		Timestamp:  result.Timestamp,
-		Trials:     make([]jsonSafeTrialResult, len(result.Trials)),
-		BestByTest: toJSONSafeTrial(result.BestByTest),
+		Timestamp: result.Timestamp,
+		Trials:    make([]jsonSafeTrialResult, len(result.Trials)),
+		Best:      toJSONSafeTrial(result.Best),
 	}
 	for i, t := range result.Trials {
 		safe.Trials[i] = toJSONSafeTrial(t)
@@ -319,11 +324,10 @@ func marshalRunResultJSON(result *RunResult) ([]byte, error) {
 
 func toJSONSafeTrial(t TrialResult) jsonSafeTrialResult {
 	return jsonSafeTrialResult{
-		Index:      t.Index,
-		Params:     t.Params,
-		TrainScore: floatPtrForJSON(t.TrainScore),
-		TestScore:  floatPtrForJSON(t.TestScore),
-		Windows:    t.Windows,
+		Index:   t.Index,
+		Params:  t.Params,
+		Score:   floatPtrForJSON(t.Score),
+		Windows: t.Windows,
 	}
 }
 

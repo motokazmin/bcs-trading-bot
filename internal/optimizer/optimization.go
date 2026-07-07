@@ -63,7 +63,7 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 	var (
 		doneCount  atomic.Int32
 		bestMu     sync.Mutex
-		bestTest   = math.Inf(-1)
+		bestScore  = math.Inf(-1)
 		progressMu sync.Mutex
 	)
 
@@ -88,10 +88,10 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 			results[index] = result
 
 			bestMu.Lock()
-			if result.TestScore > bestTest {
-				bestTest = result.TestScore
+			if result.Score > bestScore {
+				bestScore = result.Score
 			}
-			currentBest := bestTest
+			currentBest := bestScore
 			bestMu.Unlock()
 
 			done := int(doneCount.Add(1))
@@ -106,7 +106,7 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 	wg.Wait()
 
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].TestScore > results[j].TestScore
+		return results[i].Score > results[j].Score
 	})
 
 	completed := 0
@@ -122,30 +122,29 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 	}
 
 	elapsed := time.Since(started).Round(time.Second)
-	logx.Info("optimizer: готово %d/%d trials за %s, best test_score=%s",
-		completed, trials, elapsed, formatOptimizerScore(best.TestScore))
+	logx.Info("optimizer: готово %d/%d trials за %s, best score=%s",
+		completed, trials, elapsed, formatOptimizerScore(best.Score))
 	if completed > 0 {
-		bestPnL := totalTestPnL(best)
+		bestPnL := totalWindowPnL(best)
 		switch {
-		case math.IsInf(best.TestScore, -1):
-			logx.Warn("optimizer: ни один trial не набрал min-trades на OOS — уменьшите -min-trades или сузьте search-space (breakoutThreshold > 0.05 почти не даёт сделок)")
-		case best.TestScore < 0:
-			logx.Warn("optimizer: OOS убыточен (score=%s, test PnL=%.0f руб.) — см. JSON",
-				formatOptimizerScore(best.TestScore), bestPnL)
+		case math.IsInf(best.Score, -1):
+			logx.Warn("optimizer: ни один trial не набрал min-trades — уменьшите -min-trades или сузьте search-space (breakoutThreshold > 0.05 почти не даёт сделок)")
+		case best.Score < 0:
+			logx.Warn("optimizer: walk-forward убыточен (score=%s, PnL=%.0f руб.) — см. JSON",
+				formatOptimizerScore(best.Score), bestPnL)
 		case bestPnL <= 0:
-			// TestScore — медиана Calmar по окнам: у части окон может быть неплохой
+			// Score — медиана Calmar по окнам: у части окон может быть неплохой
 			// Calmar (мало сделок, маленькая просадка), а сумма PnL по всем окнам
 			// всё равно в минусе. Положительный score НЕ означает, что конфигурация
-			// заработала деньги за весь период — явно предупреждаем, иначе можно
-			// принять "score > 0, предупреждения нет" за признак прибыльности.
-			logx.Warn("optimizer: best test_score=%s положителен (медиана Calmar по окнам), но суммарный OOS PnL по всем окнам = %.0f руб. — конфигурация НЕ прибыльна в деньгах, см. JSON по окнам",
-				formatOptimizerScore(best.TestScore), bestPnL)
+			// заработала деньги за весь период.
+			logx.Warn("optimizer: best score=%s положителен (медиана Calmar по окнам), но суммарный PnL по всем окнам = %.0f руб. — конфигурация НЕ прибыльна в деньгах, см. JSON по окнам",
+				formatOptimizerScore(best.Score), bestPnL)
 		}
 	}
 
 	return &RunResult{
-		Timestamp:  time.Now(),
-		Trials:     results,
-		BestByTest: best,
+		Timestamp: time.Now(),
+		Trials:    results,
+		Best:      best,
 	}
 }

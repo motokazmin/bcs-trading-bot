@@ -118,19 +118,16 @@ Baseline: `RandomSearcher` (N случайных точек из search space).
 
 ```go
 type Window struct {
-    TrainStart, TrainEnd time.Time
-    TestStart, TestEnd   time.Time
+    Start, End time.Time
 }
 
-func GenerateWindows(fullStart, fullEnd time.Time, trainMonths, testMonths, stepMonths int) []Window
+func GenerateWindows(fullStart, fullEnd time.Time, windowMonths, stepMonths int) []Window
 ```
 
-Оптимизация (Suggest/Report) идёт по метрике на `TrainStart..TrainEnd`.
-Финальная метрика конфигурации — среднее (или медиана) по метрикам
-на `TestStart..TestEnd` всех окон (out-of-sample), это и есть то, что
-сравнивается между trials.
+Для каждого trial — backtest на каждом окне. Финальная метрика конфигурации —
+**медиана** score по всем окнам; по ней сравниваются trials.
 
-Флаги: `-train-months` (default 6), `-test-months` (default 2), `-step-months` (default 1).
+Флаги: `-window-months` (default 2), `-step-months` (default 1).
 
 ### 5. Objective / метрика
 
@@ -162,7 +159,7 @@ func Score(m Metrics) float64 {
 SBER/ROSN/NVTK, где сделок на окно объективно меньше) — проверить
 распределение `numTrades` по всем trials и, если порог 20 отбраковывает
 большинство конфигураций как "недостаточная выборка", пересмотреть в
-меньшую сторону (например 10–15) или увеличить `train-months`. Занести
+меньшую сторону (например 10–15) или увеличить `-window-months`. Занести
 результат этой калибровки в README как отдельную заметку — это не разовая
 настройка, а то, что может меняться при добавлении новых тикеров/периодов.
 
@@ -198,7 +195,7 @@ optimizer run \
   -history-dir data/history \
   -search-space config/optimizer/search-space.yaml \
   -date-from 2024-01-01 -date-to 2026-06-01 \
-  -train-months 6 -test-months 2 -step-months 1 \
+  -window-months 2 -step-months 1 \
   -trials 200 \
   -min-trades 20 \
   -commission-per-trade 5.0 \

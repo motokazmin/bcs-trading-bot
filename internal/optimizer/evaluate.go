@@ -25,7 +25,7 @@ type RunSettings struct {
 	CandleTimeframe    string
 	Deposit            float64
 	StepPriceValue     float64
-	CommissionPerTrade float64
+	CommissionPerLot     float64
 	MinTrades          int
 	Session            config.SessionConfig
 }
@@ -62,11 +62,40 @@ func NewEvaluator(settings RunSettings, space *SearchSpace, candleData map[strin
 	}
 }
 
+// PeriodResult — метрики и сделки одного backtest-прогона.
+type PeriodResult struct {
+	Metrics Metrics
+	Trades  []models.ClosedTrade
+}
+
 // EvaluatePeriod прогоняет backtest на заданном периоде для всех тикеров.
 func (e *Evaluator) EvaluatePeriod(ctx context.Context, params ParameterSet, from, to time.Time) Metrics {
-	byTicker := make(map[string][]models.Candle, len(e.settings.Tickers))
-	for _, ticker := range e.settings.Tickers {
-		candles, ok := e.candleData[ticker]
+	return e.EvaluatePeriodDetailed(ctx, params, from, to).Metrics
+}
+
+// EvaluatePeriodDetailed как EvaluatePeriod, но возвращает и сделки.
+func (e *Evaluator) EvaluatePeriodDetailed(ctx context.Context, params ParameterSet, from, to time.Time) PeriodResult {
+	byTicker := candlesByTickerInRange(e.candleData, e.settings.Tickers, from, to)
+	return e.evaluateCandles(ctx, e.newTrialContext(params), byTicker)
+}
+
+// EvaluateTickerPeriod прогоняет backtest для одного тикера на заданном периоде.
+func (e *Evaluator) EvaluateTickerPeriod(ctx context.Context, params ParameterSet, ticker string, from, to time.Time) PeriodResult {
+	candles, ok := e.candleData[ticker]
+	if !ok {
+		return PeriodResult{}
+	}
+	filtered := FilterCandles(candles, from, to)
+	if len(filtered) == 0 {
+		return PeriodResult{}
+	}
+	return e.evaluateCandles(ctx, e.newTrialContext(params), map[string][]models.Candle{ticker: filtered})
+}
+
+func candlesByTickerInRange(data map[string][]models.Candle, tickers []string, from, to time.Time) map[string][]models.Candle {
+	byTicker := make(map[string][]models.Candle, len(tickers))
+	for _, ticker := range tickers {
+		candles, ok := data[ticker]
 		if !ok {
 			continue
 		}
@@ -75,7 +104,7 @@ func (e *Evaluator) EvaluatePeriod(ctx context.Context, params ParameterSet, fro
 			byTicker[ticker] = filtered
 		}
 	}
-	return e.evaluateCandles(ctx, e.newTrialContext(params), byTicker)
+	return byTicker
 }
 
 // AggregateTrades сортирует сделки по времени закрытия и считает Metrics
@@ -114,7 +143,7 @@ func AggregateTrades(trades []models.ClosedTrade, commissionPerTrade float64) Me
 func (e *Evaluator) trailCfg(params ParameterSet) trailing.Config {
 	cfg := trailing.DefaultConfig()
 	cfg.StepPriceValue = e.settings.StepPriceValue
-	cfg.CommissionPerLot = e.settings.CommissionPerTrade
+	cfg.CommissionPerLot = e.settings.CommissionPerLot
 	if v := params.FloatParam("trailActivationR"); v > 0 {
 		cfg.ActivationR = v
 	}

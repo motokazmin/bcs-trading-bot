@@ -37,17 +37,16 @@ func TestMarshalRunResultJSONWithInf(t *testing.T) {
 	result := &RunResult{
 		Timestamp: time.Now(),
 		Trials: []TrialResult{{
-			Index:      0,
-			TrainScore: math.Inf(-1),
-			TestScore:  math.Inf(-1),
+			Index: 0,
+			Score: math.Inf(-1),
 		}},
-		BestByTest: TrialResult{Index: 0, TrainScore: math.Inf(-1), TestScore: math.Inf(-1)},
+		Best: TrialResult{Index: 0, Score: math.Inf(-1)},
 	}
 	data, err := marshalRunResultJSON(result)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), `"train_score": null`) {
+	if !strings.Contains(string(data), `"score": null`) {
 		t.Fatalf("expected null scores in JSON: %s", data)
 	}
 }

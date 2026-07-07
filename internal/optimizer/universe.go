@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 
+	"bcs-trading-bot/internal/costs"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -13,11 +15,12 @@ const defaultInitialHistoryYears = 2
 
 // UniverseConfig — список инструментов и параметры загрузки истории.
 type UniverseConfig struct {
-	ClassCode           string   `yaml:"class_code"`
-	CandleTimeframe     string   `yaml:"candle_timeframe"`
-	InitialHistoryYears int      `yaml:"initial_history_years"`
-	LeanTickers         []string `yaml:"lean_tickers"`
-	Tickers             []string `yaml:"tickers"`
+	ClassCode           string       `yaml:"class_code"`
+	CandleTimeframe     string       `yaml:"candle_timeframe"`
+	InitialHistoryYears int          `yaml:"initial_history_years"`
+	Costs               costs.Config `yaml:"costs"`
+	LeanTickers         []string     `yaml:"lean_tickers"`
+	Tickers             []string     `yaml:"tickers"`
 }
 
 // LoadUniverse читает config/optimizer/universe.yaml.
@@ -59,6 +62,11 @@ func (u *UniverseConfig) ResolveTickers(override string) []string {
 		return normalizeSymbols(strings.Split(override, ","))
 	}
 	return append([]string(nil), u.Tickers...)
+}
+
+// CommissionPerLot возвращает комиссию round-trip за единицу quantity.
+func (u *UniverseConfig) CommissionPerLot(flagOverride float64) float64 {
+	return costs.ResolveFlag(flagOverride, u.ClassCode, u.Costs)
 }
 
 func normalizeSymbols(in []string) []string {

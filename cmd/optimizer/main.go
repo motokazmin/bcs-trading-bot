@@ -30,6 +30,8 @@ func main() {
 		runCmd(os.Args[2:])
 	case "backtest":
 		backtestCmd(os.Args[2:])
+	case "charts":
+		chartsCmd(os.Args[2:])
 	case "sync-history":
 		syncHistoryCmd(os.Args[2:])
 	case "fetch-history":
@@ -51,6 +53,7 @@ Usage:
   optimizer sync-history [flags]   инкрементальная догрузка до текущего момента
   optimizer run [flags]          walk-forward оптимизация
   optimizer backtest [flags]     один прогон стратегии на истории
+  optimizer charts [flags]     графики сделок по эксперименту и тикеру
   optimizer fetch-history [flags] полная перезагрузка диапазона (legacy)
 
 Подробности: cmd/optimizer/README.md (подход, флаги, scoring)`)
@@ -65,12 +68,11 @@ func runCmd(args []string) {
 	searchSpace := fs.String("search-space", "", "YAML search space (default: из стратегии)")
 	dateFrom := fs.String("date-from", "", "начало периода YYYY-MM-DD (default: из CSV)")
 	dateTo := fs.String("date-to", "", "конец периода YYYY-MM-DD (default: из CSV)")
-	trainMonths := fs.Int("train-months", 6, "длина train-окна в месяцах")
-	testMonths := fs.Int("test-months", 2, "длина test-окна в месяцах")
+	windowMonths := fs.Int("window-months", 2, "длина окна оценки в месяцах")
 	stepMonths := fs.Int("step-months", 1, "шаг сдвига окна в месяцах")
 	trials := fs.Int("trials", 200, "число random search trials")
 	minTrades := fs.Int("min-trades", 20, "мин. сделок для валидного score")
-	commission := fs.Float64("commission-per-trade", 5.0, "комиссия round-trip за лот, руб")
+	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из universe или class_code)")
 	stopMode := fs.String("stop-mode", "atr", "stop_mode: range или atr")
 	deposit := fs.Float64("deposit", 200000, "депозит для risk manager")
 	stepPrice := fs.Float64("step-price-value", 1.0, "стоимость шага цены")
@@ -116,9 +118,9 @@ func runCmd(args []string) {
 		logx.Fatalf("даты: %v", err)
 	}
 
-	windows := optimizer.GenerateWindows(from, to, *trainMonths, *testMonths, *stepMonths)
+	windows := optimizer.GenerateWindows(from, to, *windowMonths, *stepMonths)
 	if len(windows) == 0 {
-		logx.Fatal("не удалось сгенерировать walk-forward окна — проверьте даты и train/test months")
+		logx.Fatal("не удалось сгенерировать walk-forward окна — проверьте даты и window-months")
 	}
 	logx.Info("стратегия: %s | тикеры: %s | период: %s → %s | окон: %d | trials: %d",
 		*strategyID, strings.Join(tickerList, ","), from.Format("2006-01-02"), to.Format("2006-01-02"), len(windows), *trials)
@@ -132,7 +134,7 @@ func runCmd(args []string) {
 		CandleTimeframe:    u.CandleTimeframe,
 		Deposit:            *deposit,
 		StepPriceValue:     *stepPrice,
-		CommissionPerTrade: *commission,
+		CommissionPerLot:     u.CommissionPerLot(*commission),
 		MinTrades:          *minTrades,
 		Session:            optimizer.DefaultSession(),
 	}
@@ -177,6 +179,17 @@ func runCmd(args []string) {
 	optimizer.PrintTopN(result, 5)
 	logx.Info("JSON: %s", jsonPath)
 	logx.Info("best-config: %s", yamlPath)
+
+	chartsResult, chartsErr := optimizer.RunCharts(ctx, optimizer.ChartsOptions{
+		ExperimentDir:      *output,
+		HistoryDir:         *historyDir,
+		CommissionPerLot:     u.CommissionPerLot(*commission),
+	})
+	if chartsErr != nil {
+		logx.Warn("charts: %v", chartsErr)
+	} else {
+		logx.Info("charts: %d files → %s", len(chartsResult.Files), chartsResult.ChartsDir)
+	}
 }
 
 func backtestCmd(args []string) {
@@ -188,7 +201,7 @@ func backtestCmd(args []string) {
 	searchSpace := fs.String("search-space", "", "YAML search space (default: из стратегии)")
 	dateFrom := fs.String("date-from", "", "начало периода YYYY-MM-DD")
 	dateTo := fs.String("date-to", "", "конец периода YYYY-MM-DD")
-	commission := fs.Float64("commission-per-trade", 5.0, "комиссия round-trip за лот, руб")
+	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из universe или class_code)")
 	stopMode := fs.String("stop-mode", "atr", "stop_mode: range или atr")
 	deposit := fs.Float64("deposit", 200000, "депозит")
 	stepPrice := fs.Float64("step-price-value", 1.0, "стоимость шага цены")
@@ -235,7 +248,7 @@ func backtestCmd(args []string) {
 		CandleTimeframe:    u.CandleTimeframe,
 		Deposit:            *deposit,
 		StepPriceValue:     *stepPrice,
-		CommissionPerTrade: *commission,
+		CommissionPerLot:     u.CommissionPerLot(*commission),
 		MinTrades:          1,
 		Session:            optimizer.DefaultSession(),
 	}
@@ -249,6 +262,35 @@ func backtestCmd(args []string) {
 	fmt.Printf("trades=%d total_pnl=%.2f sharpe=%.4f max_dd=%.2f win_rate=%.2f\n",
 		result.NumTrades, result.Metrics.TotalPnL, result.Metrics.Sharpe,
 		result.Metrics.MaxDrawdown, result.Metrics.WinRate)
+}
+
+func chartsCmd(args []string) {
+	fs := flag.NewFlagSet("charts", flag.ExitOnError)
+	experiment := fs.String("experiment", "", "имя эксперимента: momentum_breakout или exp-momentum_breakout")
+	resultsDir := fs.String("results-dir", "results", "директория с результатами optimizer")
+	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
+	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из universe или class_code)")
+	_ = fs.Parse(args)
+
+	if *experiment == "" {
+		logx.Fatal("укажите -experiment (например: momentum_breakout)")
+	}
+
+	ctx := context.Background()
+	result, err := optimizer.RunCharts(ctx, optimizer.ChartsOptions{
+		Experiment:     *experiment,
+		ResultsDir:     *resultsDir,
+		HistoryDir:     *historyDir,
+		CommissionPerLot: *commission,
+	})
+	if err != nil {
+		logx.Fatalf("charts: %v", err)
+	}
+
+	fmt.Printf("charts: experiment=%s dir=%s files=%d\n", result.Experiment, result.ChartsDir, len(result.Files))
+	for _, f := range result.Files {
+		fmt.Printf("  %s (%d trades, PnL %.0f руб.)\n", f.Path, f.Trades, f.PnL)
+	}
 }
 
 func syncHistoryCmd(args []string) {
