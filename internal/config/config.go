@@ -114,6 +114,7 @@ type RiskConfig struct {
 	MaxDailyLoss        float64 `yaml:"max_daily_loss"`
 	MaxDailyLossPercent float64 `yaml:"max_daily_loss_percent"`
 	RiskPerTradePercent float64 `yaml:"risk_per_trade_percent"`
+	MaxParallelTrades   int     `yaml:"max_parallel_trades"`
 }
 
 type StrategyConfig struct {
@@ -131,6 +132,7 @@ type StrategyConfig struct {
 	TrailActivationR          float64 `yaml:"trail_activation_r"`
 	TrailDiscreteStepR        float64 `yaml:"trail_discrete_step_r"`
 	TrailStageMax             int     `yaml:"trail_stage_max"`
+	TrailBreakevenR           float64 `yaml:"trail_breakeven_r"`
 	LongOnly                  *bool   `yaml:"long_only"`
 	TrendSMAPeriod            int     `yaml:"trend_sma_period"`
 	StrategyEntryDelayMinutes int     `yaml:"strategy_entry_delay_minutes"`
@@ -383,6 +385,9 @@ func (s StrategyConfig) TrailingConfig(stepPriceValue, commissionPerLot float64)
 	if s.TrailStageMax > 0 {
 		cfg.StageMax = s.TrailStageMax
 	}
+	if s.TrailBreakevenR > 0 {
+		cfg.BreakevenR = s.TrailBreakevenR
+	}
 	return cfg
 }
 
@@ -492,6 +497,9 @@ func (c *Config) applyRiskDefaults(risk *RiskConfig, depositHint float64) {
 	}
 	if risk.RiskPerTradePercent <= 0 {
 		risk.RiskPerTradePercent = defaultRiskPerTradePct
+	}
+	if risk.MaxParallelTrades <= 0 {
+		risk.MaxParallelTrades = 2
 	}
 }
 

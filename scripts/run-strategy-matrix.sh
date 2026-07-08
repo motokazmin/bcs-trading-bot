@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 OPT=bin/optimizer
 COMMON=(
-  -universe config/optimizer/universe.yaml
+  -tickers-config configs/shared/tickers.yaml
   -history-dir data/history
   -trials 200
   -seed 1
@@ -20,19 +20,21 @@ run_strategy() {
   "$OPT" run -strategy "$id" -search-space "$space" "${COMMON[@]}" -output "$out"
 }
 
-run_strategy momentum_breakout config/optimizer/search-space-momentum.yaml
-run_strategy momentum_filtered config/optimizer/search-space-momentum-filtered.yaml
-run_strategy opening_range config/optimizer/search-space-orb.yaml
-run_strategy mean_reversion config/optimizer/search-space-meanrev.yaml
+#run_strategy momentum_breakout configs/strategies/momentum-breakout.yaml
+#run_strategy momentum_filtered configs/strategies/momentum-filtered.yaml
+#run_strategy opening_range configs/strategies/opening-range.yaml
+run_strategy opening_range_continuation configs/strategies/orc.yaml
+#run_strategy mean_reversion configs/strategies/mean-reversion.yaml
 
 python3 - <<'PY'
 import json, glob
 
 STRATEGIES = [
-    "momentum_breakout",
-    "momentum_filtered",
-    "opening_range",
-    "mean_reversion",
+    # "momentum_breakout",
+    # "momentum_filtered",
+    # "opening_range",
+    "opening_range_continuation",
+    # "mean_reversion",
 ]
 
 rows = []

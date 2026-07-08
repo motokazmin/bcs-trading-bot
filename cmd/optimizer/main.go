@@ -17,7 +17,7 @@ import (
 	"bcs-trading-bot/pkg/models"
 )
 
-const defaultUniverse = "config/optimizer/universe.yaml"
+const defaultTickersConfig = "configs/shared/tickers.yaml"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -61,7 +61,8 @@ Usage:
 
 func runCmd(args []string) {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
-	universePath := fs.String("universe", defaultUniverse, "YAML со списком инструментов")
+	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
+	legacyUniversePath := fs.String("universe", "", "DEPRECATED: используйте -tickers-config")
 	tickers := fs.String("tickers", "", "override тикеров через запятую")
 	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
 	strategyID := fs.String("strategy", strategy.DefaultType(), "id стратегии: "+strings.Join(strategy.ListIDs(), ", "))
@@ -72,7 +73,7 @@ func runCmd(args []string) {
 	stepMonths := fs.Int("step-months", 1, "шаг сдвига окна в месяцах")
 	trials := fs.Int("trials", 200, "число random search trials")
 	minTrades := fs.Int("min-trades", 20, "мин. сделок для валидного score")
-	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из universe или class_code)")
+	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из tickers-config или class_code)")
 	stopMode := fs.String("stop-mode", "atr", "stop_mode: range или atr")
 	deposit := fs.Float64("deposit", 200000, "депозит для risk manager")
 	stepPrice := fs.Float64("step-price-value", 1.0, "стоимость шага цены")
@@ -80,7 +81,7 @@ func runCmd(args []string) {
 	seed := fs.Int64("seed", time.Now().UnixNano(), "seed для random search")
 	parallel := fs.Int("parallel", 0, "параллельных trials (0 = NumCPU)")
 	twoPhase := fs.Bool("two-phase", false, "двухфазный поиск: random search на lean, финал на полном universe")
-	phase1Tickers := fs.String("phase1-tickers", "", "тикеры фазы 1 (default: lean_tickers из universe)")
+	phase1Tickers := fs.String("phase1-tickers", "", "тикеры фазы 1 (default: lean_tickers из tickers-config)")
 	phase2Top := fs.Int("phase2-top", 20, "сколько лучших конфигов фазы 1 пересчитать на полном universe")
 	_ = fs.Parse(args)
 
@@ -93,9 +94,14 @@ func runCmd(args []string) {
 		}
 	}
 
-	u, err := optimizer.LoadUniverse(*universePath)
+	tickersPath := *tickersConfigPath
+	if *legacyUniversePath != "" {
+		tickersPath = *legacyUniversePath
+	}
+
+	u, err := optimizer.LoadTickersConfig(tickersPath)
 	if err != nil {
-		logx.Fatalf("universe: %v", err)
+		logx.Fatalf("tickers-config: %v", err)
 	}
 	tickerList := u.ResolveTickers(*tickers)
 
@@ -197,14 +203,15 @@ func runCmd(args []string) {
 
 func backtestCmd(args []string) {
 	fs := flag.NewFlagSet("backtest", flag.ExitOnError)
-	universePath := fs.String("universe", defaultUniverse, "YAML со списком инструментов")
+	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
+	legacyUniversePath := fs.String("universe", "", "DEPRECATED: используйте -tickers-config")
 	tickers := fs.String("tickers", "", "override тикеров через запятую")
 	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
 	strategyID := fs.String("strategy", strategy.DefaultType(), "id стратегии")
 	searchSpace := fs.String("search-space", "", "YAML search space (default: из стратегии)")
 	dateFrom := fs.String("date-from", "", "начало периода YYYY-MM-DD")
 	dateTo := fs.String("date-to", "", "конец периода YYYY-MM-DD")
-	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из universe или class_code)")
+	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из tickers-config или class_code)")
 	stopMode := fs.String("stop-mode", "atr", "stop_mode: range или atr")
 	deposit := fs.Float64("deposit", 200000, "депозит")
 	stepPrice := fs.Float64("step-price-value", 1.0, "стоимость шага цены")
@@ -219,9 +226,14 @@ func backtestCmd(args []string) {
 		}
 	}
 
-	u, err := optimizer.LoadUniverse(*universePath)
+	tickersPath := *tickersConfigPath
+	if *legacyUniversePath != "" {
+		tickersPath = *legacyUniversePath
+	}
+
+	u, err := optimizer.LoadTickersConfig(tickersPath)
 	if err != nil {
-		logx.Fatalf("universe: %v", err)
+		logx.Fatalf("tickers-config: %v", err)
 	}
 	space, err := optimizer.LoadSearchSpace(spacePath)
 	if err != nil {
@@ -272,7 +284,7 @@ func chartsCmd(args []string) {
 	experiment := fs.String("experiment", "", "имя эксперимента: momentum_breakout или exp-momentum_breakout")
 	resultsDir := fs.String("results-dir", "results", "директория с результатами optimizer")
 	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
-	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из universe или class_code)")
+	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из tickers-config или class_code)")
 	_ = fs.Parse(args)
 
 	if *experiment == "" {
@@ -301,10 +313,11 @@ func chartsCmd(args []string) {
 
 func syncHistoryCmd(args []string) {
 	fs := flag.NewFlagSet("sync-history", flag.ExitOnError)
-	universePath := fs.String("universe", defaultUniverse, "YAML со списком инструментов")
+	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
+	legacyUniversePath := fs.String("universe", "", "DEPRECATED: используйте -tickers-config")
 	tickers := fs.String("tickers", "", "override тикеров через запятую")
 	outputDir := fs.String("output-dir", "data/history", "директория для CSV")
-	initialYears := fs.Int("initial-years", 0, "глубина первичной загрузки (0 = из universe)")
+	initialYears := fs.Int("initial-years", 0, "глубина первичной загрузки (0 = из tickers-config)")
 	chunkDelay := fs.Duration("chunk-delay", 50*time.Millisecond, "мин. пауза между чанками (adaptive) или фиксированная")
 	maxChunkDelay := fs.Duration("max-chunk-delay", 3*time.Second, "макс. пауза adaptive throttle")
 	tickerDelay := fs.Duration("ticker-delay", 3*time.Second, "пауза между тикерами (последовательный режим)")
@@ -317,9 +330,14 @@ func syncHistoryCmd(args []string) {
 		logx.Fatal("задайте BCS_REFRESH_TOKEN")
 	}
 
-	u, err := optimizer.LoadUniverse(*universePath)
+	tickersPath := *tickersConfigPath
+	if *legacyUniversePath != "" {
+		tickersPath = *legacyUniversePath
+	}
+
+	u, err := optimizer.LoadTickersConfig(tickersPath)
 	if err != nil {
-		logx.Fatalf("universe: %v", err)
+		logx.Fatalf("tickers-config: %v", err)
 	}
 	tickerList := u.ResolveTickers(*tickers)
 	logx.Info("sync-history: %d инструментов (%s)", len(tickerList), strings.Join(tickerList, ","))
@@ -360,7 +378,8 @@ func syncHistoryCmd(args []string) {
 
 func fetchHistoryCmd(args []string) {
 	fs := flag.NewFlagSet("fetch-history", flag.ExitOnError)
-	universePath := fs.String("universe", defaultUniverse, "YAML со списком инструментов")
+	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
+	legacyUniversePath := fs.String("universe", "", "DEPRECATED: используйте -tickers-config")
 	tickers := fs.String("tickers", "", "override тикеров")
 	dateFrom := fs.String("date-from", "", "начало YYYY-MM-DD (default: initial_history_years назад)")
 	dateTo := fs.String("date-to", "", "конец YYYY-MM-DD (default: сегодня)")
@@ -372,9 +391,14 @@ func fetchHistoryCmd(args []string) {
 		logx.Fatal("задайте BCS_REFRESH_TOKEN")
 	}
 
-	u, err := optimizer.LoadUniverse(*universePath)
+	tickersPath := *tickersConfigPath
+	if *legacyUniversePath != "" {
+		tickersPath = *legacyUniversePath
+	}
+
+	u, err := optimizer.LoadTickersConfig(tickersPath)
 	if err != nil {
-		logx.Fatalf("universe: %v", err)
+		logx.Fatalf("tickers-config: %v", err)
 	}
 	tickerList := u.ResolveTickers(*tickers)
 
@@ -411,9 +435,12 @@ func fetchHistoryCmd(args []string) {
 	}
 }
 
+// filterLoadedTickers возвращает только те тикеры, по которым действительно загружены свечи.
+// Важно: порядок сохраняется как в requested, чтобы последующие шаги работали предсказуемо.
 func filterLoadedTickers(requested []string, data map[string][]models.Candle) []string {
 	out := make([]string, 0, len(data))
 	for _, ticker := range requested {
+		// Пропускаем тикеры без данных, чтобы не гонять их в бэктест/оптимизацию.
 		if _, ok := data[ticker]; ok {
 			out = append(out, ticker)
 		}
@@ -421,7 +448,10 @@ func filterLoadedTickers(requested []string, data map[string][]models.Candle) []
 	return out
 }
 
+// resolveDateRange определяет рабочий диапазон дат для оптимизации/бэктеста.
+// Приоритет: явные значения из флагов CLI, иначе границы берутся из доступного CSV.
 func resolveDateRange(fromStr, toStr string, data map[string][]models.Candle) (time.Time, time.Time, error) {
+	// Если обе даты заданы явно, используем их без обращения к данным.
 	if fromStr != "" && toStr != "" {
 		from, err := optimizer.ParseDate(fromStr)
 		if err != nil {
@@ -434,6 +464,7 @@ func resolveDateRange(fromStr, toStr string, data map[string][]models.Candle) (t
 		return from, to, nil
 	}
 
+	// Базовый диапазон берём из фактически загруженных свечей.
 	csvFrom, csvTo, ok := optimizer.CandleDataRange(data)
 	if !ok {
 		return time.Time{}, time.Time{}, fmt.Errorf("нет данных в CSV")
@@ -441,6 +472,7 @@ func resolveDateRange(fromStr, toStr string, data map[string][]models.Candle) (t
 
 	from := csvFrom
 	to := csvTo
+	// Частично заданные флаги переопределяют соответствующую границу CSV-диапазона.
 	if fromStr != "" {
 		var err error
 		from, err = optimizer.ParseDate(fromStr)

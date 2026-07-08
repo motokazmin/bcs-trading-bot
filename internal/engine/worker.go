@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"bcs-trading-bot/internal/config"
@@ -32,6 +33,7 @@ type TickerWorker struct {
 	strategy         strategy.CandleStrategy
 	strategyID       string
 	riskMgr          *risk.RiskManager
+	globalRisk       *risk.GlobalRiskController
 	session          *SessionClock
 	store            interfaces.TradeStore
 	trailCfg         trailing.Config
@@ -55,6 +57,7 @@ func NewTickerWorker(
 	sessionCfg config.SessionConfig,
 	tradingMode, runID, classCode, candleTimeframe string,
 	store interfaces.TradeStore,
+	globalRisk *risk.GlobalRiskController,
 ) (*TickerWorker, error) {
 	clock, err := NewSessionClock(sessionCfg.Timezone, sessionCfg.EODCloseTime, sessionCfg.SessionOpenTime, sessionCfg.EntryDelayMinutes)
 	if err != nil {
@@ -98,6 +101,7 @@ func NewTickerWorker(
 		strategy:                 strat,
 		strategyID:               exp.Strategy.TypeOrDefault(),
 		riskMgr:                  risk.NewRiskManager(deposit, maxLoss, exp.Risk.RiskPerTradePercent, stepPriceValue),
+		globalRisk:               globalRisk,
 		session:                  clock,
 		store:                    store,
 		trailCfg:                 trailCfg,
@@ -183,10 +187,25 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		return
 	}
 
+	if w.globalRisk != nil {
+		if err := w.globalRisk.CanOpenPosition(); err != nil {
+			logx.SignalRejected(w.label, signal.Direction, err.Error())
+			return
+		}
+	}
+
 	quantity := w.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if quantity <= 0 {
 		logx.SignalRejected(w.label, signal.Direction, "нулевой объём позиции")
 		return
+	}
+
+	tradeRisk := math.Abs(signal.Price-signal.StopLoss) * float64(quantity) * w.stepPriceValue
+	if w.globalRisk != nil {
+		if err := w.globalRisk.PreTradeCheck(tradeRisk); err != nil {
+			logx.SignalRejected(w.label, signal.Direction, err.Error())
+			return
+		}
 	}
 
 	signal.Quantity = quantity
@@ -200,6 +219,10 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 	logx.TradeOpen(w.label, signal.Direction, signal.Quantity, signal.Price, signal.StopLoss, signal.TakeProfit)
 	w.tradesToday++
 	w.position = position.NewFromSignal(*signal, candle.Timestamp)
+	if w.globalRisk != nil {
+		tradeRisk := w.position.RDistance * float64(w.position.Quantity) * w.stepPriceValue
+		w.globalRisk.RegisterOpen(w.ticker, tradeRisk)
+	}
 }
 
 func (w *TickerWorker) checkSLTP(ctx context.Context, executor interfaces.OrderExecutor, price float64) {
@@ -260,6 +283,9 @@ func (w *TickerWorker) checkDailyReset(now time.Time) {
 	w.riskMgr.ResetDaily()
 	w.tradesToday = 0
 	w.riskResetDate = today
+	if w.globalRisk != nil {
+		w.globalRisk.ResetDaily(today)
+	}
 	logx.DailyReset(w.label)
 }
 
@@ -297,6 +323,9 @@ func (w *TickerWorker) closePosition(ctx context.Context, executor interfaces.Or
 		w.riskMgr.RegisterLoss(-pnl)
 	} else if pnl > 0 {
 		w.riskMgr.RegisterProfit(pnl)
+	}
+	if w.globalRisk != nil {
+		w.globalRisk.RegisterClose(w.ticker, pnl)
 	}
 
 	closedAt := time.Now()

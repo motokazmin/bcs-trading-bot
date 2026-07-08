@@ -11,15 +11,18 @@
 BINARY_DIR := bin
 GO := go
 
-UNIVERSE          ?= config/optimizer/universe.yaml
+# Основной путь к shared-списку тикеров для optimizer.
+TICKERS_CONFIG    ?= configs/shared/tickers.yaml
+# Legacy-алиас для совместимости со старыми локальными override.
+UNIVERSE          ?= $(TICKERS_CONFIG)
 HISTORY_DIR       ?= data/history
-SEARCH_SPACE      ?= config/optimizer/search-space.yaml
+SEARCH_SPACE      ?= configs/strategies/orc.yaml
 OPTIMIZER_OUT     ?= results/
 PARALLEL_TICKERS  ?= 5
 OPTIMIZER_PARALLEL ?= 0
 OPTIMIZER_TWO_PHASE ?=
 
-BOT_CONFIG ?= configs/experiments-all.yaml
+BOT_CONFIG ?= configs/runs/experiments-all.yaml
 
 .PHONY: build build-bot build-optimizer build-admin test \
         sync-history optimizer-run strategy-matrix \
@@ -40,7 +43,7 @@ help:
 	@echo "  make bot-smoke          — smoke test OAuth+WS"
 	@echo "  make admin              — веб-админка"
 	@echo ""
-	@echo "Переменные: UNIVERSE, HISTORY_DIR, PARALLEL_TICKERS, OPTIMIZER_PARALLEL,"
+	@echo "Переменные: TICKERS_CONFIG, HISTORY_DIR, PARALLEL_TICKERS, OPTIMIZER_PARALLEL,"
 	@echo "            OPTIMIZER_TWO_PHASE=1, SEARCH_SPACE, OPTIMIZER_OUT, BOT_CONFIG, BCS_REFRESH_TOKEN"
 
 build: build-bot build-optimizer build-admin
@@ -64,7 +67,7 @@ test:
 
 sync-history: build-optimizer
 	$(BINARY_DIR)/optimizer sync-history \
-		-universe $(UNIVERSE) \
+		-tickers-config $(TICKERS_CONFIG) \
 		-parallel-tickers $(PARALLEL_TICKERS) \
 		-output-dir $(HISTORY_DIR)
 
@@ -72,7 +75,7 @@ sync-history: build-optimizer
 
 optimizer-run: build-optimizer sync-history
 	$(BINARY_DIR)/optimizer run \
-		-universe $(UNIVERSE) \
+		-tickers-config $(TICKERS_CONFIG) \
 		-history-dir $(HISTORY_DIR) \
 		-search-space $(SEARCH_SPACE) \
 		-parallel $(OPTIMIZER_PARALLEL) \
@@ -89,10 +92,10 @@ bot: build-bot
 	$(BINARY_DIR)/bot -config $(BOT_CONFIG)
 
 bot-futures: build-bot
-	$(BINARY_DIR)/bot -config configs/virtual-futures.yaml
+	$(BINARY_DIR)/bot -config configs/runs/virtual-futures.yaml
 
 bot-real: build-bot
-	$(BINARY_DIR)/bot -config configs/real-stocks.yaml
+	$(BINARY_DIR)/bot -config configs/runs/real-stocks.yaml
 
 bot-smoke: build-bot
 	$(BINARY_DIR)/bot -config $(BOT_CONFIG) -smoke-test

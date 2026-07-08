@@ -36,9 +36,9 @@ func TestMergeCandles(t *testing.T) {
 	}
 }
 
-func TestLoadUniverse(t *testing.T) {
+func TestLoadTickersConfig(t *testing.T) {
 	dir := t.TempDir()
-	path := dir + "/universe.yaml"
+	path := dir + "/tickers.yaml"
 	content := `class_code: TQBR
 candle_timeframe: M5
 initial_history_years: 2
@@ -48,7 +48,7 @@ tickers: [SBER, GAZP]
 		t.Fatal(err)
 	}
 
-	u, err := optimizer.LoadUniverse(path)
+	u, err := optimizer.LoadTickersConfig(path)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}

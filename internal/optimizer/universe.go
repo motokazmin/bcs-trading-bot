@@ -13,8 +13,8 @@ import (
 
 const defaultInitialHistoryYears = 2
 
-// UniverseConfig — список инструментов и параметры загрузки истории.
-type UniverseConfig struct {
+// TickersConfig — список инструментов и параметры загрузки истории.
+type TickersConfig struct {
 	ClassCode           string       `yaml:"class_code"`
 	CandleTimeframe     string       `yaml:"candle_timeframe"`
 	InitialHistoryYears int          `yaml:"initial_history_years"`
@@ -23,24 +23,29 @@ type UniverseConfig struct {
 	Tickers             []string     `yaml:"tickers"`
 }
 
-// LoadUniverse читает config/optimizer/universe.yaml.
-func LoadUniverse(path string) (*UniverseConfig, error) {
+// LoadTickersConfig читает YAML списка тикеров (по умолчанию: configs/shared/tickers.yaml).
+func LoadTickersConfig(path string) (*TickersConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("чтение universe %q: %w", path, err)
+		return nil, fmt.Errorf("чтение tickers config %q: %w", path, err)
 	}
-	var u UniverseConfig
+	var u TickersConfig
 	if err := yaml.Unmarshal(data, &u); err != nil {
-		return nil, fmt.Errorf("разбор universe: %w", err)
+		return nil, fmt.Errorf("разбор tickers config: %w", err)
 	}
 	u.normalize()
 	if len(u.Tickers) == 0 {
-		return nil, fmt.Errorf("universe: список tickers пуст")
+		return nil, fmt.Errorf("tickers config: список tickers пуст")
 	}
 	return &u, nil
 }
 
-func (u *UniverseConfig) normalize() {
+// LoadUniverse оставлен как legacy-алиас для обратной совместимости.
+func LoadUniverse(path string) (*TickersConfig, error) {
+	return LoadTickersConfig(path)
+}
+
+func (u *TickersConfig) normalize() {
 	u.ClassCode = strings.TrimSpace(strings.ToUpper(u.ClassCode))
 	if u.ClassCode == "" {
 		u.ClassCode = "TQBR"
@@ -56,8 +61,8 @@ func (u *UniverseConfig) normalize() {
 	u.LeanTickers = normalizeSymbols(u.LeanTickers)
 }
 
-// ResolveTickers возвращает список тикеров из universe или явный override (-tickers).
-func (u *UniverseConfig) ResolveTickers(override string) []string {
+// ResolveTickers возвращает список тикеров из tickers config или явный override (-tickers).
+func (u *TickersConfig) ResolveTickers(override string) []string {
 	if override != "" {
 		return normalizeSymbols(strings.Split(override, ","))
 	}
@@ -65,7 +70,7 @@ func (u *UniverseConfig) ResolveTickers(override string) []string {
 }
 
 // CommissionPerLot возвращает комиссию round-trip за единицу quantity.
-func (u *UniverseConfig) CommissionPerLot(flagOverride float64) float64 {
+func (u *TickersConfig) CommissionPerLot(flagOverride float64) float64 {
 	return costs.ResolveFlag(flagOverride, u.ClassCode, u.Costs)
 }
 

@@ -23,6 +23,10 @@ type WindowResult struct {
 }
 
 // TrialResult — результат одного trial.
+// Trial в optimizer — это одна попытка с конкретным набором параметров стратегии:
+// 1) берём один sample из search space,
+// 2) прогоняем его через все walk-forward окна,
+// 3) агрегируем итоговый score и метрики по окнам.
 type TrialResult struct {
 	Index   int            `json:"index"`
 	Params  ParameterSet   `json:"params"`

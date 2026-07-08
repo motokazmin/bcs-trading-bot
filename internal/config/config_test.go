@@ -7,7 +7,7 @@ import (
 )
 
 func TestLoadExperimentsAll(t *testing.T) {
-	cfg, err := config.Load("../../configs/experiments-all.yaml")
+	cfg, err := config.Load("../../configs/runs/experiments-all.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestLoadExperimentsAll(t *testing.T) {
 }
 
 func TestLoadRealStocks(t *testing.T) {
-	cfg, err := config.Load("../../configs/real-stocks.yaml")
+	cfg, err := config.Load("../../configs/runs/real-stocks.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestLoadRealStocks(t *testing.T) {
 }
 
 func TestLoadFuturesStepPriceValue(t *testing.T) {
-	cfg, err := config.Load("../../configs/virtual-futures.yaml")
+	cfg, err := config.Load("../../configs/runs/virtual-futures.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ import (
 
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
+	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/simulation"
 	"bcs-trading-bot/internal/storage/memory"
 	"bcs-trading-bot/internal/strategy"
@@ -25,10 +26,13 @@ type trialContext struct {
 }
 
 func (e *Evaluator) newTrialContext(params ParameterSet) trialContext {
+	// Копируем params в strategy.Params один раз на trial, чтобы не пересобирать
+	// словарь на каждом окне walk-forward.
 	p := make(strategy.Params, len(params)+4)
 	for k, v := range params {
 		p[k] = v
 	}
+	// Защита от нулевого ATR-периода в space: используем безопасный дефолт.
 	if p["atrPeriod"] == 0 {
 		p["atrPeriod"] = 14
 	}
@@ -53,6 +57,7 @@ func (e *Evaluator) evaluateTrial(ctx context.Context, index int, params Paramet
 	var scores []float64
 	windowResults := make([]WindowResult, len(e.windowSlices))
 
+	// Один trial = одинаковые параметры на всех окнах; итоговый score — агрегат по окнам.
 	for i, slices := range e.windowSlices {
 		pr := e.evaluateCandles(ctx, tc, slices.Candles)
 		scores = append(scores, Score(pr.Metrics, minTrades))
@@ -77,12 +82,35 @@ func (e *Evaluator) fixedValue(key string, fallback float64) float64 {
 func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candlesByTicker map[string][]models.Candle) PeriodResult {
 	var trades []models.ClosedTrade
 
+	// Фиксируем стабильный порядок тикеров: одинаковый вход -> одинаковый порядок обхода.
 	tickers := make([]string, 0, len(candlesByTicker))
 	for ticker := range candlesByTicker {
 		tickers = append(tickers, ticker)
 	}
 	sort.Strings(tickers)
 
+	if len(tickers) == 0 {
+		return PeriodResult{}
+	}
+
+	store := memory.NewTradeStore()
+	// Optimizer всегда считает в virtual-режиме, без реальных ордеров.
+	executor := bcs.NewVirtualExecutor(e.settings.Deposit)
+
+	maxParallel := 2
+	if e.space != nil {
+		if v := e.space.FixedValue("maxParallelTrades", 0); v > 0 {
+			maxParallel = int(v)
+		}
+	}
+	globalRisk := risk.NewGlobalRiskController(
+		e.settings.Deposit,
+		e.fixedValue("dailyLossLimitPercent", 2.0),
+		maxParallel,
+	)
+
+	// Собираем конфиги раннеров по тикерам для портфельного прогона в одном окне.
+	runnerCfgs := make(map[string]simulation.RunnerConfig, len(tickers))
 	for _, ticker := range tickers {
 		filtered := candlesByTicker[ticker]
 		if len(filtered) == 0 {
@@ -94,10 +122,7 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 			continue
 		}
 
-		store := memory.NewTradeStore()
-		executor := bcs.NewVirtualExecutor(e.settings.Deposit)
-
-		runner, err := simulation.NewRunner(simulation.RunnerConfig{
+		runnerCfgs[ticker] = simulation.RunnerConfig{
 			Ticker:          ticker,
 			ClassCode:       e.settings.ClassCode,
 			CandleTimeframe: e.settings.CandleTimeframe,
@@ -115,15 +140,27 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 			Lookback:        tc.lookback,
 			TrailCfg:        tc.trailCfg,
 			SessionCfg:      e.settings.Session,
-		}, store)
-		if err != nil {
-			continue
 		}
-
-		_ = runner.Run(ctx, filtered, executor)
-		trades = append(trades, store.Trades()...)
 	}
 
+	if len(runnerCfgs) == 0 {
+		return PeriodResult{}
+	}
+
+	// Портфельный раннер учитывает общий риск и конкурентные позиции между тикерами.
+	portfolio, err := simulation.NewPortfolioRunner(simulation.PortfolioRunnerConfig{
+		Tickers:    runnerCfgs,
+		SessionCfg: e.settings.Session,
+		GlobalRisk: globalRisk,
+	}, store)
+	if err != nil {
+		return PeriodResult{}
+	}
+
+	_ = portfolio.Run(ctx, candlesByTicker, executor)
+	trades = append(trades, store.Trades()...)
+
+	// Агрегируем сделки портфеля в единые метрики периода (после сортировки в AggregateTrades).
 	return PeriodResult{
 		Metrics: AggregateTrades(trades, e.settings.CommissionPerLot),
 		Trades:  trades,

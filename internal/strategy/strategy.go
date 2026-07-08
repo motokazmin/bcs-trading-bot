@@ -3,10 +3,11 @@ package strategy
 import "bcs-trading-bot/pkg/models"
 
 const (
-	IDMomentumBreakout  = "momentum_breakout"
-	IDMomentumFiltered  = "momentum_filtered"
-	IDOpeningRange      = "opening_range"
-	IDMeanReversion     = "mean_reversion"
+	IDMomentumBreakout            = "momentum_breakout"
+	IDMomentumFiltered            = "momentum_filtered"
+	IDOpeningRange                = "opening_range"
+	IDOpeningRangeContinuation    = "opening_range_continuation"
+	IDMeanReversion               = "mean_reversion"
 )
 
 // CandleStrategy принимает свечу и возвращает сигнал на вход или nil.
@@ -27,6 +28,8 @@ func DefaultRewardRatio(typeID string) float64 {
 		return 1.5
 	case IDOpeningRange:
 		return 2.0
+	case IDOpeningRangeContinuation:
+		return 2.60
 	case IDMomentumFiltered:
 		return 2.0
 	default:

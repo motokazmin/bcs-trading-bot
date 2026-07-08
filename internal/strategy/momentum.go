@@ -9,7 +9,7 @@ import (
 func init() {
 	Register(Descriptor{
 		ID:                 IDMomentumBreakout,
-		DefaultSearchSpace: "config/optimizer/search-space-momentum.yaml",
+		DefaultSearchSpace: "configs/strategies/momentum-breakout.yaml",
 		NewFromParams:      newMomentumBreakoutFromParams,
 		ParamsToConfigFields: momentumBreakoutConfigFields,
 	})

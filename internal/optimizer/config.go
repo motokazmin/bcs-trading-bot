@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -40,12 +41,33 @@ func LoadSearchSpace(path string) (*SearchSpace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("чтение search space %q: %w", path, err)
 	}
+
+	// Поддерживаем оба формата:
+	// 1) legacy файл search-space.yaml;
+	// 2) единый strategy-конфиг с вложенной секцией search_space.
+	var wrapped struct {
+		SearchSpace SearchSpace `yaml:"search_space"`
+	}
+	if err := yaml.Unmarshal(data, &wrapped); err != nil {
+		return nil, fmt.Errorf("разбор search space: %w", err)
+	}
+	if len(wrapped.SearchSpace.Parameters) > 0 {
+		space := wrapped.SearchSpace
+		if strings.TrimSpace(space.Strategy) == "" {
+			return nil, fmt.Errorf("search space: strategy пуст")
+		}
+		return &space, nil
+	}
+
 	var space SearchSpace
 	if err := yaml.Unmarshal(data, &space); err != nil {
 		return nil, fmt.Errorf("разбор search space: %w", err)
 	}
 	if len(space.Parameters) == 0 {
 		return nil, fmt.Errorf("search space: parameters пуст")
+	}
+	if strings.TrimSpace(space.Strategy) == "" {
+		return nil, fmt.Errorf("search space: strategy пуст")
 	}
 	return &space, nil
 }

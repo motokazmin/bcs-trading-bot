@@ -32,10 +32,12 @@ func RunOptimization(ctx context.Context, evaluator *Evaluator, space *SearchSpa
 
 // RunOptimizationWithConfig выполняет walk-forward random search с настройкой параллелизма.
 func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space *SearchSpace, windows []Window, cfg OptimizationConfig) *RunResult {
+	// Преднарезаем свечи по окнам один раз, чтобы не фильтровать историю в каждом trial.
 	if len(evaluator.windowSlices) == 0 {
 		evaluator.PrecomputeWindowSlices(windows)
 	}
 
+	// Нормализуем конфиг: всегда хотя бы 1 trial и валидный уровень параллелизма.
 	trials := cfg.Trials
 	if trials <= 0 {
 		trials = 1
@@ -48,6 +50,7 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 		parallel = trials
 	}
 
+	// Параметры семплируем заранее с фиксированным seed для воспроизводимости прогона.
 	trialParams := make([]ParameterSet, trials)
 	rng := rand.New(rand.NewSource(cfg.Seed))
 	for i := range trialParams {
@@ -64,13 +67,16 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 		doneCount  atomic.Int32
 		bestMu     sync.Mutex
 		bestScore  = math.Inf(-1)
+		// Сериализует вывод прогресса, чтобы логи из goroutine не перемешивались.
 		progressMu sync.Mutex
 	)
 
 	var wg sync.WaitGroup
+	// Ограничиваем число одновременно выполняющихся trial.
 	sem := make(chan struct{}, parallel)
 
 	for i := 0; i < trials; i++ {
+		// Ранний выход, если оптимизация отменена (например, Ctrl+C).
 		if ctx.Err() != nil {
 			break
 		}
@@ -87,6 +93,7 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 			result := evaluator.evaluateTrial(ctx, index, params, cfg.MinTrades)
 			results[index] = result
 
+			// Обновляем общий best score для промежуточного прогресса.
 			bestMu.Lock()
 			if result.Score > bestScore {
 				bestScore = result.Score
@@ -105,10 +112,12 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 
 	wg.Wait()
 
+	// Сортируем trials по score убыванию: лучший окажется в results[0].
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Score > results[j].Score
 	})
 
+	// completed учитывает, что запуск мог завершиться раньше всех trials из-за отмены ctx.
 	completed := 0
 	for _, r := range results {
 		if r.Params != nil {
@@ -142,6 +151,7 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 		}
 	}
 
+	// Возвращаем полный список trials и лучший найденный результат.
 	return &RunResult{
 		Timestamp: time.Now(),
 		Trials:    results,

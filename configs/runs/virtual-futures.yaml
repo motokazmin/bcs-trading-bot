@@ -1,5 +1,5 @@
 # Paper trading: фьючерсы MOEX.
-# Запуск: go run ./cmd/bot -config configs/virtual-futures.yaml
+# Запуск: go run ./cmd/bot -config configs/runs/virtual-futures.yaml
 
 trading_mode: virtual
 

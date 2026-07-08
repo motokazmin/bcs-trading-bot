@@ -107,7 +107,7 @@ export BCS_REFRESH_TOKEN="ваш_refresh_token"
 ### 3. Paper trading — все A/B-эксперименты (по умолчанию)
 
 ```bash
-go run ./cmd/bot -config configs/experiments-all.yaml
+go run ./cmd/bot -config configs/runs/experiments-all.yaml
 # или
 make bot
 ```
@@ -117,7 +117,7 @@ make bot
 ### 4. Paper trading — фьючерсы
 
 ```bash
-go run ./cmd/bot -config configs/virtual-futures.yaml
+go run ./cmd/bot -config configs/runs/virtual-futures.yaml
 # или
 make bot-futures
 ```
@@ -126,7 +126,7 @@ make bot-futures
 
 ```bash
 # нужен refresh token со скоупом trade-api-write
-go run ./cmd/bot -config configs/real-stocks.yaml
+go run ./cmd/bot -config configs/runs/real-stocks.yaml
 # или
 make bot-real
 ```
@@ -136,7 +136,7 @@ make bot-real
 Проверяет OAuth, WebSocket и виртуальное исполнение **без ожидания lookback** и **без записи в БД**:
 
 ```bash
-go run ./cmd/bot -config configs/experiments-all.yaml -smoke-test
+go run ./cmd/bot -config configs/runs/experiments-all.yaml -smoke-test
 ```
 
 Бот ждёт первую котировку по первому тикеру из конфига, открывает и сразу закрывает 1 лот в `VirtualExecutor`, затем завершается. Работает только с `trading_mode: virtual`. При успехе в логе:
@@ -152,7 +152,7 @@ Smoke-test: OK — OAuth, WebSocket и виртуальное исполнени
 Скопируйте профиль и настройте под себя (файлы `configs/local*.yaml` в `.gitignore`):
 
 ```bash
-cp configs/experiments-all.yaml configs/local.yaml
+cp configs/runs/experiments-all.yaml configs/local.yaml
 # отредактируйте configs/local.yaml
 go run ./cmd/bot -config configs/local.yaml
 ```
@@ -197,7 +197,7 @@ go run ./cmd/bot
 
 ```
 10:00:00 [SYS] Запуск торгового робота БКС на Go...
-10:00:00 [SYS] Конфиг: configs/experiments-all.yaml | Режим: virtual | Тикеры: SBER, GAZP, ... | Эксперименты: atr-2-lean (...), atr-1-lean (...), ... | Класс: TQBR | Свечи: M5
+10:00:00 [SYS] Конфиг: configs/runs/experiments-all.yaml | Режим: virtual | Тикеры: SBER, GAZP, ... | Эксперименты: atr-2-lean (...), atr-1-lean (...), ... | Класс: TQBR | Свечи: M5
 10:00:00 [SYS] Шаг 1: Авторизация через БКС OAuth...
 10:00:01 [SYS] Access Token получен.
 10:00:01 [SYS] Хранилище сделок: data/trades.db
@@ -223,7 +223,7 @@ go run ./cmd/bot
 
 ```
 10:00:00 [SYS] Запуск торгового робота БКС на Go...
-10:00:00 [SYS] Конфиг: configs/real-stocks.yaml | Режим: real | Тикеры: SBER | Эксперименты: default | ...
+10:00:00 [SYS] Конфиг: configs/runs/real-stocks.yaml | Режим: real | Тикеры: SBER | Эксперименты: default | ...
 10:00:01 [MODE] REAL BCSClient (trade-api-write)
 10:00:02 [SYS] Баланс счёта: 1543280.50 руб.
 10:00:02 [SBER] воркер запущен
@@ -305,11 +305,11 @@ go run ./cmd/bot
 
 | Файл | Назначение |
 |---|---|
-| `configs/experiments-all.yaml` | **Paper trading, все A/B-опыты** (6 экспериментов, 10 акций TQBR) |
-| `configs/virtual-futures.yaml` | Paper trading, фьючерсы SPBFUT |
-| `configs/real-stocks.yaml` | Реальные ордера, акции TQBR |
+| `configs/runs/experiments-all.yaml` | **Paper trading, все A/B-опыты** (6 экспериментов, 10 акций TQBR) |
+| `configs/runs/virtual-futures.yaml` | Paper trading, фьючерсы SPBFUT |
+| `configs/runs/real-stocks.yaml` | Реальные ордера, акции TQBR |
 
-Запуск: `go run ./cmd/bot -config configs/experiments-all.yaml` или `make bot`
+Запуск: `go run ./cmd/bot -config configs/runs/experiments-all.yaml` или `make bot`
 
 ### Поля конфига
 
@@ -374,7 +374,7 @@ go run ./cmd/admin -db data/trades.db -listen 127.0.0.1:8090
 
 ### Как анализировать с ИИ
 
-1. Накопите сделки ботом (`make bot` / `configs/experiments-all.yaml`).
+1. Накопите сделки ботом (`make bot` / `configs/runs/experiments-all.yaml`).
 2. В админке задайте фильтры → откройте `/export`.
 3. Выберите вариант:
    - **Краткий** — метрики и сравнение экспериментов (`data-summary.json`);

@@ -174,10 +174,10 @@ make strategy-matrix             # 4 стратегии, ~1–2 ч
 
 | `-strategy` | Search space |
 |-------------|--------------|
-| `momentum_breakout` | `config/optimizer/search-space-momentum.yaml` |
-| `momentum_filtered` | `config/optimizer/search-space-momentum-filtered.yaml` |
-| `opening_range` | `config/optimizer/search-space-orb.yaml` |
-| `mean_reversion` | `config/optimizer/search-space-meanrev.yaml` |
+| `momentum_breakout` | `configs/strategies/momentum-breakout.yaml` (`search_space`) |
+| `momentum_filtered` | `configs/strategies/momentum-filtered.yaml` (`search_space`) |
+| `opening_range` | `configs/strategies/opening-range.yaml` (`search_space`) |
+| `mean_reversion` | `configs/strategies/mean-reversion.yaml` (`search_space`) |
 
 ---
 
@@ -252,7 +252,7 @@ optimizer fetch-history ...     # полная перезагрузка (legacy)
 
 ## Конфигурация
 
-### `config/optimizer/universe.yaml`
+### `configs/shared/tickers.yaml`
 
 ```yaml
 lean_tickers: [SBER, ROSN, NVTK]   # для -two-phase
@@ -269,7 +269,7 @@ tickers: [SBER, GAZP, ...]         # полный universe
 
 - Score = **median** по окнам → **ранжирование trials**
 - `VirtualExecutor` не вычитает комиссию из `GrossPnL`; optimizer вычитает `-commission_per_lot × quantity`
-- По умолчанию: **0.10 ₽/акцию** (TQBR), **5.0 ₽/контракт** (SPBFUT) — из `universe.yaml` / `costs.commission_per_lot` или `-commission-per-lot`
+- По умолчанию: **0.10 ₽/акцию** (TQBR), **5.0 ₽/контракт** (SPBFUT) — из `tickers.yaml` / `costs.commission_per_lot` или `-commission-per-lot`
 - `AggregateTrades` сортирует сделки всех тикеров по `ClosedAt` перед MaxDrawdown/Calmar
 
 ---
@@ -428,7 +428,7 @@ equity curve и считает `MaxDrawdown`/`Calmar` по порядку эле
 > Исторические прогоны ниже использовали старую схему train/test (6m/2m/1m).
 > Текущая версия — скользящие окна оценки (`-window-months` / `-step-months`).
 
-MOEX M5, 9 акций (`config/optimizer/universe.yaml`), 2024-07-03 → 2026-07-03,
+MOEX M5, 9 акций (`configs/shared/tickers.yaml`), 2024-07-03 → 2026-07-03,
 17 walk-forward окон (6m/2m/1m). Best score / суммарный PnL по всем окнам:
 
 | strategy            | stop_mode | trials | best test_score | total test PnL, руб |

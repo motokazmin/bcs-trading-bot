@@ -50,7 +50,7 @@ README `cmd/optimizer`.
 
 ### 2. Search space
 
-Конфигурируемый через YAML (`config/optimizer/search-space.yaml`), пример:
+Конфигурируемый через YAML (в секции `search_space` внутри `configs/strategies/*.yaml`), пример:
 
 ```yaml
 parameters:
@@ -193,7 +193,7 @@ offset безубытка в трейлинге (см. `internal/engine/worker.g
 optimizer run \
   -tickers SBER,ROSN,NVTK \
   -history-dir data/history \
-  -search-space config/optimizer/search-space.yaml \
+  -search-space configs/strategies/orc.yaml \
   -date-from 2024-01-01 -date-to 2026-06-01 \
   -window-months 2 -step-months 1 \
   -trials 200 \

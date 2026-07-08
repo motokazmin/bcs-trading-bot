@@ -142,7 +142,7 @@ func sameTickerSets(a, b []string) bool {
 	return true
 }
 
-// ResolvePhase1Tickers возвращает тикеры для фазы 1: override, lean из universe или default.
+// ResolvePhase1Tickers возвращает тикеры для фазы 1: override, lean из tickers-config или default.
 func ResolvePhase1Tickers(override string, lean []string, full []string) ([]string, error) {
 	if override != "" {
 		return normalizeSymbols(strings.Split(override, ",")), nil

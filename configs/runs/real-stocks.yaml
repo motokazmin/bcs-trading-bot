@@ -1,5 +1,5 @@
 # Реальная торговля акциями. Требуется BCS_REFRESH_TOKEN со скоупом trade-api-write.
-# Запуск: go run ./cmd/bot -config configs/real-stocks.yaml
+# Запуск: go run ./cmd/bot -config configs/runs/real-stocks.yaml
 
 trading_mode: real
 

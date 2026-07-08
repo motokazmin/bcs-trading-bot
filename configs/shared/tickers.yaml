@@ -12,7 +12,7 @@ lean_tickers:
   - ROSN
   - NVTK
 
-# Полный universe акций MOEX (как в configs/experiments-all.yaml)
+# Полный universe акций MOEX (как в configs/runs/experiments-all.yaml)
 tickers:
   - SBER
   - GAZP
