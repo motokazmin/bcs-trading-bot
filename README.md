@@ -27,6 +27,7 @@
 - [Что вы увидите в логе](#что-вы-увидите-в-логе)
 - [Конфигурация](#конфигурация)
 - [Веб-админка и экспорт для ИИ](#веб-админка-и-экспорт-для-ии)
+- [Стратегии](docs/strategies.md)
 - [Модули](#модули)
 - [Структура проекта](#структура-проекта)
 - [Дорожная карта](#дорожная-карта)
@@ -56,7 +57,7 @@
 3. Инициализация исполнителя: один `VirtualExecutor` (или `BCSClient`) **на эксперимент**.
 4. Для каждой пары «эксперимент × тикер» создаётся `TickerWorker` в отдельной горутине.
 5. WebSocket подписывается на **свечи** (сигналы стратегии) и **котировки** (тики для SL/TP).
-6. Воркер на каждом тике проверяет стоп/тейк и EOD; на свече — стратегию `MomentumBreakout`.
+6. Воркер на каждом тике проверяет стоп/тейк и EOD; на свече — стратегию из `strategy.type` (см. [docs/strategies.md](docs/strategies.md)).
 7. При сигнале риск-менеджер проверяет Circuit Breaker и считает лот.
 8. Вход — лимитный ордер; закрытие (SL/TP/EOD) — рыночный ордер.
 
@@ -324,6 +325,7 @@ go run ./cmd/bot
 | `risk.max_daily_loss` | — | Абсолютный дневной лимит убытков (руб.) |
 | `risk.max_daily_loss_percent` | `2` | % от депозита, если `max_daily_loss` не задан |
 | `risk.risk_per_trade_percent` | `0.5` | Риск на сделку (% депозита) |
+| `strategy.type` | `momentum_breakout` | ID стратегии: `momentum_breakout`, `momentum_filtered`, `opening_range`, `opening_range_continuation`, `mean_reversion` — [подробнее](docs/strategies.md) |
 | `strategy.lookback` | `20` | Окно свечей стратегии |
 | `strategy.stop_mode` | `range` | `range` — стоп от половины диапазона; `atr` — ATR × multiplier |
 | `strategy.atr_period` | `14` | Период ATR (для `stop_mode: atr`) |
@@ -411,7 +413,7 @@ type OrderExecutor interface {
 
 Изолированный торговый цикл для пары **эксперимент × тикер**:
 
-- свой `MomentumBreakout` и `RiskManager`;
+- свою `CandleStrategy` (из `strategy.type`) и `RiskManager`;
 - каналы свечей и тиков (котировки);
 - мониторинг SL/TP на каждом тике, трейлинг +1R / +2R / непрерывный SL = MFE − 1R после +2R;
 - опциональная задержка входа `session.entry_delay_minutes` и лимит `strategy.max_trades_per_ticker_per_day`;
@@ -440,11 +442,19 @@ type OrderExecutor interface {
 | `SubscribeToCandles(ctx, ticker, ch)` | Подписка на один тикер |
 | `SubscribeMarketDataFanOut(ctx, routes)` | Fan-Out: свечи + котировки (тики) → воркеры |
 
-### Стратегия — `internal/strategy/momentum.go`
+### Стратегии — `internal/strategy/`
 
-Пробой локальных уровней на свечах (`candle_timeframe` в конфиге, по умолчанию M5). Соотношение риск/прибыль **1:3**.
+Плагинная архитектура: каждая стратегия реализует `CandleStrategy` и регистрируется в реестре. Бот и optimizer используют один код.
 
-**Отладочный режим:** в `OnCandle` закомментирован блок, который генерирует искусственные BUY/SELL на каждой 3-й свече — для быстрой проверки симулятора (SL/TP, EOD, Circuit Breaker) без ожидания реального пробоя. Раскомментируйте его вместо production-логики при необходимости.
+| ID | Описание |
+|---|---|
+| `momentum_breakout` | Пробой high/low за lookback (дефолт, R:R 1:3) |
+| `momentum_filtered` | Momentum + SMA-тренд, long-only, volume filter |
+| `opening_range` | ORB — пробой утреннего диапазона |
+| `opening_range_continuation` | ORB + вход на ретесте лимитом |
+| `mean_reversion` | Fade от SMA при экстремальном отклонении |
+
+Как добавить новую стратегию и подключить в боте/optimizer: **[docs/strategies.md](docs/strategies.md)**.
 
 ### Риск-менеджмент — `internal/risk/manager.go`
 
@@ -463,9 +473,10 @@ bcs-trading-bot/
 │   ├── bot/main.go                    # Точка входа, оркестрация, fan-out
 │   └── admin/main.go                  # Веб-админка и экспорт для ИИ
 ├── configs/
-│   ├── experiments-all.yaml
-│   ├── virtual-futures.yaml
-│   └── real-stocks.yaml
+│   ├── runs/                          # Профили запуска бота
+│   └── strategies/                    # Search space для optimizer
+├── docs/
+│   └── strategies.md                  # Архитектура и гайд по стратегиям
 ├── data/trades.db                     # SQLite (создаётся ботом)
 ├── internal/
 │   ├── config/config.go
@@ -479,7 +490,7 @@ bcs-trading-bot/
 │   ├── admin/                         # HTTP UI, export AI
 │   ├── storage/sqlite/                # Миграции, аналитика
 │   ├── risk/manager.go
-│   └── strategy/momentum.go
+│   └── strategy/                      # Реестр стратегий (см. docs/strategies.md)
 ├── pkg/
 │   ├── interfaces/executor.go
 │   ├── logx/logx.go                   # Цветные логи терминала

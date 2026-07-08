@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-mkdir -p results
+RESULTS_DIR="${RESULTS_DIR:-results}"
+mkdir -p "$RESULTS_DIR"
 OPT=bin/optimizer
 COMMON=(
   -tickers-config configs/shared/tickers.yaml
@@ -16,7 +17,7 @@ COMMON=(
 run_strategy() {
   local id="$1"
   local space="$2"
-  local out="results/exp-${id}/"
+  local out="${RESULTS_DIR}/exp-${id}/"
   echo "========== $id $(date -Iseconds) =========="
   "$OPT" run -strategy "$id" -search-space "$space" "${COMMON[@]}" -output "$out"
 }
@@ -27,20 +28,15 @@ run_strategy opening_range configs/strategies/opening-range.yaml
 run_strategy opening_range_continuation configs/strategies/orc.yaml
 run_strategy mean_reversion configs/strategies/mean-reversion.yaml
 
-python3 - <<'PY'
-import json, glob
+RESULTS_DIR="$RESULTS_DIR" python3 - <<'PY'
+import json, glob, os
 
-STRATEGIES = [
-    # "momentum_breakout",
-    # "momentum_filtered",
-    # "opening_range",
-    "opening_range_continuation",
-    # "mean_reversion",
-]
+results_dir = os.environ.get("RESULTS_DIR", "results")
 
 rows = []
-for name in STRATEGIES:
-    paths = sorted(glob.glob(f"results/exp-{name}/optimizer-run-*.json"))
+for exp_dir in sorted(glob.glob(f"{results_dir}/exp-*/")):
+    name = os.path.basename(exp_dir.rstrip("/")).removeprefix("exp-")
+    paths = sorted(glob.glob(f"{exp_dir}/optimizer-run-*.json"))
     if not paths:
         continue
     path = paths[-1]
@@ -62,10 +58,11 @@ for name in STRATEGIES:
     })
 
 rows.sort(key=lambda r: (r["score"] or -1e18), reverse=True)
-out = {"experiments": rows}
-with open("results/strategy-matrix-summary.json", "w") as f:
-    json.dump(out, f, indent=2)
+summary_path = f"{results_dir}/strategy-matrix-summary.json"
+with open(summary_path, "w") as f:
+    json.dump({"experiments": rows}, f, indent=2)
 
+print(f"Summary: {summary_path} ({len(rows)} strategies)")
 print("| strategy | score | sum_pnl | trades | prof_windows |")
 print("|----------|-------|---------|--------|--------------|")
 for r in rows:

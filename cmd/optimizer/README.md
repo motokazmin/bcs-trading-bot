@@ -14,6 +14,7 @@ Offline-подбор гиперпараметров торговых страт�
 - [Scoring и комиссия](#scoring-и-комиссия)
 - [Производительность](#производительность)
 - [Архитектура (для разработчиков)](#архитектура-для-разработчиков)
+- [Стратегии: как добавить и подключить](../../docs/strategies.md)
 - [Результаты экспериментов](experiment-summary-prompt.md)
 
 ---
@@ -177,7 +178,10 @@ make strategy-matrix             # 4 стратегии, ~1–2 ч
 | `momentum_breakout` | `configs/strategies/momentum-breakout.yaml` (`search_space`) |
 | `momentum_filtered` | `configs/strategies/momentum-filtered.yaml` (`search_space`) |
 | `opening_range` | `configs/strategies/opening-range.yaml` (`search_space`) |
+| `opening_range_continuation` | `configs/strategies/orc.yaml` (`search_space`) |
 | `mean_reversion` | `configs/strategies/mean-reversion.yaml` (`search_space`) |
+
+Полный гайд по архитектуре и добавлению новых стратегий: [docs/strategies.md](../../docs/strategies.md).
 
 ---
 
