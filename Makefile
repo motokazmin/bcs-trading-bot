@@ -25,7 +25,7 @@ OPTIMIZER_TWO_PHASE ?=
 BOT_CONFIG ?= configs/runs/experiments-all.yaml
 
 .PHONY: build build-bot build-optimizer build-admin test \
-        sync-history optimizer-run strategy-matrix \
+        sync-history optimizer-run strategy-matrix charts-all \
         bot bot-futures bot-real bot-smoke admin help
 
 help:
@@ -36,6 +36,7 @@ help:
 	@echo ""
 	@echo "  make sync-history       — догрузить историю (9 акций, параллельно)"
 	@echo "  make optimizer-run      — sync-history + walk-forward оптимизация"
+	@echo "  make charts-all         — HTML-графики по всем экспериментам в results/"
 	@echo ""
 	@echo "  make bot                — paper, все A/B-эксперименты (experiments-all.yaml)"
 	@echo "  make bot-futures        — paper, фьючерсы SPBFUT"
@@ -86,6 +87,11 @@ strategy-matrix: build-optimizer
 	chmod +x scripts/run-strategy-matrix.sh
 	mkdir -p results
 	bash scripts/run-strategy-matrix.sh 2>&1 | tee results/strategy-matrix-run.log
+
+charts-all: build-optimizer
+	$(BINARY_DIR)/optimizer charts -all \
+		-results-dir $(OPTIMIZER_OUT) \
+		-history-dir $(HISTORY_DIR)
 
 # --- Бот ---
 

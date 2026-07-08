@@ -36,6 +36,18 @@ type ChartsOptions struct {
 	CommissionPerLot float64
 }
 
+// ChartsBatchResult — итог пакетной генерации графиков.
+type ChartsBatchResult struct {
+	Results []*ChartsResult
+	Errors  []ChartsBatchError
+}
+
+// ChartsBatchError — ошибка по одному эксперименту (остальные могут быть успешны).
+type ChartsBatchError struct {
+	Experiment string
+	Err        error
+}
+
 // ChartsResult — итог генерации графиков.
 type ChartsResult struct {
 	Experiment string
@@ -209,6 +221,60 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 	result.ExportDir = exportResult.Dir
 
 	return result, nil
+}
+
+// ListExperimentDirs возвращает имена экспериментов (без префикса exp-)
+// в results-dir, для которых есть best-config-*.yaml.
+func ListExperimentDirs(resultsDir string) ([]string, error) {
+	entries, err := os.ReadDir(resultsDir)
+	if err != nil {
+		return nil, fmt.Errorf("чтение %s: %w", resultsDir, err)
+	}
+
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "exp-") {
+			continue
+		}
+		expDir := filepath.Join(resultsDir, entry.Name())
+		if _, err := LoadLatestBestConfigPath(expDir); err != nil {
+			continue
+		}
+		names = append(names, strings.TrimPrefix(entry.Name(), "exp-"))
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+// RunChartsAll генерирует графики для всех экспериментов в results-dir.
+func RunChartsAll(ctx context.Context, opts ChartsOptions) (*ChartsBatchResult, error) {
+	names, err := ListExperimentDirs(opts.ResultsDir)
+	if err != nil {
+		return nil, err
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("в %s нет экспериментов с best-config", opts.ResultsDir)
+	}
+
+	batch := &ChartsBatchResult{}
+	for _, name := range names {
+		if ctx.Err() != nil {
+			return batch, ctx.Err()
+		}
+		runOpts := opts
+		runOpts.Experiment = name
+		result, err := RunCharts(ctx, runOpts)
+		if err != nil {
+			batch.Errors = append(batch.Errors, ChartsBatchError{Experiment: name, Err: err})
+			logx.Warn("charts: %s: %v", name, err)
+			continue
+		}
+		batch.Results = append(batch.Results, result)
+	}
+	if len(batch.Results) == 0 {
+		return batch, fmt.Errorf("не создано ни одного графика")
+	}
+	return batch, nil
 }
 
 func resolveChartsExperimentDir(opts ChartsOptions) (string, error) {

@@ -275,26 +275,50 @@ func backtestCmd(args []string) {
 func chartsCmd(args []string) {
 	fs := flag.NewFlagSet("charts", flag.ExitOnError)
 	experiment := fs.String("experiment", "", "имя эксперимента: momentum_breakout или exp-momentum_breakout")
+	all := fs.Bool("all", false, "собрать графики по всем экспериментам в results-dir")
 	resultsDir := fs.String("results-dir", "results", "директория с результатами optimizer")
 	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
 	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из tickers-config или class_code)")
 	_ = fs.Parse(args)
 
-	if *experiment == "" {
-		logx.Fatal("укажите -experiment (например: momentum_breakout)")
+	if *all && *experiment != "" {
+		logx.Fatal("укажите либо -experiment, либо -all")
+	}
+	if !*all && *experiment == "" {
+		logx.Fatal("укажите -experiment (например: momentum_breakout) или -all")
 	}
 
 	ctx := context.Background()
-	result, err := charts.RunCharts(ctx, charts.ChartsOptions{
-		Experiment:     *experiment,
-		ResultsDir:     *resultsDir,
-		HistoryDir:     *historyDir,
+	opts := charts.ChartsOptions{
+		ResultsDir:       *resultsDir,
+		HistoryDir:       *historyDir,
 		CommissionPerLot: *commission,
-	})
+	}
+
+	if *all {
+		batch, err := charts.RunChartsAll(ctx, opts)
+		if err != nil {
+			logx.Fatalf("charts: %v", err)
+		}
+		fmt.Printf("charts: %d experiments, %d errors\n", len(batch.Results), len(batch.Errors))
+		for _, result := range batch.Results {
+			printChartsResult(result)
+		}
+		for _, e := range batch.Errors {
+			fmt.Printf("  ERROR %s: %v\n", e.Experiment, e.Err)
+		}
+		return
+	}
+
+	opts.Experiment = *experiment
+	result, err := charts.RunCharts(ctx, opts)
 	if err != nil {
 		logx.Fatalf("charts: %v", err)
 	}
+	printChartsResult(result)
+}
 
+func printChartsResult(result *charts.ChartsResult) {
 	fmt.Printf("charts: experiment=%s dir=%s files=%d\n", result.Experiment, result.ChartsDir, len(result.Files))
 	if result.ExportDir != "" {
 		fmt.Printf("export: dir=%s (data-summary.json, data-trades.json, prompt-*.md)\n", result.ExportDir)

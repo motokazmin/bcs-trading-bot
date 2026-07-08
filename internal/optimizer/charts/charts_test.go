@@ -95,11 +95,26 @@ func TestBuildChartHTMLContainsData(t *testing.T) {
 	if !strings.Contains(body, "tickMarkFormatter") || !strings.Contains(body, "formatMSKTick") {
 		t.Fatal("missing MSK tick mark formatter for time axis")
 	}
+	if !strings.Contains(body, "tickLabelContext") || !strings.Contains(body, "subscribeVisibleTimeRangeChange") {
+		t.Fatal("missing adaptive time axis labels")
+	}
+	if !strings.Contains(body, "effectiveVisibleSpan") || !strings.Contains(body, "formatMSKCrosshairInfo") {
+		t.Fatal("missing robust year label logic")
+	}
 	if !strings.Contains(body, `id="crosshair-info"`) || !strings.Contains(body, "subscribeCrosshairMove") {
 		t.Fatal("missing crosshair price/time info panel")
 	}
-	if !strings.Contains(body, "saveBaselineView") || !strings.Contains(body, "baselineLogicalRange") {
-		t.Fatal("missing baseline zoom reset logic")
+	if !strings.Contains(body, "fullDataLogicalRange") || !strings.Contains(body, "saveBaselineView") {
+		t.Fatal("missing full-range baseline zoom logic")
+	}
+	if !strings.Contains(body, "minBarSpacing") || !strings.Contains(body, "FULL_VIEW_MIN_BAR_SPACING") {
+		t.Fatal("missing dense-data min bar spacing for full view")
+	}
+	if !strings.Contains(body, "makeVisibleWindowAutoscale") || !strings.Contains(body, "refreshTradePriceScale") {
+		t.Fatal("missing dynamic Y-axis autoscale on pan/zoom")
+	}
+	if !strings.Contains(body, "updateResetButtonState") || !strings.Contains(body, "isAtBaselineView") {
+		t.Fatal("missing reset button state for manual chart zoom")
 	}
 	if !strings.Contains(body, "Win rate") || !strings.Contains(body, "5 ₽") {
 		t.Fatalf("missing stats panel: %s", body)
@@ -162,6 +177,30 @@ func TestTradesToChartMarkersPnL(t *testing.T) {
 	}
 	if markers[1].Text != "1 ВЫХ TP" {
 		t.Fatalf("exit text: %s", markers[1].Text)
+	}
+}
+
+func TestListExperimentDirs(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"exp-mean_reversion", "exp-opening_range", "exp-empty", "other"} {
+		path := filepath.Join(dir, name)
+		if err := os.Mkdir(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "exp-mean_reversion", "best-config-20260101.yaml"), []byte("tickers: [SBER]"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "exp-opening_range", "best-config-20260101.yaml"), []byte("tickers: [SBER]"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ListExperimentDirs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != "mean_reversion" || got[1] != "opening_range" {
+		t.Fatalf("got %#v", got)
 	}
 }
 

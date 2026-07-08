@@ -221,6 +221,9 @@ make strategy-matrix             # 4 стратегии, ~1–2 ч
 optimizer charts -experiment mean_reversion
 # → results/exp-mean_reversion/charts/SBER.html, GAZP.html, …
 # → results/exp-mean_reversion/export/data-summary.json, data-trades.json, prompt-*.md
+
+optimizer charts -all
+# → графики по всем exp-* в results/ (где есть best-config-*.yaml)
 ```
 
 Свечи + маркеры входа/выхода + панель сделок. Открыть в браузере (нужен интернет для CDN Lightweight Charts).
@@ -234,6 +237,7 @@ PnL в optimizer-экспорте — **net** (комиссия вычтена).
 | Флаг | Default | Описание |
 |------|---------|----------|
 | `-experiment` | — | `momentum_breakout` или `exp-momentum_breakout` |
+| `-all` | `false` | все эксперименты в `results-dir` (взаимоисключающе с `-experiment`) |
 | `-results-dir` | `results` | корень результатов |
 | `-history-dir` | `data/history` | CSV свечей |
 

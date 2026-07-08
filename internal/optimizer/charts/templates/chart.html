@@ -116,7 +116,12 @@
 
     function chartTimeToUnix(time) {
       if (typeof time === 'number') return time;
-      if (time && typeof time === 'object' && 'timestamp' in time) return time.timestamp;
+      if (!time || typeof time !== 'object') return 0;
+      if ('timestamp' in time) return time.timestamp;
+      // lightweight-charts может вернуть BusinessDay вместо unix timestamp.
+      if ('year' in time && 'month' in time && 'day' in time) {
+        return Math.floor(Date.UTC(time.year, time.month - 1, time.day) / 1000);
+      }
       return 0;
     }
 
@@ -141,19 +146,168 @@
       });
     }
 
+    const SEC_PER_HOUR = 3600;
+    const SEC_PER_DAY = 86400;
+
+    function getDataTimeRange() {
+      if (!payload.candles.length) return { from: 0, to: 0 };
+      return {
+        from: payload.candles[0].time,
+        to: payload.candles[payload.candles.length - 1].time,
+      };
+    }
+
+    const dataTimeRange = getDataTimeRange();
+    const dataSpanSec = Math.max(dataTimeRange.to - dataTimeRange.from, 0);
+    let visibleFromTs = dataTimeRange.from;
+    let visibleToTs = dataTimeRange.to;
+    let baselineLogicalRange = null;
+
+    const FULL_VIEW_MIN_BAR_SPACING = 0.001;
+    const TRADE_ZOOM_MIN_BAR_SPACING = 6;
+
+    function copyLogicalRange(range) {
+      if (!range) return null;
+      return { from: range.from, to: range.to };
+    }
+
+    function logicalRangesClose(a, b, eps = 0.5) {
+      if (!a || !b) return false;
+      return Math.abs(a.from - b.from) <= eps && Math.abs(a.to - b.to) <= eps;
+    }
+
+    function isAtBaselineView() {
+      if (!baselineLogicalRange) return true;
+      const current = chart?.timeScale?.().getVisibleLogicalRange?.();
+      return logicalRangesClose(current, baselineLogicalRange);
+    }
+
+    function updateResetButtonState() {
+      resetBtn.disabled = isAtBaselineView() && selectedTradeIndex === null;
+    }
+
+    function fullDataLogicalRange() {
+      if (!payload.candles.length) return null;
+      return { from: -0.5, to: payload.candles.length - 0.5 };
+    }
+
+    function syncVisibleTimeRangeFromLogical(logical) {
+      if (!logical || !payload.candles.length) return;
+      const fromIdx = Math.max(0, Math.min(payload.candles.length - 1, Math.round(logical.from + 0.5)));
+      const toIdx = Math.max(0, Math.min(payload.candles.length - 1, Math.round(logical.to - 0.5)));
+      visibleFromTs = payload.candles[fromIdx].time;
+      visibleToTs = payload.candles[toIdx].time;
+    }
+
+    function syncVisibleTimeRange() {
+      const range = chart?.timeScale?.().getVisibleRange?.();
+      if (range) {
+        const fromTs = chartTimeToUnix(range.from);
+        const toTs = chartTimeToUnix(range.to);
+        if (fromTs > 0 && toTs > fromTs) {
+          visibleFromTs = fromTs;
+          visibleToTs = toTs;
+          return;
+        }
+      }
+      syncVisibleTimeRangeFromLogical(chart?.timeScale?.().getVisibleLogicalRange?.());
+    }
+
+    function effectiveVisibleSpan() {
+      const span = Math.max(visibleToTs - visibleFromTs, 0);
+      return span > 0 ? span : dataSpanSec;
+    }
+
+    function mskYear(ts) {
+      return Number(new Date(ts * 1000).toLocaleDateString('en-CA', {
+        timeZone: MSK,
+        year: 'numeric',
+      }));
+    }
+
+    function spansMultipleYears(fromTs, toTs) {
+      if (!fromTs || !toTs || toTs <= fromTs) return false;
+      return mskYear(fromTs) !== mskYear(toTs);
+    }
+
+    function mskFormat(ts, options) {
+      return new Date(ts * 1000).toLocaleDateString('ru-RU', { timeZone: MSK, ...options });
+    }
+
+    function mskFormatDateTime(ts, options) {
+      return new Date(ts * 1000).toLocaleString('ru-RU', {
+        timeZone: MSK,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        ...options,
+      });
+    }
+
+    // Год показываем, если в датасете несколько лет и зум шире одного дня.
+    // При внутридневном зуме (сделка) год скрываем — он только мешает.
+    function tickLabelContext() {
+      const visibleSpan = effectiveVisibleSpan();
+      const dataMultiYear = spansMultipleYears(dataTimeRange.from, dataTimeRange.to);
+      const intraday = visibleSpan <= SEC_PER_DAY;
+      const showYear = dataMultiYear && !intraday;
+      const showMonth = visibleSpan > 2 * SEC_PER_DAY;
+      const showDay = visibleSpan > 6 * SEC_PER_HOUR;
+      return { visibleSpan, showYear, showMonth, showDay, intraday, dataMultiYear };
+    }
+
     function formatMSKTick(time, tickMarkType) {
       const ts = chartTimeToUnix(time);
-      const d = new Date(ts * 1000);
+      const ctx = tickLabelContext();
+
       switch (tickMarkType) {
         case LightweightCharts.TickMarkType.Year:
-          return d.toLocaleDateString('ru-RU', { timeZone: MSK, year: 'numeric' });
+          return mskFormat(ts, { year: 'numeric' });
         case LightweightCharts.TickMarkType.Month:
-          return d.toLocaleDateString('ru-RU', { timeZone: MSK, month: 'short' });
+          if (ctx.showYear) {
+            return mskFormat(ts, { month: 'short', year: 'numeric' });
+          }
+          return mskFormat(ts, { month: 'short' });
         case LightweightCharts.TickMarkType.DayOfMonth:
-          return d.toLocaleDateString('ru-RU', { timeZone: MSK, day: 'numeric', month: 'short' });
+          if (ctx.showYear) {
+            return mskFormat(ts, { day: 'numeric', month: 'short', year: 'numeric' });
+          }
+          if (ctx.showMonth) {
+            return mskFormat(ts, { day: 'numeric', month: 'short' });
+          }
+          return mskFormat(ts, { day: 'numeric' });
         default:
+          if (ctx.intraday) {
+            return formatMSKTime(ts);
+          }
+          if (ctx.showYear) {
+            return mskFormatDateTime(ts, {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            });
+          }
+          if (ctx.showDay) {
+            return mskFormatDateTime(ts, { day: 'numeric', month: 'short' });
+          }
           return formatMSKTime(ts);
       }
+    }
+
+    function formatMSKCrosshairInfo(ts) {
+      const ctx = tickLabelContext();
+      if (ctx.intraday) {
+        return formatMSKDateTime(ts);
+      }
+      if (ctx.showYear) {
+        return mskFormatDateTime(ts, { day: 'numeric', month: 'short', year: 'numeric' });
+      }
+      return mskFormatDateTime(ts, { day: 'numeric', month: 'short' });
+    }
+
+    function formatMSKCrosshairTime(time) {
+      const ts = chartTimeToUnix(time);
+      return formatMSKCrosshairInfo(ts);
     }
 
     const chart = LightweightCharts.createChart(chartEl, {
@@ -165,13 +319,18 @@
         borderColor: '#485c7b',
         timeVisible: true,
         secondsVisible: false,
+        minBarSpacing: FULL_VIEW_MIN_BAR_SPACING,
         tickMarkFormatter: formatMSKTick,
       },
       localization: {
         locale: 'ru-RU',
-        timeFormatter: (time) => formatMSKTime(chartTimeToUnix(time)),
+        timeFormatter: formatMSKCrosshairTime,
         dateFormat: 'dd.MM.yyyy',
       },
+    });
+
+    chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+      syncVisibleTimeRange();
     });
 
     const tradeLines = [];
@@ -224,11 +383,11 @@
       const ts = chartTimeToUnix(param.time);
       const candleData = param.seriesData.get(candles);
       if (!candleData) {
-        setCrosshairInfo(formatMSKDateTime(ts));
+        setCrosshairInfo(formatMSKCrosshairInfo(ts));
         return;
       }
       setCrosshairInfo(
-        `${formatMSKDateTime(ts)} · O ${formatPrice(candleData.open)} `
+        `${formatMSKCrosshairInfo(ts)} · O ${formatPrice(candleData.open)} `
         + `H ${formatPrice(candleData.high)} L ${formatPrice(candleData.low)} `
         + `C ${formatPrice(candleData.close)}`,
       );
@@ -237,7 +396,6 @@
     const defaultScaleMargins = { top: 0.08, bottom: 0.08 };
     const zoomScaleMargins = { top: 0.04, bottom: 0.04 };
     const BAR_PADDING = 14;
-    let baselineLogicalRange = null;
 
     function findFirstBarAtOrAfter(time) {
       let lo = 0;
@@ -272,40 +430,77 @@
       return { from: fromIdx - 0.5, to: toIdx + 0.5 };
     }
 
-    function priceRangeForBars(fromIdx, toIdx, tr) {
-      let min = Math.min(tr.entryPrice, tr.exitPrice);
-      let max = Math.max(tr.entryPrice, tr.exitPrice);
+    function priceRangeForLogicalRange(fromIdx, toIdx, tr) {
+      if (!payload.candles.length) return null;
+      let min = Infinity;
+      let max = -Infinity;
       const start = Math.max(0, Math.floor(fromIdx));
       const end = Math.min(payload.candles.length - 1, Math.ceil(toIdx));
+      if (start > end) return null;
+
       for (let i = start; i <= end; i++) {
         const c = payload.candles[i];
         min = Math.min(min, c.low);
         max = Math.max(max, c.high);
       }
-      const spread = Math.max(max - min, min * 0.0005);
+
+      if (tr) {
+        const visFrom = payload.candles[start].time;
+        const visTo = payload.candles[end].time;
+        if (tr.entryTime >= visFrom && tr.entryTime <= visTo) {
+          min = Math.min(min, tr.entryPrice);
+          max = Math.max(max, tr.entryPrice);
+        }
+        if (tr.exitTime >= visFrom && tr.exitTime <= visTo) {
+          min = Math.min(min, tr.exitPrice);
+          max = Math.max(max, tr.exitPrice);
+        }
+      }
+
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+
+      const spread = Math.max(max - min, Math.abs(min) * 0.0005);
       const pad = spread * 0.06;
       return { from: min - pad, to: max + pad };
     }
 
-    function makeWindowAutoscale(range) {
-      return () => ({
-        priceRange: { minValue: range.from, maxValue: range.to },
-        margins: { above: 6, below: 6 },
+    function makeVisibleWindowAutoscale(tr) {
+      return () => {
+        const logical = chart.timeScale().getVisibleLogicalRange();
+        if (!logical) return null;
+        const range = priceRangeForLogicalRange(logical.from, logical.to, tr);
+        if (!range) return null;
+        return {
+          priceRange: { minValue: range.from, maxValue: range.to },
+          margins: { above: 6, below: 6 },
+        };
+      };
+    }
+
+    function refreshTradePriceScale() {
+      if (selectedTradeIndex === null) return;
+      // Пересчитываем Y-ось по текущему видимому окну после скролла/зума.
+      chart.priceScale('right').applyOptions({ autoScale: false });
+      chart.priceScale('right').applyOptions({
+        autoScale: true,
+        scaleMargins: zoomScaleMargins,
       });
     }
 
     function applyTradeZoom(tr) {
       const logicalRange = tradeLogicalRange(tr);
-      const priceRange = priceRangeForBars(logicalRange.from, logicalRange.to, tr);
-      const provider = makeWindowAutoscale(priceRange);
+      const provider = makeVisibleWindowAutoscale(tr);
 
+      chart.timeScale().applyOptions({ minBarSpacing: TRADE_ZOOM_MIN_BAR_SPACING });
       chart.timeScale().setVisibleLogicalRange(logicalRange);
+      syncVisibleTimeRange();
       chart.priceScale('right').applyOptions({
         autoScale: true,
         scaleMargins: zoomScaleMargins,
       });
       candles.applyOptions({ autoscaleInfoProvider: provider });
       tradeLines.forEach((line) => line.applyOptions({ autoscaleInfoProvider: () => null }));
+      refreshTradePriceScale();
     }
 
     function clearTradeZoom() {
@@ -315,33 +510,44 @@
         autoScale: true,
         scaleMargins: defaultScaleMargins,
       });
+      chart.timeScale().applyOptions({ minBarSpacing: FULL_VIEW_MIN_BAR_SPACING });
     }
 
     function saveBaselineView() {
-      chart.timeScale().fitContent();
-      baselineLogicalRange = chart.timeScale().getVisibleLogicalRange();
+      baselineLogicalRange = copyLogicalRange(fullDataLogicalRange());
+      if (!baselineLogicalRange) {
+        chart.timeScale().fitContent();
+        baselineLogicalRange = copyLogicalRange(chart.timeScale().getVisibleLogicalRange());
+      } else {
+        chart.timeScale().setVisibleLogicalRange(baselineLogicalRange);
+      }
+      syncVisibleTimeRange();
+      updateResetButtonState();
     }
 
     function fitChart() {
       clearTradeZoom();
       if (baselineLogicalRange) {
-        chart.timeScale().setVisibleLogicalRange(baselineLogicalRange);
+        chart.timeScale().setVisibleLogicalRange({ ...baselineLogicalRange });
       } else {
-        chart.timeScale().fitContent();
+        saveBaselineView();
+        return;
       }
+      syncVisibleTimeRange();
+      updateResetButtonState();
       requestAnimationFrame(() => {
         clearTradeZoom();
         if (baselineLogicalRange) {
           chart.timeScale().setVisibleLogicalRange({ ...baselineLogicalRange });
-        } else {
-          chart.timeScale().fitContent();
+          syncVisibleTimeRange();
         }
+        updateResetButtonState();
       });
     }
 
     function zoomToTrade(tr) {
       applyTradeZoom(tr);
-      resetBtn.disabled = false;
+      updateResetButtonState();
     }
 
     function setSelectedTrade(index) {
@@ -392,23 +598,36 @@
     resetBtn.addEventListener('click', () => {
       fitChart();
       setSelectedTrade(null);
-      resetBtn.disabled = true;
+      updateResetButtonState();
+    });
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+      refreshTradePriceScale();
+      updateResetButtonState();
     });
 
     renderTrades();
-    saveBaselineView();
 
     const resizeChart = () => {
       chart.applyOptions({
         width: chartEl.clientWidth,
         height: chartEl.clientHeight,
       });
-      if (!selectedTradeIndex) {
-        saveBaselineView();
+      if (selectedTradeIndex === null && baselineLogicalRange && isAtBaselineView()) {
+        chart.timeScale().setVisibleLogicalRange({ ...baselineLogicalRange });
+        syncVisibleTimeRange();
       }
+      updateResetButtonState();
     };
     window.addEventListener('resize', resizeChart);
     resizeChart();
+    requestAnimationFrame(() => {
+      saveBaselineView();
+      requestAnimationFrame(() => {
+        saveBaselineView();
+        updateResetButtonState();
+      });
+    });
   </script>
 </body>
 </html>
