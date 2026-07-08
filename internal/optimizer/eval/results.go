@@ -11,15 +11,25 @@ import (
 
 // WindowResult — метрики одного окна.
 type WindowResult struct {
-	Metrics core.Metrics `json:"metrics"`
+	Metrics      core.Metrics                         `json:"metrics"`
+	BySide       map[string]TradeSideStats            `json:"by_side,omitempty"`
+	ByTickerSide map[string]map[string]TradeSideStats `json:"by_ticker_side,omitempty"`
+}
+
+// TradeSideStats — статистика успешности сделок по направлению.
+type TradeSideStats struct {
+	Trades   int     `json:"trades"`
+	Wins     int     `json:"wins"`
+	WinRate  float64 `json:"win_rate"`
+	TotalPnL float64 `json:"total_pnl"`
 }
 
 // TrialResult — результат одного trial.
 type TrialResult struct {
-	Index   int              `json:"index"`
+	Index   int               `json:"index"`
 	Params  core.ParameterSet `json:"params"`
-	Score   float64          `json:"score"`
-	Windows []WindowResult   `json:"windows"`
+	Score   float64           `json:"score"`
+	Windows []WindowResult    `json:"windows"`
 }
 
 // RunResult — полный результат оптимизации.

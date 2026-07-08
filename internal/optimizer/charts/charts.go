@@ -29,10 +29,10 @@ const chartWindowPadding = 5 * 24 * time.Hour
 
 // ChartsOptions — параметры генерации графиков по эксперименту.
 type ChartsOptions struct {
-	Experiment         string
-	ResultsDir         string
-	ExperimentDir      string // если задан — используется напрямую (например output optimizer run)
-	HistoryDir         string
+	Experiment       string
+	ResultsDir       string
+	ExperimentDir    string // если задан — используется напрямую (например output optimizer run)
+	HistoryDir       string
 	CommissionPerLot float64
 }
 
@@ -161,15 +161,15 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 		tTo = tTo.Add(time.Minute)
 
 		settings := evalpkg.RunSettings{
-			Tickers:            []string{ticker},
-			StrategyID:         cfg.Strategy.TypeOrDefault(),
-			StopMode:           cfg.Strategy.StopMode,
-			ClassCode:          cfg.ClassCode,
-			CandleTimeframe:    cfg.CandleTimeFrame,
-			Deposit:            cfg.Risk.Deposit,
-			StepPriceValue:     1.0,
+			Tickers:          []string{ticker},
+			StrategyID:       cfg.Strategy.TypeOrDefault(),
+			StopMode:         cfg.Strategy.StopMode,
+			ClassCode:        cfg.ClassCode,
+			CandleTimeframe:  cfg.CandleTimeFrame,
+			Deposit:          cfg.Risk.Deposit,
+			StepPriceValue:   1.0,
 			CommissionPerLot: commission,
-			Session:            cfg.Session,
+			Session:          cfg.Session,
 		}
 		evaluator := evalpkg.NewEvaluator(settings, space, candleData)
 
@@ -343,17 +343,17 @@ type chartCandle struct {
 }
 
 type chartTradeSpan struct {
-	Index             int     `json:"index"`
-	Direction         string  `json:"direction"`
-	EntryTime         int64   `json:"entryTime"`
-	ExitTime          int64   `json:"exitTime"`
-	EntryPrice        float64 `json:"entryPrice"`
-	ExitPrice         float64 `json:"exitPrice"`
-	PnL               float64 `json:"pnl"`
-	EntryLabel        string  `json:"entryLabel"`
-	ExitLabel         string  `json:"exitLabel"`
-	CloseReason       string  `json:"closeReason"`
-	CloseReasonLabel  string  `json:"closeReasonLabel"`
+	Index            int     `json:"index"`
+	Direction        string  `json:"direction"`
+	EntryTime        int64   `json:"entryTime"`
+	ExitTime         int64   `json:"exitTime"`
+	EntryPrice       float64 `json:"entryPrice"`
+	ExitPrice        float64 `json:"exitPrice"`
+	PnL              float64 `json:"pnl"`
+	EntryLabel       string  `json:"entryLabel"`
+	ExitLabel        string  `json:"exitLabel"`
+	CloseReason      string  `json:"closeReason"`
+	CloseReasonLabel string  `json:"closeReasonLabel"`
 }
 
 type chartMarker struct {
@@ -421,12 +421,26 @@ func BuildChartHTML(meta ChartMeta, candles []models.Candle, trades []models.Clo
 
 func chartStats(m core.Metrics, trades []models.ClosedTrade, commission float64) []chartStatItem {
 	wins, losses := 0, 0
+	buyTrades, buyWins := 0, 0
+	sellTrades, sellWins := 0, 0
 	for _, t := range trades {
 		net := core.NetPnLFromGross(t.GrossPnL, t.Quantity, commission)
 		if net > 0 {
 			wins++
 		} else if net < 0 {
 			losses++
+		}
+		switch strings.ToUpper(t.Direction) {
+		case "BUY":
+			buyTrades++
+			if net > 0 {
+				buyWins++
+			}
+		case "SELL":
+			sellTrades++
+			if net > 0 {
+				sellWins++
+			}
 		}
 	}
 
@@ -450,12 +464,23 @@ func chartStats(m core.Metrics, trades []models.ClosedTrade, commission float64)
 		expClass = "negative"
 	}
 
+	buyWinRate := "—"
+	if buyTrades > 0 {
+		buyWinRate = fmt.Sprintf("%d/%d (%.0f%%)", buyWins, buyTrades, float64(buyWins)*100/float64(buyTrades))
+	}
+	sellWinRate := "—"
+	if sellTrades > 0 {
+		sellWinRate = fmt.Sprintf("%d/%d (%.0f%%)", sellWins, sellTrades, float64(sellWins)*100/float64(sellTrades))
+	}
+
 	return []chartStatItem{
 		{Label: "Сделок", Value: fmt.Sprintf("%d", m.NumTrades), Class: "neutral"},
 		{Label: "Expectancy (R)", Value: fmt.Sprintf("%+.2f R", expectancyR), Class: expClass},
 		{Label: "PnL", Value: fmt.Sprintf("%.0f ₽", m.TotalPnL), Class: pnlClass},
 		{Label: "Expectancy (₽)", Value: fmt.Sprintf("%+.0f ₽", avgPnL), Class: pnlClass},
 		{Label: "Win rate", Value: fmt.Sprintf("%.0f%%", m.WinRate*100), Class: "neutral"},
+		{Label: "BUY успех", Value: buyWinRate, Class: "neutral"},
+		{Label: "SELL успех", Value: sellWinRate, Class: "neutral"},
 		{Label: "В плюсе", Value: fmt.Sprintf("%d", wins), Class: "positive"},
 		{Label: "В минусе", Value: fmt.Sprintf("%d", losses), Class: "negative"},
 		{Label: "Max DD", Value: fmt.Sprintf("%.0f ₽", m.MaxDrawdown), Class: "negative"},

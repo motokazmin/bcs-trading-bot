@@ -3,6 +3,7 @@ package eval
 import (
 	"context"
 	"sort"
+	"strings"
 
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
@@ -62,7 +63,12 @@ func (e *Evaluator) evaluateTrial(ctx context.Context, index int, params core.Pa
 	for i, slices := range e.windowSlices {
 		pr := e.evaluateCandles(ctx, tc, slices.Candles)
 		scores = append(scores, core.Score(pr.Metrics, minTrades))
-		windowResults[i] = WindowResult{Metrics: pr.Metrics}
+		bySide, byTickerSide := buildTradeSideStats(pr.Trades, e.settings.CommissionPerLot)
+		windowResults[i] = WindowResult{
+			Metrics:      pr.Metrics,
+			BySide:       bySide,
+			ByTickerSide: byTickerSide,
+		}
 	}
 
 	return TrialResult{
@@ -70,6 +76,55 @@ func (e *Evaluator) evaluateTrial(ctx context.Context, index int, params core.Pa
 		Params:  params,
 		Score:   core.MedianFloat(scores),
 		Windows: windowResults,
+	}
+}
+
+func buildTradeSideStats(trades []models.ClosedTrade, commissionPerLot float64) (map[string]TradeSideStats, map[string]map[string]TradeSideStats) {
+	bySide := make(map[string]TradeSideStats)
+	byTickerSide := make(map[string]map[string]TradeSideStats)
+
+	for _, trade := range trades {
+		side := strings.ToUpper(trade.Direction)
+		if side != "BUY" && side != "SELL" {
+			continue
+		}
+		net := core.NetPnLFromGross(trade.GrossPnL, trade.Quantity, commissionPerLot)
+		isWin := net > 0
+		addSideStat(bySide, side, isWin, net)
+
+		ticker := strings.TrimSpace(trade.Ticker)
+		if ticker == "" {
+			continue
+		}
+		if byTickerSide[ticker] == nil {
+			byTickerSide[ticker] = make(map[string]TradeSideStats)
+		}
+		addSideStat(byTickerSide[ticker], side, isWin, net)
+	}
+
+	finalizeSideStats(bySide)
+	for _, statsBySide := range byTickerSide {
+		finalizeSideStats(statsBySide)
+	}
+	return bySide, byTickerSide
+}
+
+func addSideStat(target map[string]TradeSideStats, side string, isWin bool, pnl float64) {
+	s := target[side]
+	s.Trades++
+	if isWin {
+		s.Wins++
+	}
+	s.TotalPnL += pnl
+	target[side] = s
+}
+
+func finalizeSideStats(target map[string]TradeSideStats) {
+	for side, s := range target {
+		if s.Trades > 0 {
+			s.WinRate = float64(s.Wins) / float64(s.Trades)
+		}
+		target[side] = s
 	}
 }
 
