@@ -1,4 +1,4 @@
-package optimizer
+package data
 
 import (
 	"testing"

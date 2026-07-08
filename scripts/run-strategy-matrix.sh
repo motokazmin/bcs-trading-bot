@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+mkdir -p results
 OPT=bin/optimizer
 COMMON=(
   -tickers-config configs/shared/tickers.yaml
@@ -20,11 +21,11 @@ run_strategy() {
   "$OPT" run -strategy "$id" -search-space "$space" "${COMMON[@]}" -output "$out"
 }
 
-#run_strategy momentum_breakout configs/strategies/momentum-breakout.yaml
-#run_strategy momentum_filtered configs/strategies/momentum-filtered.yaml
-#run_strategy opening_range configs/strategies/opening-range.yaml
+run_strategy momentum_breakout configs/strategies/momentum-breakout.yaml
+run_strategy momentum_filtered configs/strategies/momentum-filtered.yaml
+run_strategy opening_range configs/strategies/opening-range.yaml
 run_strategy opening_range_continuation configs/strategies/orc.yaml
-#run_strategy mean_reversion configs/strategies/mean-reversion.yaml
+run_strategy mean_reversion configs/strategies/mean-reversion.yaml
 
 python3 - <<'PY'
 import json, glob

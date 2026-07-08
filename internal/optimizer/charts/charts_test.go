@@ -1,4 +1,4 @@
-package optimizer
+package charts
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	core "bcs-trading-bot/internal/optimizer/core"
+	evalpkg "bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/pkg/models"
 )
 
@@ -19,15 +21,15 @@ func TestEvaluatePeriodDetailedMatchesMetrics(t *testing.T) {
 		{Ticker: "T", Close: 101, Timestamp: time.Date(2024, 1, 1, 10, 5, 0, 0, time.UTC)},
 	}
 	data := map[string][]models.Candle{"T": candles}
-	settings := RunSettings{Tickers: []string{"T"}, StrategyID: "momentum_breakout", StopMode: "atr"}
-	e := NewEvaluator(settings, &SearchSpace{
+	settings := evalpkg.RunSettings{Tickers: []string{"T"}, StrategyID: "momentum_breakout", StopMode: "atr"}
+	e := evalpkg.NewEvaluator(settings, &core.SearchSpace{
 		Strategy:   "momentum_breakout",
-		Parameters: map[string]ParamBounds{"lookback": {Type: ParamInt, Min: 1, Max: 2}},
+		Parameters: map[string]core.ParamBounds{"lookback": {Type: core.ParamInt, Min: 1, Max: 2}},
 	}, data)
 
 	from := candles[0].Timestamp
 	to := candles[len(candles)-1].Timestamp.Add(time.Minute)
-	params := ParameterSet{"lookback": 1}
+	params := core.ParameterSet{"lookback": 1}
 
 	metrics := e.EvaluatePeriod(context.Background(), params, from, to)
 	detailed := e.EvaluatePeriodDetailed(context.Background(), params, from, to)
@@ -60,7 +62,7 @@ func TestBuildChartHTMLContainsData(t *testing.T) {
 		Strategy:   "momentum_breakout",
 		PeriodFrom: now,
 		PeriodTo:   now.Add(time.Hour),
-		Metrics:    Metrics{NumTrades: 1, TotalPnL: 5},
+		Metrics:    core.Metrics{NumTrades: 1, TotalPnL: 5},
 	}, candles, trades, 5)
 	if err != nil {
 		t.Fatal(err)
@@ -226,7 +228,7 @@ func TestLoadLatestBestConfigPath(t *testing.T) {
 }
 
 func TestChartStats(t *testing.T) {
-	stats := chartStats(Metrics{
+	stats := chartStats(core.Metrics{
 		NumTrades:   4,
 		TotalPnL:    -120,
 		WinRate:     0.25,
@@ -301,7 +303,7 @@ func TestBuildChartHTMLZoomsToTrades(t *testing.T) {
 		Strategy:   "test",
 		PeriodFrom: base,
 		PeriodTo:   far,
-		Metrics:    Metrics{NumTrades: 1, TotalPnL: 5, WinRate: 1},
+		Metrics:    core.Metrics{NumTrades: 1, TotalPnL: 5, WinRate: 1},
 	}, candles, trades, 0)
 	if err != nil {
 		t.Fatal(err)

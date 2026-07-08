@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/bcs"
+	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
 )
@@ -23,75 +24,9 @@ import (
 const (
 	candlesChartURL = "https://be.broker.ru/trade-api-market-data-connector/api/v1/candles-chart"
 	maxBarsPerReq   = 1000
-
-	defaultChunkDelay     = 400 * time.Millisecond
-	defaultMinChunkDelay  = 50 * time.Millisecond
-	defaultMaxChunkDelay  = 3 * time.Second
-	defaultTickerDelay    = 3 * time.Second
-	defaultMaxRetries     = 6
-	defaultRetryBase      = 5 * time.Second
-	defaultRetryMax       = 60 * time.Second
 )
 
 var candlesHTTPClient = &http.Client{Timeout: 30 * time.Second}
-
-// FetchConfig — throttling и retry для candles-chart API.
-type FetchConfig struct {
-	ChunkDelay    time.Duration // мин. пауза (adaptive) или фиксированная
-	MaxChunkDelay time.Duration // макс. пауза adaptive throttle
-	TickerDelay   time.Duration // пауза между тикерами (последовательный режим)
-	MaxRetries    int           // повторы при 429
-	RetryBase     time.Duration // базовый backoff
-	RetryMax      time.Duration // потолок backoff
-	Adaptive      bool          // адаптивная пауза по ответам API
-	Throttle      *AdaptiveThrottle
-}
-
-func DefaultFetchConfig() FetchConfig {
-	return FetchConfig{
-		ChunkDelay:    defaultMinChunkDelay,
-		MaxChunkDelay: defaultMaxChunkDelay,
-		TickerDelay:   defaultTickerDelay,
-		MaxRetries:    defaultMaxRetries,
-		RetryBase:     defaultRetryBase,
-		RetryMax:      defaultRetryMax,
-		Adaptive:      true,
-	}
-}
-
-func (c FetchConfig) normalized() FetchConfig {
-	out := c
-	if out.Adaptive {
-		if out.ChunkDelay <= 0 {
-			out.ChunkDelay = defaultMinChunkDelay
-		}
-	} else if out.ChunkDelay <= 0 {
-		out.ChunkDelay = defaultChunkDelay
-	}
-	if out.MaxChunkDelay <= 0 {
-		out.MaxChunkDelay = defaultMaxChunkDelay
-	}
-	if out.TickerDelay <= 0 {
-		out.TickerDelay = defaultTickerDelay
-	}
-	if out.MaxRetries <= 0 {
-		out.MaxRetries = defaultMaxRetries
-	}
-	if out.RetryBase <= 0 {
-		out.RetryBase = defaultRetryBase
-	}
-	if out.RetryMax <= 0 {
-		out.RetryMax = defaultRetryMax
-	}
-	return out
-}
-
-func (c FetchConfig) throttle() *AdaptiveThrottle {
-	if c.Throttle != nil {
-		return c.Throttle
-	}
-	return NewAdaptiveThrottle(c.ChunkDelay, c.MaxChunkDelay)
-}
 
 type candlesResponse struct {
 	Bars []candleBar `json:"bars"`
@@ -108,15 +43,15 @@ type candleBar struct {
 
 // FetchCandles загружает исторические свечи с пагинацией (до 1000 баров за запрос).
 func FetchCandles(ctx context.Context, client *bcs.BCSClient, classCode, ticker, timeFrame string, from, to time.Time) ([]models.Candle, error) {
-	return FetchCandlesWithConfig(ctx, client, classCode, ticker, timeFrame, from, to, DefaultFetchConfig())
+	return FetchCandlesWithConfig(ctx, client, classCode, ticker, timeFrame, from, to, data.DefaultFetchConfig())
 }
 
 // FetchCandlesWithConfig — FetchCandles с настраиваемым throttling/retry.
-func FetchCandlesWithConfig(ctx context.Context, client *bcs.BCSClient, classCode, ticker, timeFrame string, from, to time.Time, cfg FetchConfig) ([]models.Candle, error) {
+func FetchCandlesWithConfig(ctx context.Context, client *bcs.BCSClient, classCode, ticker, timeFrame string, from, to time.Time, cfg data.FetchConfig) ([]models.Candle, error) {
 	if client.AccessToken() == "" {
 		return nil, fmt.Errorf("клиент не авторизован")
 	}
-	cfg = cfg.normalized()
+	cfg = cfg.Normalized()
 
 	var all []models.Candle
 	chunkStart := from
@@ -155,9 +90,9 @@ func FetchCandlesWithConfig(ctx context.Context, client *bcs.BCSClient, classCod
 }
 
 // fetchTickerRange загружает диапазон чанками с append-checkpoint в CSV после каждого чанка.
-func fetchTickerRange(ctx context.Context, client *bcs.BCSClient, path, ticker, classCode, timeFrame string, existing []models.Candle, from, to time.Time, cfg FetchConfig) (int, error) {
-	cfg = cfg.normalized()
-	throttle := cfg.throttle()
+func fetchTickerRange(ctx context.Context, client *bcs.BCSClient, path, ticker, classCode, timeFrame string, existing []models.Candle, from, to time.Time, cfg data.FetchConfig) (int, error) {
+	cfg = cfg.Normalized()
+	throttle := cfg.ThrottleOrDefault()
 
 	totalCount := len(existing)
 	var lastTS time.Time
@@ -232,9 +167,9 @@ func nextChunkStart(chunkStart, chunkEnd, lastBar time.Time, barDuration time.Du
 	return chunkStart.Add(barDuration * maxBarsPerReq)
 }
 
-func fetchCandlesChunk(ctx context.Context, client *bcs.BCSClient, classCode, ticker, timeFrame string, from, to time.Time, cfg FetchConfig) ([]models.Candle, error) {
-	cfg = cfg.normalized()
-	throttle := cfg.throttle()
+func fetchCandlesChunk(ctx context.Context, client *bcs.BCSClient, classCode, ticker, timeFrame string, from, to time.Time, cfg data.FetchConfig) ([]models.Candle, error) {
+	cfg = cfg.Normalized()
+	throttle := cfg.ThrottleOrDefault()
 	var lastErr error
 
 	for attempt := 0; attempt <= cfg.MaxRetries; attempt++ {

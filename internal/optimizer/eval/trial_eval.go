@@ -1,4 +1,4 @@
-package optimizer
+package eval
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
+	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/simulation"
 	"bcs-trading-bot/internal/storage/memory"
@@ -16,7 +17,7 @@ import (
 
 // trialContext — параметры trial, вычисленные один раз на весь trial.
 type trialContext struct {
-	params      ParameterSet
+	params      core.ParameterSet
 	stratParams strategy.Params
 	trailCfg    trailing.Config
 	maxLoss     float64
@@ -25,7 +26,7 @@ type trialContext struct {
 	lookback    int
 }
 
-func (e *Evaluator) newTrialContext(params ParameterSet) trialContext {
+func (e *Evaluator) newTrialContext(params core.ParameterSet) trialContext {
 	// Копируем params в strategy.Params один раз на trial, чтобы не пересобирать
 	// словарь на каждом окне walk-forward.
 	p := make(strategy.Params, len(params)+4)
@@ -48,11 +49,11 @@ func (e *Evaluator) newTrialContext(params ParameterSet) trialContext {
 }
 
 // PrecomputeWindowSlices преднарезает свечи по окнам (вызывать после GenerateWindows).
-func (e *Evaluator) PrecomputeWindowSlices(windows []Window) {
+func (e *Evaluator) PrecomputeWindowSlices(windows []core.Window) {
 	e.windowSlices = BuildWindowCandleSlices(windows, e.settings.Tickers, e.candleData)
 }
 
-func (e *Evaluator) evaluateTrial(ctx context.Context, index int, params ParameterSet, minTrades int) TrialResult {
+func (e *Evaluator) evaluateTrial(ctx context.Context, index int, params core.ParameterSet, minTrades int) TrialResult {
 	tc := e.newTrialContext(params)
 	var scores []float64
 	windowResults := make([]WindowResult, len(e.windowSlices))
@@ -60,16 +61,21 @@ func (e *Evaluator) evaluateTrial(ctx context.Context, index int, params Paramet
 	// Один trial = одинаковые параметры на всех окнах; итоговый score — агрегат по окнам.
 	for i, slices := range e.windowSlices {
 		pr := e.evaluateCandles(ctx, tc, slices.Candles)
-		scores = append(scores, Score(pr.Metrics, minTrades))
+		scores = append(scores, core.Score(pr.Metrics, minTrades))
 		windowResults[i] = WindowResult{Metrics: pr.Metrics}
 	}
 
 	return TrialResult{
 		Index:   index,
 		Params:  params,
-		Score:   MedianFloat(scores),
+		Score:   core.MedianFloat(scores),
 		Windows: windowResults,
 	}
+}
+
+// EvaluateTrialForCandidate оценивает один trial по предвычисленным окнам.
+func (e *Evaluator) EvaluateTrialForCandidate(ctx context.Context, index int, params core.ParameterSet, minTrades int) TrialResult {
+	return e.evaluateTrial(ctx, index, params, minTrades)
 }
 
 func (e *Evaluator) fixedValue(key string, fallback float64) float64 {

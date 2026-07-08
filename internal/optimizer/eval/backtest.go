@@ -1,10 +1,11 @@
-package optimizer
+package eval
 
 import (
 	"context"
 	"fmt"
 	"time"
 
+	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/strategy"
 )
 
@@ -13,14 +14,14 @@ type BacktestResult struct {
 	StrategyID string    `json:"strategy_id"`
 	From       time.Time `json:"from"`
 	To         time.Time `json:"to"`
-	Metrics    Metrics   `json:"metrics"`
+	Metrics    core.Metrics `json:"metrics"`
 	NumTrades  int       `json:"num_trades"`
 }
 
 // RunBacktest прогоняет одну конфигурацию на периоде.
-func RunBacktest(ctx context.Context, evaluator *Evaluator, from, to time.Time, params ParameterSet) BacktestResult {
+func RunBacktest(ctx context.Context, evaluator *Evaluator, from, to time.Time, params core.ParameterSet) BacktestResult {
 	if params == nil {
-		params = ParameterSet{}
+		params = core.ParameterSet{}
 	}
 	m := evaluator.EvaluatePeriod(ctx, params, from, to)
 	return BacktestResult{
@@ -33,14 +34,14 @@ func RunBacktest(ctx context.Context, evaluator *Evaluator, from, to time.Time, 
 }
 
 // DefaultParamsFromSpace возвращает середину search space для smoke backtest.
-func DefaultParamsFromSpace(space *SearchSpace) ParameterSet {
+func DefaultParamsFromSpace(space *core.SearchSpace) core.ParameterSet {
 	if space == nil {
-		return ParameterSet{}
+		return core.ParameterSet{}
 	}
-	out := make(ParameterSet, len(space.Parameters))
+	out := make(core.ParameterSet, len(space.Parameters))
 	for name, bounds := range space.Parameters {
 		switch bounds.Type {
-		case ParamInt:
+		case core.ParamInt:
 			lo := int(bounds.Min)
 			hi := int(bounds.Max)
 			out[name] = float64((lo + hi) / 2)
@@ -52,7 +53,7 @@ func DefaultParamsFromSpace(space *SearchSpace) ParameterSet {
 }
 
 // ValidateSearchSpaceStrategy проверяет соответствие CLI strategy и YAML.
-func ValidateSearchSpaceStrategy(cliStrategy string, space *SearchSpace) error {
+func ValidateSearchSpaceStrategy(cliStrategy string, space *core.SearchSpace) error {
 	want := strategy.ResolveType(cliStrategy)
 	got := strategy.ResolveType(space.Strategy)
 	if got == "" {

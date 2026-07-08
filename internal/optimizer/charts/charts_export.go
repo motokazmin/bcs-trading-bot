@@ -1,4 +1,4 @@
-package optimizer
+package charts
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/export"
+	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
 )
@@ -126,7 +127,7 @@ func loadOptimizerRunMeta(expDir string) *models.OptimizerExportInfo {
 		Best struct {
 			Score   float64 `json:"score"`
 			Windows []struct {
-				Metrics Metrics `json:"metrics"`
+				Metrics core.Metrics `json:"metrics"`
 			} `json:"windows"`
 		} `json:"best"`
 	}

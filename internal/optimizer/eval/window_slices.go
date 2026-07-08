@@ -1,6 +1,8 @@
-package optimizer
+package eval
 
 import (
+	core "bcs-trading-bot/internal/optimizer/core"
+	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/pkg/models"
 )
 
@@ -10,7 +12,7 @@ type WindowCandleSlices struct {
 }
 
 // BuildWindowCandleSlices нарезает историю по walk-forward окнам один раз при старте.
-func BuildWindowCandleSlices(windows []Window, tickers []string, candleData map[string][]models.Candle) []WindowCandleSlices {
+func BuildWindowCandleSlices(windows []core.Window, tickers []string, candleData map[string][]models.Candle) []WindowCandleSlices {
 	out := make([]WindowCandleSlices, len(windows))
 	for i, w := range windows {
 		candles := make(map[string][]models.Candle, len(tickers))
@@ -19,7 +21,7 @@ func BuildWindowCandleSlices(windows []Window, tickers []string, candleData map[
 			if !ok {
 				continue
 			}
-			candles[ticker] = FilterCandles(all, w.Start, w.End)
+			candles[ticker] = data.FilterCandles(all, w.Start, w.End)
 		}
 		out[i] = WindowCandleSlices{Candles: candles}
 	}

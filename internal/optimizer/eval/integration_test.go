@@ -1,4 +1,4 @@
-package optimizer_test
+package eval_test
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"bcs-trading-bot/internal/optimizer/core"
+	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/pkg/models"
 )
@@ -64,12 +66,12 @@ fixed:
 		t.Fatal(err)
 	}
 
-	space, err := optimizer.LoadSearchSpace(spacePath)
+	space, err := core.LoadSearchSpace(spacePath)
 	if err != nil {
 		t.Fatalf("load space: %v", err)
 	}
 
-	data, err := optimizer.LoadCandleData(dir, []string{"TEST"})
+	data, err := eval.LoadCandleData(dir, []string{"TEST"})
 	if err != nil {
 		t.Fatalf("load candles: %v", err)
 	}
@@ -77,7 +79,7 @@ fixed:
 	from := candles[0].Timestamp
 	to := candles[len(candles)-1].Timestamp.Add(time.Minute)
 
-	settings := optimizer.RunSettings{
+	settings := eval.RunSettings{
 		Tickers:            []string{"TEST"},
 		StopMode:           "atr",
 		ClassCode:          "TQBR",
@@ -89,22 +91,22 @@ fixed:
 		Session:            optimizer.DefaultSession(),
 	}
 
-	evaluator := optimizer.NewEvaluator(settings, space, data)
-	windows := optimizer.GenerateWindows(from, to.Add(24*time.Hour), 1, 1)
+	evaluator := eval.NewEvaluator(settings, space, data)
+	windows := core.GenerateWindows(from, to.Add(24*time.Hour), 1, 1)
 	if len(windows) == 0 {
-		windows = []optimizer.Window{{
+		windows = []core.Window{{
 			Start: from,
 			End:   to,
 		}}
 	}
 	evaluator.PrecomputeWindowSlices(windows)
 
-	result := optimizer.RunOptimization(context.Background(), evaluator, space, windows, 3, 1, rand.Int63())
+	result := eval.RunOptimization(context.Background(), evaluator, space, windows, 3, 1, rand.Int63())
 	if len(result.Trials) != 3 {
 		t.Fatalf("trials: got %d", len(result.Trials))
 	}
 
-	searcher := optimizer.NewRandomSearcher(space, 3, 42)
+	searcher := core.NewRandomSearcher(space, 3, 42)
 	for _, tr := range result.Trials {
 		searcher.Report(tr.Params, tr.Score)
 	}

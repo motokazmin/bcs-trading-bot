@@ -84,6 +84,7 @@ optimizer-run: build-optimizer sync-history
 
 strategy-matrix: build-optimizer
 	chmod +x scripts/run-strategy-matrix.sh
+	mkdir -p results
 	bash scripts/run-strategy-matrix.sh 2>&1 | tee results/strategy-matrix-run.log
 
 # --- Бот ---

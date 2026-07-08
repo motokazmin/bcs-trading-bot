@@ -1,25 +1,26 @@
-package optimizer
+package eval_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"bcs-trading-bot/internal/optimizer"
+	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/pkg/models"
 )
 
 func TestLoadCandleDataSkipsMissing(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "SBER.csv")
-	if err := WriteCSV(path, []models.Candle{{
+	if err := optimizer.WriteCSV(path, []models.Candle{{
 		Timestamp: time.Date(2024, 7, 1, 10, 0, 0, 0, time.UTC),
 		Open: 1, High: 2, Low: 0.5, Close: 1.5, Volume: 10,
 	}}); err != nil {
 		t.Fatal(err)
 	}
 
-	data, err := LoadCandleData(dir, []string{"SBER", "YNDX"})
+	data, err := eval.LoadCandleData(dir, []string{"SBER", "YNDX"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,29 +34,11 @@ func TestLoadCandleDataSkipsMissing(t *testing.T) {
 
 func TestLoadCandleDataAllMissing(t *testing.T) {
 	dir := t.TempDir()
-	_, err := LoadCandleData(dir, []string{"YNDX"})
+	_, err := eval.LoadCandleData(dir, []string{"YNDX"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
 }
-
-func TestFinishSyncHistoryPartialFailure(t *testing.T) {
-	errs := []error{fmtError("YNDX: fail")}
-	if err := finishSyncHistory(errs, 3); err != nil {
-		t.Fatalf("partial failure should succeed: %v", err)
-	}
-}
-
-func TestFinishSyncHistoryAllFailed(t *testing.T) {
-	errs := []error{fmtError("A: fail"), fmtError("B: fail")}
-	if err := finishSyncHistory(errs, 2); err == nil {
-		t.Fatal("expected error when all tickers failed")
-	}
-}
-
-type fmtError string
-
-func (e fmtError) Error() string { return string(e) }
 
 // TestAggregateTradesSortsAcrossTickersByTime проверяет, что MaxDrawdown/Calmar
 // считаются по хронологии закрытия сделок на уровне всего портфеля, а не по
@@ -82,7 +65,7 @@ func TestAggregateTradesSortsAcrossTickersByTime(t *testing.T) {
 	// Порядок поступления, как в EvaluatePeriod: сначала все сделки A, потом все сделки B.
 	concatenated := append(append([]models.ClosedTrade{}, tickerAOrder...), tickerBOrder...)
 
-	got := AggregateTrades(concatenated, 0)
+	got := eval.AggregateTrades(concatenated, 0)
 
 	// Хронологический порядок [+200,-150,+150,-50]: equity 200,50,200,150,
 	// просадка от пика 200 до 50 = 150.
@@ -94,13 +77,3 @@ func TestAggregateTradesSortsAcrossTickersByTime(t *testing.T) {
 	}
 }
 
-func TestWriteCSVCreatesFile(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "test.csv")
-	if err := WriteCSV(path, nil); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(path); err != nil {
-		t.Fatal(err)
-	}
-}

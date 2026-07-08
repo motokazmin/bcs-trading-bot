@@ -1,4 +1,4 @@
-package optimizer
+package eval
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/config"
+	core "bcs-trading-bot/internal/optimizer/core"
+	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/trailing"
 	"bcs-trading-bot/pkg/logx"
@@ -37,11 +39,11 @@ type Evaluator struct {
 	buildCtx     strategy.BuildContext
 	candleData   map[string][]models.Candle
 	windowSlices []WindowCandleSlices
-	space        *SearchSpace
+	space        *core.SearchSpace
 }
 
 // NewEvaluator создаёт evaluator с предзагруженной историей.
-func NewEvaluator(settings RunSettings, space *SearchSpace, candleData map[string][]models.Candle) *Evaluator {
+func NewEvaluator(settings RunSettings, space *core.SearchSpace, candleData map[string][]models.Candle) *Evaluator {
 	sid := strategy.ResolveType(settings.StrategyID)
 	if space != nil && space.Strategy != "" {
 		sid = strategy.ResolveType(space.Strategy)
@@ -64,42 +66,42 @@ func NewEvaluator(settings RunSettings, space *SearchSpace, candleData map[strin
 
 // PeriodResult — метрики и сделки одного backtest-прогона.
 type PeriodResult struct {
-	Metrics Metrics
+	Metrics core.Metrics
 	Trades  []models.ClosedTrade
 }
 
 // EvaluatePeriod прогоняет backtest на заданном периоде для всех тикеров.
-func (e *Evaluator) EvaluatePeriod(ctx context.Context, params ParameterSet, from, to time.Time) Metrics {
+func (e *Evaluator) EvaluatePeriod(ctx context.Context, params core.ParameterSet, from, to time.Time) core.Metrics {
 	return e.EvaluatePeriodDetailed(ctx, params, from, to).Metrics
 }
 
 // EvaluatePeriodDetailed как EvaluatePeriod, но возвращает и сделки.
-func (e *Evaluator) EvaluatePeriodDetailed(ctx context.Context, params ParameterSet, from, to time.Time) PeriodResult {
+func (e *Evaluator) EvaluatePeriodDetailed(ctx context.Context, params core.ParameterSet, from, to time.Time) PeriodResult {
 	byTicker := candlesByTickerInRange(e.candleData, e.settings.Tickers, from, to)
 	return e.evaluateCandles(ctx, e.newTrialContext(params), byTicker)
 }
 
 // EvaluateTickerPeriod прогоняет backtest для одного тикера на заданном периоде.
-func (e *Evaluator) EvaluateTickerPeriod(ctx context.Context, params ParameterSet, ticker string, from, to time.Time) PeriodResult {
+func (e *Evaluator) EvaluateTickerPeriod(ctx context.Context, params core.ParameterSet, ticker string, from, to time.Time) PeriodResult {
 	candles, ok := e.candleData[ticker]
 	if !ok {
 		return PeriodResult{}
 	}
-	filtered := FilterCandles(candles, from, to)
+	filtered := data.FilterCandles(candles, from, to)
 	if len(filtered) == 0 {
 		return PeriodResult{}
 	}
 	return e.evaluateCandles(ctx, e.newTrialContext(params), map[string][]models.Candle{ticker: filtered})
 }
 
-func candlesByTickerInRange(data map[string][]models.Candle, tickers []string, from, to time.Time) map[string][]models.Candle {
+func candlesByTickerInRange(dataByTicker map[string][]models.Candle, tickers []string, from, to time.Time) map[string][]models.Candle {
 	byTicker := make(map[string][]models.Candle, len(tickers))
 	for _, ticker := range tickers {
-		candles, ok := data[ticker]
+		candles, ok := dataByTicker[ticker]
 		if !ok {
 			continue
 		}
-		filtered := FilterCandles(candles, from, to)
+		filtered := data.FilterCandles(candles, from, to)
 		if len(filtered) > 0 {
 			byTicker[ticker] = filtered
 		}
@@ -115,7 +117,7 @@ func candlesByTickerInRange(data map[string][]models.Candle, tickers []string, f
 // порядок закрытия позиций на уровне портфеля — MaxDrawdown/Calmar
 // считались бы по бессмысленной "сначала весь SBER, потом весь GAZP"
 // последовательности вместо настоящей хронологии.
-func AggregateTrades(trades []models.ClosedTrade, commissionPerTrade float64) Metrics {
+func AggregateTrades(trades []models.ClosedTrade, commissionPerTrade float64) core.Metrics {
 	sorted := make([]models.ClosedTrade, len(trades))
 	copy(sorted, trades)
 	sort.Slice(sorted, func(i, j int) bool {
@@ -125,7 +127,7 @@ func AggregateTrades(trades []models.ClosedTrade, commissionPerTrade float64) Me
 	var netPnLs []float64
 	var returns []float64
 	for _, trade := range sorted {
-		net := NetPnLFromGross(trade.GrossPnL, trade.Quantity, commissionPerTrade)
+		net := core.NetPnLFromGross(trade.GrossPnL, trade.Quantity, commissionPerTrade)
 		netPnLs = append(netPnLs, net)
 		if trade.PnLR != 0 {
 			returns = append(returns, trade.PnLR)
@@ -137,10 +139,10 @@ func AggregateTrades(trades []models.ClosedTrade, commissionPerTrade float64) Me
 		}
 	}
 
-	return ComputeMetrics(netPnLs, returns)
+	return core.ComputeMetrics(netPnLs, returns)
 }
 
-func (e *Evaluator) trailCfg(params ParameterSet) trailing.Config {
+func (e *Evaluator) trailCfg(params core.ParameterSet) trailing.Config {
 	cfg := trailing.DefaultConfig()
 	cfg.StepPriceValue = e.settings.StepPriceValue
 	cfg.CommissionPerLot = e.settings.CommissionPerLot
@@ -163,7 +165,7 @@ func LoadCandleData(historyDir string, tickers []string) (map[string][]models.Ca
 	var skipped []string
 	for _, ticker := range tickers {
 		path := filepath.Join(historyDir, ticker+".csv")
-		candles, err := TryLoadCSV(path, ticker)
+		candles, err := data.TryLoadCSV(path, ticker)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", ticker, err)
 		}

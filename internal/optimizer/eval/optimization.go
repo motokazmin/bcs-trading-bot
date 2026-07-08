@@ -1,4 +1,4 @@
-package optimizer
+package eval
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/pkg/logx"
 )
 
@@ -22,7 +23,7 @@ type OptimizationConfig struct {
 }
 
 // RunOptimization выполняет walk-forward random search.
-func RunOptimization(ctx context.Context, evaluator *Evaluator, space *SearchSpace, windows []Window, trials, minTrades int, seed int64) *RunResult {
+func RunOptimization(ctx context.Context, evaluator *Evaluator, space *core.SearchSpace, windows []core.Window, trials, minTrades int, seed int64) *RunResult {
 	return RunOptimizationWithConfig(ctx, evaluator, space, windows, OptimizationConfig{
 		Trials:    trials,
 		MinTrades: minTrades,
@@ -31,7 +32,7 @@ func RunOptimization(ctx context.Context, evaluator *Evaluator, space *SearchSpa
 }
 
 // RunOptimizationWithConfig выполняет walk-forward random search с настройкой параллелизма.
-func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space *SearchSpace, windows []Window, cfg OptimizationConfig) *RunResult {
+func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space *core.SearchSpace, windows []core.Window, cfg OptimizationConfig) *RunResult {
 	// Преднарезаем свечи по окнам один раз, чтобы не фильтровать историю в каждом trial.
 	if len(evaluator.windowSlices) == 0 {
 		evaluator.PrecomputeWindowSlices(windows)
@@ -51,7 +52,7 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 	}
 
 	// Параметры семплируем заранее с фиксированным seed для воспроизводимости прогона.
-	trialParams := make([]ParameterSet, trials)
+	trialParams := make([]core.ParameterSet, trials)
 	rng := rand.New(rand.NewSource(cfg.Seed))
 	for i := range trialParams {
 		trialParams[i] = space.Sample(rng)
@@ -82,7 +83,7 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 		}
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(index int, params ParameterSet) {
+		go func(index int, params core.ParameterSet) {
 			defer wg.Done()
 			defer func() { <-sem }()
 

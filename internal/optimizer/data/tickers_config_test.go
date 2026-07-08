@@ -1,4 +1,4 @@
-package optimizer_test
+package data
 
 import (
 	"os"
@@ -6,35 +6,8 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/costs"
-	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/pkg/models"
 )
-
-func TestMergeCandles(t *testing.T) {
-	t0 := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
-	t1 := t0.Add(5 * time.Minute)
-	t2 := t1.Add(5 * time.Minute)
-
-	existing := []models.Candle{
-		{Timestamp: t0, Close: 100},
-		{Timestamp: t1, Close: 101},
-	}
-	fresh := []models.Candle{
-		{Timestamp: t1, Close: 999}, // дубликат — должен остаться первый
-		{Timestamp: t2, Close: 102},
-	}
-
-	merged := optimizer.MergeCandles(existing, fresh)
-	if len(merged) != 3 {
-		t.Fatalf("len: got %d, want 3", len(merged))
-	}
-	if merged[1].Close != 101 {
-		t.Fatalf("dedupe: got close %.2f, want 101", merged[1].Close)
-	}
-	if merged[2].Close != 102 {
-		t.Fatalf("last close: got %.2f", merged[2].Close)
-	}
-}
 
 func TestLoadTickersConfig(t *testing.T) {
 	dir := t.TempDir()
@@ -48,7 +21,7 @@ tickers: [SBER, GAZP]
 		t.Fatal(err)
 	}
 
-	u, err := optimizer.LoadTickersConfig(path)
+	u, err := LoadTickersConfig(path)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -66,11 +39,11 @@ tickers: [SBER, GAZP]
 func TestCandleDataRange(t *testing.T) {
 	t0 := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	t1 := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
-	data := map[string][]models.Candle{
+	candleData := map[string][]models.Candle{
 		"A": {{Timestamp: t0}, {Timestamp: t1}},
 		"B": {{Timestamp: t0.Add(24 * time.Hour)}},
 	}
-	from, to, ok := optimizer.CandleDataRange(data)
+	from, to, ok := CandleDataRange(candleData)
 	if !ok {
 		t.Fatal("expected ok")
 	}

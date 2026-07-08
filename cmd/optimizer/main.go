@@ -12,6 +12,11 @@ import (
 
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/optimizer"
+	"bcs-trading-bot/internal/optimizer/charts"
+	"bcs-trading-bot/internal/optimizer/core"
+	"bcs-trading-bot/internal/optimizer/data"
+	"bcs-trading-bot/internal/optimizer/eval"
+	"bcs-trading-bot/internal/optimizer/report"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
@@ -93,21 +98,21 @@ func runCmd(args []string) {
 		}
 	}
 
-	u, err := optimizer.LoadTickersConfig(*tickersConfigPath)
+	u, err := data.LoadTickersConfig(*tickersConfigPath)
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
 	tickerList := u.ResolveTickers(*tickers)
 
-	space, err := optimizer.LoadSearchSpace(spacePath)
+	space, err := core.LoadSearchSpace(spacePath)
 	if err != nil {
 		logx.Fatalf("search space: %v", err)
 	}
-	if err := optimizer.ValidateSearchSpaceStrategy(*strategyID, space); err != nil {
+	if err := eval.ValidateSearchSpaceStrategy(*strategyID, space); err != nil {
 		logx.Fatalf("%v", err)
 	}
 
-	candleData, err := optimizer.LoadCandleData(*historyDir, tickerList)
+	candleData, err := eval.LoadCandleData(*historyDir, tickerList)
 	if err != nil {
 		logx.Fatalf("загрузка истории: %v", err)
 	}
@@ -118,14 +123,14 @@ func runCmd(args []string) {
 		logx.Fatalf("даты: %v", err)
 	}
 
-	windows := optimizer.GenerateWindows(from, to, *windowMonths, *stepMonths)
+	windows := core.GenerateWindows(from, to, *windowMonths, *stepMonths)
 	if len(windows) == 0 {
 		logx.Fatal("не удалось сгенерировать walk-forward окна — проверьте даты и window-months")
 	}
 	logx.Info("стратегия: %s | тикеры: %s | период: %s → %s | окон: %d | trials: %d",
 		*strategyID, strings.Join(tickerList, ","), from.Format("2006-01-02"), to.Format("2006-01-02"), len(windows), *trials)
 
-	settings := optimizer.RunSettings{
+	settings := eval.RunSettings{
 		Tickers:            tickerList,
 		HistoryDir:         *historyDir,
 		StrategyID:         *strategyID,
@@ -142,14 +147,14 @@ func runCmd(args []string) {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	optCfg := optimizer.OptimizationConfig{
+	optCfg := eval.OptimizationConfig{
 		Trials:      *trials,
 		MinTrades:   *minTrades,
 		Seed:        *seed,
 		Parallelism: *parallel,
 	}
 
-	var result *optimizer.RunResult
+	var result *eval.RunResult
 	if *twoPhase {
 		phase1, err := optimizer.ResolvePhase1Tickers(*phase1Tickers, u.LeanTickers, tickerList)
 		if err != nil {
@@ -166,21 +171,21 @@ func runCmd(args []string) {
 		// universe — нужно только в этой ветке; в -two-phase свои evaluator'ы
 		// создаёт и нарезает RunTwoPhaseOptimization (сначала на lean, потом на
 		// полном), пересоздавать их здесь заранее было бы лишней работой.
-		evaluator := optimizer.NewEvaluator(settings, space, candleData)
+		evaluator := eval.NewEvaluator(settings, space, candleData)
 		evaluator.PrecomputeWindowSlices(windows)
-		result = optimizer.RunOptimizationWithConfig(ctx, evaluator, space, windows, optCfg)
+		result = eval.RunOptimizationWithConfig(ctx, evaluator, space, windows, optCfg)
 	}
 
-	jsonPath, yamlPath, err := optimizer.WriteResults(*output, result, settings, space)
+	jsonPath, yamlPath, err := report.WriteResults(*output, result, settings, space)
 	if err != nil {
 		logx.Fatalf("запись результатов: %v", err)
 	}
 
-	optimizer.PrintTopN(result, 5)
+	report.PrintTopN(result, 5)
 	logx.Info("JSON: %s", jsonPath)
 	logx.Info("best-config: %s", yamlPath)
 
-	chartsResult, chartsErr := optimizer.RunCharts(ctx, optimizer.ChartsOptions{
+	chartsResult, chartsErr := charts.RunCharts(ctx, charts.ChartsOptions{
 		ExperimentDir:      *output,
 		HistoryDir:         *historyDir,
 		CommissionPerLot:     u.CommissionPerLot(*commission),
@@ -219,20 +224,20 @@ func backtestCmd(args []string) {
 		}
 	}
 
-	u, err := optimizer.LoadTickersConfig(*tickersConfigPath)
+	u, err := data.LoadTickersConfig(*tickersConfigPath)
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
-	space, err := optimizer.LoadSearchSpace(spacePath)
+	space, err := core.LoadSearchSpace(spacePath)
 	if err != nil {
 		logx.Fatalf("search space: %v", err)
 	}
-	if err := optimizer.ValidateSearchSpaceStrategy(*strategyID, space); err != nil {
+	if err := eval.ValidateSearchSpaceStrategy(*strategyID, space); err != nil {
 		logx.Fatalf("%v", err)
 	}
 
 	tickerList := u.ResolveTickers(*tickers)
-	candleData, err := optimizer.LoadCandleData(*historyDir, tickerList)
+	candleData, err := eval.LoadCandleData(*historyDir, tickerList)
 	if err != nil {
 		logx.Fatalf("загрузка истории: %v", err)
 	}
@@ -243,7 +248,7 @@ func backtestCmd(args []string) {
 		logx.Fatalf("даты: %v", err)
 	}
 
-	settings := optimizer.RunSettings{
+	settings := eval.RunSettings{
 		Tickers:            tickerList,
 		StrategyID:         *strategyID,
 		StopMode:           *stopMode,
@@ -255,11 +260,11 @@ func backtestCmd(args []string) {
 		MinTrades:          1,
 		Session:            optimizer.DefaultSession(),
 	}
-	evaluator := optimizer.NewEvaluator(settings, space, candleData)
-	params := optimizer.DefaultParamsFromSpace(space)
+	evaluator := eval.NewEvaluator(settings, space, candleData)
+	params := eval.DefaultParamsFromSpace(space)
 
 	ctx := context.Background()
-	result := optimizer.RunBacktest(ctx, evaluator, from, to, params)
+	result := eval.RunBacktest(ctx, evaluator, from, to, params)
 
 	fmt.Printf("strategy=%s period=%s → %s\n", result.StrategyID, from.Format("2006-01-02"), to.Format("2006-01-02"))
 	fmt.Printf("trades=%d total_pnl=%.2f sharpe=%.4f max_dd=%.2f win_rate=%.2f\n",
@@ -280,7 +285,7 @@ func chartsCmd(args []string) {
 	}
 
 	ctx := context.Background()
-	result, err := optimizer.RunCharts(ctx, optimizer.ChartsOptions{
+	result, err := charts.RunCharts(ctx, charts.ChartsOptions{
 		Experiment:     *experiment,
 		ResultsDir:     *resultsDir,
 		HistoryDir:     *historyDir,
@@ -317,7 +322,7 @@ func syncHistoryCmd(args []string) {
 		logx.Fatal("задайте BCS_REFRESH_TOKEN")
 	}
 
-	u, err := optimizer.LoadTickersConfig(*tickersConfigPath)
+	u, err := data.LoadTickersConfig(*tickersConfigPath)
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
@@ -347,7 +352,7 @@ func syncHistoryCmd(args []string) {
 		InitialHistoryYears: years,
 		Tickers:             tickerList,
 		ParallelTickers:     *parallelTickers,
-		Fetch: optimizer.FetchConfig{
+		Fetch: data.FetchConfig{
 			ChunkDelay:    *chunkDelay,
 			MaxChunkDelay: *maxChunkDelay,
 			TickerDelay:   *tickerDelay,
@@ -372,7 +377,7 @@ func fetchHistoryCmd(args []string) {
 		logx.Fatal("задайте BCS_REFRESH_TOKEN")
 	}
 
-	u, err := optimizer.LoadTickersConfig(*tickersConfigPath)
+	u, err := data.LoadTickersConfig(*tickersConfigPath)
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
@@ -382,13 +387,13 @@ func fetchHistoryCmd(args []string) {
 	from := now.AddDate(-u.InitialHistoryYears, 0, 0)
 	to := now
 	if *dateFrom != "" {
-		from, err = optimizer.ParseDate(*dateFrom)
+		from, err = report.ParseDate(*dateFrom)
 		if err != nil {
 			logx.Fatalf("date-from: %v", err)
 		}
 	}
 	if *dateTo != "" {
-		to, err = optimizer.ParseDate(*dateTo)
+		to, err = report.ParseDate(*dateTo)
 		if err != nil {
 			logx.Fatalf("date-to: %v", err)
 		}
@@ -406,7 +411,7 @@ func fetchHistoryCmd(args []string) {
 	}
 
 	logx.Info("fetch-history (полная перезагрузка): %s → %s", from.Format("2006-01-02"), to.Format("2006-01-02"))
-	if err := optimizer.FetchHistory(ctx, client, tickerList, u.ClassCode, u.CandleTimeframe, *outputDir, from, to, optimizer.DefaultFetchConfig()); err != nil {
+	if err := optimizer.FetchHistory(ctx, client, tickerList, u.ClassCode, u.CandleTimeframe, *outputDir, from, to, data.DefaultFetchConfig()); err != nil {
 		logx.Fatalf("fetch-history: %v", err)
 	}
 }
@@ -426,14 +431,14 @@ func filterLoadedTickers(requested []string, data map[string][]models.Candle) []
 
 // resolveDateRange определяет рабочий диапазон дат для оптимизации/бэктеста.
 // Приоритет: явные значения из флагов CLI, иначе границы берутся из доступного CSV.
-func resolveDateRange(fromStr, toStr string, data map[string][]models.Candle) (time.Time, time.Time, error) {
+func resolveDateRange(fromStr, toStr string, candleData map[string][]models.Candle) (time.Time, time.Time, error) {
 	// Если обе даты заданы явно, используем их без обращения к данным.
 	if fromStr != "" && toStr != "" {
-		from, err := optimizer.ParseDate(fromStr)
+		from, err := report.ParseDate(fromStr)
 		if err != nil {
 			return time.Time{}, time.Time{}, err
 		}
-		to, err := optimizer.ParseDate(toStr)
+		to, err := report.ParseDate(toStr)
 		if err != nil {
 			return time.Time{}, time.Time{}, err
 		}
@@ -441,7 +446,7 @@ func resolveDateRange(fromStr, toStr string, data map[string][]models.Candle) (t
 	}
 
 	// Базовый диапазон берём из фактически загруженных свечей.
-	csvFrom, csvTo, ok := optimizer.CandleDataRange(data)
+	csvFrom, csvTo, ok := data.CandleDataRange(candleData)
 	if !ok {
 		return time.Time{}, time.Time{}, fmt.Errorf("нет данных в CSV")
 	}
@@ -451,14 +456,14 @@ func resolveDateRange(fromStr, toStr string, data map[string][]models.Candle) (t
 	// Частично заданные флаги переопределяют соответствующую границу CSV-диапазона.
 	if fromStr != "" {
 		var err error
-		from, err = optimizer.ParseDate(fromStr)
+		from, err = report.ParseDate(fromStr)
 		if err != nil {
 			return time.Time{}, time.Time{}, err
 		}
 	}
 	if toStr != "" {
 		var err error
-		to, err = optimizer.ParseDate(toStr)
+		to, err = report.ParseDate(toStr)
 		if err != nil {
 			return time.Time{}, time.Time{}, err
 		}

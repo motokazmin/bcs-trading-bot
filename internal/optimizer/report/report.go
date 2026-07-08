@@ -1,4 +1,4 @@
-package optimizer
+package report
 
 import (
 	"encoding/json"
@@ -11,62 +11,12 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/config"
+	core "bcs-trading-bot/internal/optimizer/core"
+	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/pkg/logx"
 
 	"gopkg.in/yaml.v3"
 )
-
-// WindowResult — метрики одного окна.
-type WindowResult struct {
-	Metrics Metrics `json:"metrics"`
-}
-
-// TrialResult — результат одного trial.
-// Trial в optimizer — это одна попытка с конкретным набором параметров стратегии:
-// 1) берём один sample из search space,
-// 2) прогоняем его через все walk-forward окна,
-// 3) агрегируем итоговый score и метрики по окнам.
-type TrialResult struct {
-	Index   int            `json:"index"`
-	Params  ParameterSet   `json:"params"`
-	Score   float64        `json:"score"`
-	Windows []WindowResult `json:"windows"`
-}
-
-// RunResult — полный результат оптимизации.
-type RunResult struct {
-	Timestamp time.Time     `json:"timestamp"`
-	Trials    []TrialResult `json:"trials"`
-	Best      TrialResult   `json:"best"`
-}
-
-func optimizerProgressInterval(total int) int {
-	switch {
-	case total <= 5:
-		return 1
-	case total <= 25:
-		return 5
-	default:
-		interval := total / 20
-		if interval < 10 {
-			return 10
-		}
-		return interval
-	}
-}
-
-func logOptimizerProgress(done, total int, bestScore float64, started time.Time) {
-	elapsed := time.Since(started)
-	pct := done * 100 / total
-	msg := fmt.Sprintf("optimizer: %d/%d (%d%%) best_score=%s elapsed=%s",
-		done, total, pct, formatOptimizerScore(bestScore), elapsed.Round(time.Second))
-	if done > 0 && done < total {
-		eta := time.Duration(int64(elapsed) * int64(total-done) / int64(done))
-		msg += fmt.Sprintf(" eta=%s", eta.Round(time.Second))
-	}
-	logx.Info("%s", msg)
-}
 
 func formatOptimizerScore(s float64) string {
 	switch {
@@ -84,7 +34,7 @@ func formatOptimizerScore(s float64) string {
 }
 
 // WriteResults сохраняет JSON-отчёт и best-config YAML.
-func WriteResults(outputDir string, result *RunResult, settings RunSettings, space *SearchSpace) (jsonPath, yamlPath string, err error) {
+func WriteResults(outputDir string, result *eval.RunResult, settings eval.RunSettings, space *core.SearchSpace) (jsonPath, yamlPath string, err error) {
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return "", "", err
 	}
@@ -113,7 +63,7 @@ func WriteResults(outputDir string, result *RunResult, settings RunSettings, spa
 }
 
 // PrintTopN выводит top-N конфигураций в stdout.
-func PrintTopN(result *RunResult, n int) {
+func PrintTopN(result *eval.RunResult, n int) {
 	if n > len(result.Trials) {
 		n = len(result.Trials)
 	}
@@ -128,7 +78,7 @@ func PrintTopN(result *RunResult, n int) {
 	}
 }
 
-func totalWindowPnL(t TrialResult) float64 {
+func totalWindowPnL(t eval.TrialResult) float64 {
 	var sum float64
 	for _, w := range t.Windows {
 		sum += w.Metrics.TotalPnL
@@ -136,7 +86,7 @@ func totalWindowPnL(t TrialResult) float64 {
 	return sum
 }
 
-func totalWindowTrades(t TrialResult) int {
+func totalWindowTrades(t eval.TrialResult) int {
 	total := 0
 	for _, w := range t.Windows {
 		total += w.Metrics.NumTrades
@@ -144,7 +94,7 @@ func totalWindowTrades(t TrialResult) int {
 	return total
 }
 
-func sortedParamKeys(p ParameterSet) []string {
+func sortedParamKeys(p core.ParameterSet) []string {
 	keys := make([]string, 0, len(p))
 	for k := range p {
 		keys = append(keys, k)
@@ -211,7 +161,7 @@ type riskYAML struct {
 	RiskPerTradePercent float64 `yaml:"risk_per_trade_percent"`
 }
 
-func buildBestConfig(params ParameterSet, settings RunSettings, space *SearchSpace, best TrialResult) bestConfigYAML {
+func buildBestConfig(params core.ParameterSet, settings eval.RunSettings, space *core.SearchSpace, best eval.TrialResult) bestConfigYAML {
 	riskPct := space.FixedValue("riskPerTradePercent", 0.5)
 	dailyLossPct := space.FixedValue("dailyLossLimitPercent", 2.0)
 
@@ -263,7 +213,7 @@ func buildBestConfig(params ParameterSet, settings RunSettings, space *SearchSpa
 	}
 }
 
-func strategyYAMLFromConfig(cfg config.StrategyConfig, params ParameterSet) strategyYAML {
+func strategyYAMLFromConfig(cfg config.StrategyConfig, params core.ParameterSet) strategyYAML {
 	y := strategyYAML{
 		Type:                      cfg.TypeOrDefault(),
 		Lookback:                  cfg.Lookback,
@@ -311,13 +261,13 @@ type jsonSafeRunResult struct {
 }
 
 type jsonSafeTrialResult struct {
-	Index   int            `json:"index"`
-	Params  ParameterSet   `json:"params"`
-	Score   *float64       `json:"score"`
-	Windows []WindowResult `json:"windows"`
+	Index   int                `json:"index"`
+	Params  core.ParameterSet  `json:"params"`
+	Score   *float64           `json:"score"`
+	Windows []eval.WindowResult `json:"windows"`
 }
 
-func marshalRunResultJSON(result *RunResult) ([]byte, error) {
+func marshalRunResultJSON(result *eval.RunResult) ([]byte, error) {
 	safe := jsonSafeRunResult{
 		Timestamp: result.Timestamp,
 		Trials:    make([]jsonSafeTrialResult, len(result.Trials)),
@@ -329,7 +279,7 @@ func marshalRunResultJSON(result *RunResult) ([]byte, error) {
 	return json.MarshalIndent(safe, "", "  ")
 }
 
-func toJSONSafeTrial(t TrialResult) jsonSafeTrialResult {
+func toJSONSafeTrial(t eval.TrialResult) jsonSafeTrialResult {
 	return jsonSafeTrialResult{
 		Index:   t.Index,
 		Params:  t.Params,

@@ -297,35 +297,36 @@ flowchart TB
     CLI --> RUN["run"]
     CLI --> SYNC["sync-history"]
     CLI --> BT["backtest"]
+    CLI --> CH["charts"]
 
-    RUN --> E["Evaluator"]
+    RUN --> EV["eval.Evaluator"]
     SYNC --> CSV[("data/history/*.csv")]
-    CSV --> E
+    CSV --> EV
 
-    E --> SL["window_slices<br/>преднарезка"]
-    E --> OPT["optimization.go<br/>parallel trials"]
-    OPT --> TE["trial_eval.go<br/>evaluateTrial"]
+    RUN --> CORE["core/*<br/>search space + windows + objective"]
+    RUN --> REP["report/report.go<br/>JSON + best-config"]
+    CH --> CHP["charts/*<br/>html + export"]
 
-    TE --> SIM["simulation.Runner"]
+    EV --> SL["eval/window_slices.go<br/>преднарезка"]
+    EV --> OPT["eval/optimization.go<br/>parallel trials"]
+    OPT --> TE["eval/trial_eval.go<br/>evaluateTrial"]
+
+    TE --> SIM["simulation.PortfolioRunner"]
     SIM --> STR["strategy"]
     SIM --> RISK["risk + trailing + position"]
-
-    OPT --> REP["report.go<br/>JSON + best-config"]
 ```
 
 ### Модули `internal/optimizer/`
 
 | Модуль | Назначение |
 |--------|------------|
-| `walkforward.go` | Генерация скользящих окон |
-| `window_slices.go` | Преднарезка свечей |
-| `config.go` | Search space, `Sample()` |
-| `trial_eval.go` | Один trial = все окна × тикеры |
-| `objective.go` | `Score`, `Metrics`, комиссия |
-| `optimization.go` | Worker pool, random search |
+| `core/*` | Search space, random search, метрики/score, walk-forward окна |
+| `eval/*` | `Evaluator`, trial execution, backtest, parallel optimization |
+| `report/*` | JSON-отчёт, `best-config`, печать top-N |
+| `charts/*` | HTML-графики, export для ИИ-анализа |
+| `data/*` | `tickers.yaml`, fetch/throttle-конфиг, утилиты свечей |
 | `two_phase.go` | Lean → full |
 | `history.go`, `fetch.go` | CSV и BCS API |
-| `report.go` | Отчёты |
 
 ### Ключевые типы
 
@@ -341,7 +342,7 @@ type TrialResult struct {
 
 - **No auto-deploy** — `best-config` применяется вручную
 - **`stop_mode` / universe** — вне search space, отдельные CLI-запуски
-- **`Searcher`** — задел под TPE/Bayesian (`search.go`)
+- **`Searcher`** — задел под TPE/Bayesian (`internal/optimizer/core/search.go`)
 
 ### Известные исправления (старые прогоны)
 
@@ -359,7 +360,7 @@ type TrialResult struct {
 
 `VirtualExecutor` и `ClosedTrade.GrossPnL` **не вычитают** комиссию. Optimizer вычитает `-commission_per_lot × quantity` при расчёте `Metrics.TotalPnL`.
 
-Defaults: **0.10 ₽** round-trip за акцию (TQBR), **5.0 ₽** за контракт (SPBFUT). Задаётся в `costs.commission_per_lot` (universe / best-config) или флагом `-commission-per-lot`. Трейлинг-стоп использует то же значение для offset безубытка.
+Defaults: **0.10 ₽** round-trip за акцию (TQBR), **5.0 ₽** за контракт (SPBFUT). Задаётся в `costs.commission_per_lot` (`tickers.yaml` / `best-config`) или флагом `-commission-per-lot`. Трейлинг-стоп использует то же значение для offset безубытка.
 
 ## Выходные файлы
 
@@ -475,6 +476,6 @@ universe/периоде для данного набора стратегий н
 
 ## Расширение алгоритма поиска
 
-Интерфейс `optimizer.Searcher` готов для замены Random Search на TPE/Bayesian (см. TODO в `internal/optimizer/search.go`).
+Интерфейс `core.Searcher` готов для замены Random Search на TPE/Bayesian (см. TODO в `internal/optimizer/core/search.go`).
 
 Сборка: `go build -o bin/optimizer ./cmd/optimizer`

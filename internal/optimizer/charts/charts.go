@@ -1,4 +1,4 @@
-package optimizer
+package charts
 
 import (
 	"bytes"
@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/config"
+	core "bcs-trading-bot/internal/optimizer/core"
+	"bcs-trading-bot/internal/optimizer/data"
+	evalpkg "bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
 )
@@ -70,19 +73,19 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 		return nil, fmt.Errorf("в конфиге нет тикеров")
 	}
 
-	candleData, err := LoadCandleData(opts.HistoryDir, tickers)
+	candleData, err := evalpkg.LoadCandleData(opts.HistoryDir, tickers)
 	if err != nil {
 		return nil, err
 	}
 
-	from, to, ok := CandleDataRange(candleData)
+	from, to, ok := data.CandleDataRange(candleData)
 	if !ok {
 		return nil, fmt.Errorf("нет свечей для графиков")
 	}
 	to = to.Add(time.Minute)
 
 	params := parameterSetFromConfig(cfg)
-	space := &SearchSpace{
+	space := &core.SearchSpace{
 		Strategy: cfg.Strategy.TypeOrDefault(),
 		Fixed: map[string]float64{
 			"riskPerTradePercent":   cfg.Risk.RiskPerTradePercent,
@@ -112,7 +115,7 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 	}
 
 	var allTrades []models.ClosedTrade
-	portfolioSettings := RunSettings{
+	portfolioSettings := evalpkg.RunSettings{
 		Tickers:          tickers,
 		StrategyID:       cfg.Strategy.TypeOrDefault(),
 		StopMode:         cfg.Strategy.StopMode,
@@ -123,7 +126,7 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 		CommissionPerLot: commission,
 		Session:          cfg.Session,
 	}
-	portfolioEvaluator := NewEvaluator(portfolioSettings, space, candleData)
+	portfolioEvaluator := evalpkg.NewEvaluator(portfolioSettings, space, candleData)
 	portfolio := portfolioEvaluator.EvaluatePeriodDetailed(ctx, params, from, to)
 	allTrades = append(allTrades, portfolio.Trades...)
 	sortTradesByClose(allTrades)
@@ -145,7 +148,7 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 		}
 		tTo = tTo.Add(time.Minute)
 
-		settings := RunSettings{
+		settings := evalpkg.RunSettings{
 			Tickers:            []string{ticker},
 			StrategyID:         cfg.Strategy.TypeOrDefault(),
 			StopMode:           cfg.Strategy.StopMode,
@@ -156,7 +159,7 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 			CommissionPerLot: commission,
 			Session:            cfg.Session,
 		}
-		evaluator := NewEvaluator(settings, space, candleData)
+		evaluator := evalpkg.NewEvaluator(settings, space, candleData)
 
 		period := evaluator.EvaluateTickerPeriod(ctx, params, ticker, tFrom, tTo)
 		if period.Metrics.NumTrades == 0 {
@@ -256,7 +259,7 @@ type ChartMeta struct {
 	Strategy   string
 	PeriodFrom time.Time
 	PeriodTo   time.Time
-	Metrics    Metrics
+	Metrics    core.Metrics
 }
 
 type chartPayload struct {
@@ -312,7 +315,7 @@ type chartStatItem struct {
 func BuildChartHTML(meta ChartMeta, candles []models.Candle, trades []models.ClosedTrade, commission float64) ([]byte, error) {
 	visible := candles
 	if windowFrom, windowTo, ok := tradeChartWindow(trades, chartWindowPadding); ok {
-		visible = FilterCandles(candles, windowFrom, windowTo.Add(5*time.Minute))
+		visible = data.FilterCandles(candles, windowFrom, windowTo.Add(5*time.Minute))
 		meta.PeriodFrom = windowFrom
 		meta.PeriodTo = windowTo
 	}
@@ -350,10 +353,10 @@ func BuildChartHTML(meta ChartMeta, candles []models.Candle, trades []models.Clo
 	return html, nil
 }
 
-func chartStats(m Metrics, trades []models.ClosedTrade, commission float64) []chartStatItem {
+func chartStats(m core.Metrics, trades []models.ClosedTrade, commission float64) []chartStatItem {
 	wins, losses := 0, 0
 	for _, t := range trades {
-		net := NetPnLFromGross(t.GrossPnL, t.Quantity, commission)
+		net := core.NetPnLFromGross(t.GrossPnL, t.Quantity, commission)
 		if net > 0 {
 			wins++
 		} else if net < 0 {
@@ -399,7 +402,7 @@ func avgExpectancyR(trades []models.ClosedTrade, commission float64) float64 {
 	}
 	sum := 0.0
 	for _, t := range trades {
-		net := NetPnLFromGross(t.GrossPnL, t.Quantity, commission)
+		net := core.NetPnLFromGross(t.GrossPnL, t.Quantity, commission)
 		step := t.StepPriceValue
 		if step <= 0 {
 			step = 1.0
@@ -439,7 +442,7 @@ func tradesToChartSpans(trades []models.ClosedTrade, commission float64) []chart
 			ExitTime:         t.ClosedAt.Unix(),
 			EntryPrice:       t.EntryPrice,
 			ExitPrice:        t.ExitPrice,
-			PnL:              NetPnLFromGross(t.GrossPnL, t.Quantity, commission),
+			PnL:              core.NetPnLFromGross(t.GrossPnL, t.Quantity, commission),
 			EntryLabel:       formatChartTimeMSK(t.OpenedAt),
 			ExitLabel:        formatChartTimeMSK(t.ClosedAt),
 			CloseReason:      t.CloseReason,
@@ -482,7 +485,7 @@ func tradesToChartMarkers(trades []models.ClosedTrade, commission float64) []cha
 			Size:     2,
 		})
 
-		net := NetPnLFromGross(t.GrossPnL, t.Quantity, commission)
+		net := core.NetPnLFromGross(t.GrossPnL, t.Quantity, commission)
 		exitColor := "#e57373"
 		if net > 0 {
 			exitColor = "#66bb6a"
@@ -500,9 +503,9 @@ func tradesToChartMarkers(trades []models.ClosedTrade, commission float64) []cha
 	return markers
 }
 
-func parameterSetFromConfig(cfg *config.Config) ParameterSet {
+func parameterSetFromConfig(cfg *config.Config) core.ParameterSet {
 	s := cfg.Strategy
-	p := ParameterSet{
+	p := core.ParameterSet{
 		"lookback":                  float64(s.Lookback),
 		"atrPeriod":                 float64(s.ATRPeriod),
 		"atrMultiplier":             s.ATRMultiplier,

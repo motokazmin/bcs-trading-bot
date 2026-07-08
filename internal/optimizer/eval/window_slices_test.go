@@ -1,9 +1,10 @@
-package optimizer
+package eval
 
 import (
 	"testing"
 	"time"
 
+	"bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/pkg/models"
 )
 
@@ -16,7 +17,7 @@ func TestBuildWindowCandleSlices(t *testing.T) {
 		{Timestamp: t0.Add(72 * time.Hour), Close: 4},
 	}
 	data := map[string][]models.Candle{"SBER": candles}
-	windows := []Window{{
+	windows := []core.Window{{
 		Start: t0,
 		End:   t0.Add(48 * time.Hour),
 	}}

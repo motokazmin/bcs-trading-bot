@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/pkg/models"
 )
 
@@ -27,12 +28,12 @@ func TestIsRetryableAPIError(t *testing.T) {
 }
 
 func TestFetchConfigNormalized(t *testing.T) {
-	cfg := FetchConfig{}.normalized()
+	cfg := data.FetchConfig{}.Normalized()
 	if cfg.ChunkDelay <= 0 || cfg.MaxRetries <= 0 {
 		t.Fatalf("defaults not applied: %+v", cfg)
 	}
-	def := DefaultFetchConfig().normalized()
-	if !def.Adaptive || def.ChunkDelay != defaultMinChunkDelay {
+	def := data.DefaultFetchConfig().Normalized()
+	if !def.Adaptive || def.ChunkDelay != data.DefaultMinChunkDelay {
 		t.Fatalf("default fetch config: %+v", def)
 	}
 }
