@@ -62,7 +62,6 @@ Usage:
 func runCmd(args []string) {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
-	legacyUniversePath := fs.String("universe", "", "DEPRECATED: используйте -tickers-config")
 	tickers := fs.String("tickers", "", "override тикеров через запятую")
 	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
 	strategyID := fs.String("strategy", strategy.DefaultType(), "id стратегии: "+strings.Join(strategy.ListIDs(), ", "))
@@ -94,12 +93,7 @@ func runCmd(args []string) {
 		}
 	}
 
-	tickersPath := *tickersConfigPath
-	if *legacyUniversePath != "" {
-		tickersPath = *legacyUniversePath
-	}
-
-	u, err := optimizer.LoadTickersConfig(tickersPath)
+	u, err := optimizer.LoadTickersConfig(*tickersConfigPath)
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
@@ -204,7 +198,6 @@ func runCmd(args []string) {
 func backtestCmd(args []string) {
 	fs := flag.NewFlagSet("backtest", flag.ExitOnError)
 	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
-	legacyUniversePath := fs.String("universe", "", "DEPRECATED: используйте -tickers-config")
 	tickers := fs.String("tickers", "", "override тикеров через запятую")
 	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
 	strategyID := fs.String("strategy", strategy.DefaultType(), "id стратегии")
@@ -226,12 +219,7 @@ func backtestCmd(args []string) {
 		}
 	}
 
-	tickersPath := *tickersConfigPath
-	if *legacyUniversePath != "" {
-		tickersPath = *legacyUniversePath
-	}
-
-	u, err := optimizer.LoadTickersConfig(tickersPath)
+	u, err := optimizer.LoadTickersConfig(*tickersConfigPath)
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
@@ -314,7 +302,6 @@ func chartsCmd(args []string) {
 func syncHistoryCmd(args []string) {
 	fs := flag.NewFlagSet("sync-history", flag.ExitOnError)
 	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
-	legacyUniversePath := fs.String("universe", "", "DEPRECATED: используйте -tickers-config")
 	tickers := fs.String("tickers", "", "override тикеров через запятую")
 	outputDir := fs.String("output-dir", "data/history", "директория для CSV")
 	initialYears := fs.Int("initial-years", 0, "глубина первичной загрузки (0 = из tickers-config)")
@@ -330,12 +317,7 @@ func syncHistoryCmd(args []string) {
 		logx.Fatal("задайте BCS_REFRESH_TOKEN")
 	}
 
-	tickersPath := *tickersConfigPath
-	if *legacyUniversePath != "" {
-		tickersPath = *legacyUniversePath
-	}
-
-	u, err := optimizer.LoadTickersConfig(tickersPath)
+	u, err := optimizer.LoadTickersConfig(*tickersConfigPath)
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
@@ -379,7 +361,6 @@ func syncHistoryCmd(args []string) {
 func fetchHistoryCmd(args []string) {
 	fs := flag.NewFlagSet("fetch-history", flag.ExitOnError)
 	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
-	legacyUniversePath := fs.String("universe", "", "DEPRECATED: используйте -tickers-config")
 	tickers := fs.String("tickers", "", "override тикеров")
 	dateFrom := fs.String("date-from", "", "начало YYYY-MM-DD (default: initial_history_years назад)")
 	dateTo := fs.String("date-to", "", "конец YYYY-MM-DD (default: сегодня)")
@@ -391,12 +372,7 @@ func fetchHistoryCmd(args []string) {
 		logx.Fatal("задайте BCS_REFRESH_TOKEN")
 	}
 
-	tickersPath := *tickersConfigPath
-	if *legacyUniversePath != "" {
-		tickersPath = *legacyUniversePath
-	}
-
-	u, err := optimizer.LoadTickersConfig(tickersPath)
+	u, err := optimizer.LoadTickersConfig(*tickersConfigPath)
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}

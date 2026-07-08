@@ -40,11 +40,6 @@ func LoadTickersConfig(path string) (*TickersConfig, error) {
 	return &u, nil
 }
 
-// LoadUniverse оставлен как legacy-алиас для обратной совместимости.
-func LoadUniverse(path string) (*TickersConfig, error) {
-	return LoadTickersConfig(path)
-}
-
 func (u *TickersConfig) normalize() {
 	u.ClassCode = strings.TrimSpace(strings.ToUpper(u.ClassCode))
 	if u.ClassCode == "" {
