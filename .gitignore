@@ -4,8 +4,11 @@ configs/local*.yaml
 # Бинарник
 #bot
 
-# Локальная БД сделок и CSV-история (корень репозитория)
-/data/
+# Локальная история и runtime-артефакты SQLite (корень репозитория)
+/data/*
+!data/trades.db
+data/*.db-wal
+data/*.db-shm
 bin/
 results/
 

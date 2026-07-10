@@ -15,11 +15,25 @@ func TestLoadExperimentsAll(t *testing.T) {
 		t.Fatalf("trading_mode: got %q", cfg.TradingMode)
 	}
 	exps := cfg.ResolvedExperiments()
+	if len(exps) != 10 {
+		t.Fatalf("experiments: got %d, want 10", len(exps))
+	}
+	if exps[0].ID != "momentum-breakout" {
+		t.Fatalf("first experiment: got %q", exps[0].ID)
+	}
+	if cfg.CommissionPerLot() != 0.10 {
+		t.Fatalf("commission_per_lot: got %v, want 0.10", cfg.CommissionPerLot())
+	}
+}
+
+func TestLoadLegacyATRExperiments(t *testing.T) {
+	cfg, err := config.Load("../../configs/runs/legacy/bot-experiments-atr-ab.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exps := cfg.ResolvedExperiments()
 	if len(exps) != 6 {
 		t.Fatalf("experiments: got %d, want 6", len(exps))
-	}
-	if len(cfg.AllTickerSymbols()) != 9 {
-		t.Fatalf("all tickers: got %d, want 9", len(cfg.AllTickerSymbols()))
 	}
 	if len(cfg.TickersForExperiment(exps[0])) != 3 {
 		t.Fatalf("atr-2-lean tickers: got %d, want 3", len(cfg.TickersForExperiment(exps[0])))
@@ -41,14 +55,9 @@ func TestLoadExperimentsAll(t *testing.T) {
 	if vol.Strategy.VolumeMinRatio != 1.5 {
 		t.Fatalf("volume_min_ratio: got %f", vol.Strategy.VolumeMinRatio)
 	}
-	if len(cfg.TickersForExperiment(vol)) != 9 {
-		t.Fatalf("atr-2-lean-vol tickers: got %d, want 9", len(cfg.TickersForExperiment(vol)))
-	}
-	if exps[5].ID != "atr-2-delayed-vol" || cfg.SessionForExperiment(exps[5]).EntryDelayMinutes != 30 {
-		t.Fatalf("atr-2-delayed-vol: %+v", exps[5])
-	}
-	if cfg.CommissionPerLot() != 0.10 {
-		t.Fatalf("commission_per_lot: got %v, want 0.10", cfg.CommissionPerLot())
+	lean1 := exps[1]
+	if lean1.ID != "atr-1-lean" || lean1.Strategy.ATRMultiplier != 1.0 {
+		t.Fatalf("atr-1-lean: id=%q atr=%f", lean1.ID, lean1.Strategy.ATRMultiplier)
 	}
 }
 

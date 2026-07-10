@@ -1,12 +1,13 @@
-# Конфигурация стратегии Opening Range Continuation (ORC)
+# Momentum Breakout — lean universe (по мотивам live atr-1-lean).
+# Фокус optimizer: NVTK/SBER/ROSN, узкий ATR-стоп, опциональный volume filter.
 trading_mode: virtual
 
 tickers:
-  - ticker: MGNT
+  - ticker: SBER
     step_price_value: 1.0
   - ticker: ROSN
     step_price_value: 1.0
-  - ticker: TATN
+  - ticker: NVTK
     step_price_value: 1.0
 
 class_code: TQBR
@@ -22,50 +23,52 @@ session:
   entry_delay_minutes: 0
 
 strategy:
-  type: opening_range_continuation
+  type: momentum_breakout
   stop_mode: atr
+  lookback: 20
   atr_period: 14
-  # Baseline после wave2 (seed 1), см. results/orc/runs-registry.json
-  atr_multiplier: 0.83
-  orb_minutes: 13
-  breakout_threshold: 0.0086
-  reward_ratio: 1.47
-  trail_activation_r: 2.04
+  atr_multiplier: 1.0
+  breakout_threshold: 0.0
+  trail_activation_r: 1.0
+  trail_discrete_step_r: 1.0
   trail_stage_max: 2
-  trail_breakeven_r: 0.028
-  max_trades_per_ticker_per_day: 2
+  max_trades_per_ticker_per_day: 3
 
 search_space:
-  strategy: opening_range_continuation
+  strategy: momentum_breakout
   parameters:
-    orbMinutes:
+    lookback:
       type: int
-      min: 12
-      max: 22
+      min: 15
+      max: 30
     breakoutThreshold:
       type: float
-      min: 0.003
-      max: 0.015
-    rewardRatio:
+      min: 0.0
+      max: 0.02
+    volumeFilter:
+      type: int
+      min: 0
+      max: 1
+    volumeFilterMultiplier:
       type: float
-      min: 1.3
+      min: 1.0
       max: 2.0
     atrMultiplier:
       type: float
       min: 0.8
-      max: 1.3
+      max: 2.0
     trailActivationR:
       type: float
-      min: 1.5
-      max: 2.2
+      min: 0.8
+      max: 2.0
+    trailDiscreteStepR:
+      type: float
+      min: 0.5
+      max: 1.0
     trailStageMax:
       type: int
       min: 1
-      max: 2
-    trailBreakevenR:
-      type: float
-      min: 0.0
-      max: 0.15
+      max: 3
     maxEntriesPerTickerPerDay:
       type: int
       min: 1
@@ -73,7 +76,6 @@ search_space:
   fixed:
     riskPerTradePercent: 0.5
     dailyLossLimitPercent: 2.0
-    maxParallelTrades: 2
 
 risk:
   deposit: 200000
@@ -86,4 +88,4 @@ virtual:
 
 storage:
   enabled: true
-  path: data/trades-orc.db
+  path: data/trades-momentum-lean.db

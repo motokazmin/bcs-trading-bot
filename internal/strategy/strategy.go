@@ -7,6 +7,7 @@ const (
 	IDMomentumFiltered            = "momentum_filtered"
 	IDOpeningRange                = "opening_range"
 	IDOpeningRangeContinuation    = "opening_range_continuation"
+	IDOpeningRangeFade            = "opening_range_fade"
 	IDMeanReversion               = "mean_reversion"
 )
 
@@ -30,6 +31,8 @@ func DefaultRewardRatio(typeID string) float64 {
 		return 2.0
 	case IDOpeningRangeContinuation:
 		return 2.60
+	case IDOpeningRangeFade:
+		return 1.5
 	case IDMomentumFiltered:
 		return 2.0
 	default:

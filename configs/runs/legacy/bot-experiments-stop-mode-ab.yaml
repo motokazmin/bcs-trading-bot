@@ -1,0 +1,76 @@
+# Параллельная проверка гипотезы «стоп слишком узкий?»
+# Пакет A: baseline (range) | atr-2 | atr-3
+# Legacy — только для справки (бот не в фокусе).
+# Запуск: go run ./cmd/bot -config configs/runs/legacy/bot-experiments-stop-mode-ab.yaml
+
+trading_mode: virtual
+
+tickers:
+  - SBER
+  - GAZP
+  - LKOH
+  - NVTK
+  - ROSN
+  - MGNT
+  - CHMF
+  - TATN
+  - MOEX
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_per_lot: 0.10
+
+session:
+  timezone: Europe/Moscow
+  eod_close_time: "18:40"
+  session_open_time: "10:00"
+
+storage:
+  path: data/trades.db
+
+experiments:
+  - id: baseline
+    name: "Range SL + cap 0.5%"
+    strategy:
+      type: momentum_breakout
+      lookback: 20
+      stop_mode: range
+      range_use_cap: true
+    risk:
+      deposit: 200000
+      max_daily_loss: 4000
+      risk_per_trade_percent: 0.5
+    virtual:
+      balance: 200000
+
+  - id: atr-2
+    name: "ATR × 2.0"
+    strategy:
+      type: momentum_breakout
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.0
+    risk:
+      deposit: 200000
+      max_daily_loss: 4000
+      risk_per_trade_percent: 0.5
+    virtual:
+      balance: 200000
+
+  - id: atr-3
+    name: "ATR × 3.0 (шире стоп)"
+    strategy:
+      type: momentum_breakout
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 3.0
+    risk:
+      deposit: 200000
+      max_daily_loss: 4000
+      risk_per_trade_percent: 0.5
+    virtual:
+      balance: 200000

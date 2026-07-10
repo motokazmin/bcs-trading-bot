@@ -310,9 +310,10 @@ func (p *PortfolioRunner) closePosition(ctx context.Context, executor interfaces
 		HoldSeconds:       int(closedAt.Sub(pos.OpenedAt).Seconds()),
 		TradingDate:       p.session.Today(closedAt),
 		CandleTimeframe:   st.cfg.CandleTimeframe,
-		Lookback:          st.cfg.Lookback,
-		RiskPerTradePct:   st.cfg.RiskPerTradePct,
-		DepositPerTicker:  st.cfg.Deposit,
+		Lookback:             st.cfg.Lookback,
+		RiskPerTradePct:      st.cfg.RiskPerTradePct,
+		DepositPerTicker:     st.cfg.Deposit,
+		StrategyParamsJSON:   st.cfg.StrategyParamsJSON,
 	}
 	_ = p.store.SaveClosedTrade(ctx, trade)
 }

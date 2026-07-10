@@ -12,12 +12,13 @@ BINARY_DIR := bin
 GO := go
 
 # Основной путь к shared-списку тикеров для optimizer.
-TICKERS_CONFIG    ?= configs/shared/tickers.yaml
+TICKERS_CONFIG    ?= configs/shared/tickers-orc.yaml
 # Legacy-алиас для совместимости со старыми локальными override.
 UNIVERSE          ?= $(TICKERS_CONFIG)
 HISTORY_DIR       ?= data/history
 SEARCH_SPACE      ?= configs/strategies/orc.yaml
-OPTIMIZER_OUT     ?= results/
+OPTIMIZER_STRATEGY ?= opening_range_continuation
+OPTIMIZER_OUT     ?= results/orc/
 PARALLEL_TICKERS  ?= 5
 OPTIMIZER_PARALLEL ?= 0
 OPTIMIZER_TWO_PHASE ?=
@@ -25,7 +26,7 @@ OPTIMIZER_TWO_PHASE ?=
 BOT_CONFIG ?= configs/runs/experiments-all.yaml
 
 .PHONY: build build-bot build-optimizer build-admin test \
-        sync-history optimizer-run strategy-matrix charts-all \
+        sync-history optimizer-run optimizer-orc optimizer-momentum optimizer-or-fade optimizer-focus strategy-matrix charts-all \
         bot bot-futures bot-real bot-smoke admin help
 
 help:
@@ -35,7 +36,10 @@ help:
 	@echo "  make test               — go test ./..."
 	@echo ""
 	@echo "  make sync-history       — догрузить историю (9 акций, параллельно)"
-	@echo "  make optimizer-run      — sync-history + walk-forward оптимизация"
+	@echo "  make optimizer-run      — sync-history + walk-forward ORC"
+	@echo "  make optimizer-orc        — ORC wave2 (300 trials) → results/orc/"
+	@echo "  make optimizer-or-fade      — OR Fade wave1 (300 trials) → results/or-fade/"
+	@echo "  make optimizer-focus      — alias для optimizer-orc"
 	@echo "  make charts-all         — HTML-графики по всем экспериментам в results/"
 	@echo ""
 	@echo "  make bot                — paper, все A/B-эксперименты (experiments-all.yaml)"
@@ -45,7 +49,8 @@ help:
 	@echo "  make admin              — веб-админка"
 	@echo ""
 	@echo "Переменные: TICKERS_CONFIG, HISTORY_DIR, PARALLEL_TICKERS, OPTIMIZER_PARALLEL,"
-	@echo "            OPTIMIZER_TWO_PHASE=1, SEARCH_SPACE, OPTIMIZER_OUT, BOT_CONFIG, BCS_REFRESH_TOKEN"
+	@echo "            OPTIMIZER_TWO_PHASE=1, OPTIMIZER_STRATEGY, SEARCH_SPACE, OPTIMIZER_OUT,"
+	@echo "            BOT_CONFIG, BCS_REFRESH_TOKEN"
 
 build: build-bot build-optimizer build-admin
 
@@ -76,6 +81,7 @@ sync-history: build-optimizer
 
 optimizer-run: build-optimizer sync-history
 	$(BINARY_DIR)/optimizer run \
+		-strategy $(OPTIMIZER_STRATEGY) \
 		-tickers-config $(TICKERS_CONFIG) \
 		-history-dir $(HISTORY_DIR) \
 		-search-space $(SEARCH_SPACE) \
@@ -87,6 +93,23 @@ strategy-matrix: build-optimizer
 	chmod +x scripts/run-strategy-matrix.sh
 	mkdir -p results
 	bash scripts/run-strategy-matrix.sh 2>&1 | tee results/strategy-matrix-run.log
+
+optimizer-orc: build-optimizer
+	chmod +x scripts/run-orc-optimizer.sh
+	mkdir -p results/orc
+	bash scripts/run-orc-optimizer.sh 2>&1 | tee results/orc/last-run.log
+
+optimizer-focus: optimizer-orc
+
+optimizer-momentum: build-optimizer
+	chmod +x scripts/run-momentum-optimizer.sh
+	mkdir -p results/momentum
+	bash scripts/run-momentum-optimizer.sh 2>&1 | tee results/momentum/last-run.log
+
+optimizer-or-fade: build-optimizer
+	chmod +x scripts/run-or-fade-optimizer.sh
+	mkdir -p results/or-fade
+	bash scripts/run-or-fade-optimizer.sh 2>&1 | tee results/or-fade/last-run.log
 
 charts-all: build-optimizer
 	$(BINARY_DIR)/optimizer charts -all \
