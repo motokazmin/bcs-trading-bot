@@ -1,0 +1,96 @@
+# Momentum Breakout — afternoon slot (входы с 12:30 MSK), GAZP+CHMF universe.
+trading_mode: virtual
+
+tickers:
+  - ticker: GAZP
+    step_price_value: 1.0
+  - ticker: CHMF
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_per_lot: 0.10
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 150
+
+strategy:
+  type: momentum_breakout
+  stop_mode: atr
+  lookback: 20
+  atr_period: 14
+  atr_multiplier: 1.5
+  breakout_threshold: 0.005
+  reward_ratio: 1.5
+  volume_filter: true
+  volume_min_ratio: 1.5
+  trail_activation_r: 1.5
+  trail_discrete_step_r: 0.5
+  trail_stage_max: 2
+  max_trades_per_ticker_per_day: 3
+
+search_space:
+  strategy: momentum_breakout
+  parameters:
+    lookback:
+      type: int
+      min: 10
+      max: 40
+    breakoutThreshold:
+      type: float
+      min: 0.0
+      max: 0.03
+    rewardRatio:
+      type: float
+      min: 1.0
+      max: 2.5
+    volumeFilter:
+      type: int
+      min: 0
+      max: 1
+    volumeFilterMultiplier:
+      type: float
+      min: 1.0
+      max: 2.5
+    atrMultiplier:
+      type: float
+      min: 0.8
+      max: 2.5
+    trailActivationR:
+      type: float
+      min: 0.8
+      max: 2.5
+    trailDiscreteStepR:
+      type: float
+      min: 0.25
+      max: 1.0
+    trailStageMax:
+      type: int
+      min: 1
+      max: 3
+    maxEntriesPerTickerPerDay:
+      type: int
+      min: 1
+      max: 4
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+    maxParallelTrades: 2
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-momentum-day-afternoon.db

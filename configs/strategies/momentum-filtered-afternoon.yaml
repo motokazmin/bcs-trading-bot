@@ -1,0 +1,108 @@
+# Momentum Filtered — afternoon slot (входы с 12:30 MSK), long-only.
+trading_mode: virtual
+
+tickers:
+  - ticker: MGNT
+    step_price_value: 1.0
+  - ticker: ROSN
+    step_price_value: 1.0
+  - ticker: TATN
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_per_lot: 0.10
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 150
+
+strategy:
+  type: momentum_filtered
+  stop_mode: atr
+  lookback: 20
+  breakout_threshold: 0.01
+  reward_ratio: 2.0
+  volume_filter: true
+  volume_min_ratio: 1.5
+  long_only: true
+  trend_sma_period: 20
+  strategy_entry_delay_minutes: 0
+  atr_multiplier: 2.0
+  trail_activation_r: 1.5
+  trail_discrete_step_r: 0.5
+  trail_stage_max: 3
+  max_trades_per_ticker_per_day: 3
+
+search_space:
+  strategy: momentum_filtered
+  parameters:
+    lookback:
+      type: int
+      min: 10
+      max: 40
+    breakoutThreshold:
+      type: float
+      min: 0.0
+      max: 0.05
+    rewardRatio:
+      type: float
+      min: 1.0
+      max: 3.0
+    volumeFilter:
+      type: int
+      min: 0
+      max: 1
+    volumeFilterMultiplier:
+      type: float
+      min: 1.0
+      max: 3.0
+    trendSMAPeriod:
+      type: int
+      min: 0
+      max: 50
+    strategyEntryDelayMinutes:
+      type: int
+      min: 0
+      max: 30
+    atrMultiplier:
+      type: float
+      min: 1.0
+      max: 3.0
+    trailActivationR:
+      type: float
+      min: 1.0
+      max: 3.0
+    trailDiscreteStepR:
+      type: float
+      min: 0.25
+      max: 1.0
+    trailStageMax:
+      type: int
+      min: 1
+      max: 5
+    maxEntriesPerTickerPerDay:
+      type: int
+      min: 1
+      max: 5
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+    longOnly: 1
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-momentum-filtered-afternoon.db

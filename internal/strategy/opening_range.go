@@ -9,7 +9,7 @@ import (
 func init() {
 	Register(Descriptor{
 		ID:                 IDOpeningRange,
-		DefaultSearchSpace: "config/optimizer/search-space-orb.yaml",
+		DefaultSearchSpace: "configs/strategies/opening-range.yaml",
 		NewFromParams:      newOpeningRangeFromParams,
 		ParamsToConfigFields: openingRangeConfigFields,
 	})

@@ -9,7 +9,7 @@ import (
 func init() {
 	Register(Descriptor{
 		ID:                 IDMeanReversion,
-		DefaultSearchSpace: "config/optimizer/search-space-meanrev.yaml",
+		DefaultSearchSpace: "configs/strategies/mean-reversion.yaml",
 		NewFromParams:      newMeanReversionFromParams,
 		ParamsToConfigFields: meanReversionConfigFields,
 	})

@@ -30,6 +30,19 @@ func (s StrategyConfig) toStrategyParams(session SessionConfig) (strategy.Params
 	if s.LongOnlyEnabled() {
 		p["longOnly"] = 1
 	}
+	if s.FadeWindowMinutes > 0 {
+		p["fadeWindowMinutes"] = float64(s.FadeWindowMinutes)
+	}
+	if s.FadeTradeEndMinutes > 0 {
+		p["fadeTradeEndMinutes"] = float64(s.FadeTradeEndMinutes)
+	}
+	if s.RequireInsideRange != nil {
+		if *s.RequireInsideRange {
+			p["requireInsideRange"] = 1
+		} else {
+			p["requireInsideRange"] = 0
+		}
+	}
 	if s.RangeUseCap != nil && !*s.RangeUseCap {
 		p["rangeUseCap"] = 0
 	} else {

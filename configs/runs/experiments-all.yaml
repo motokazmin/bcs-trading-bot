@@ -1,0 +1,286 @@
+# Пакет виртуальных экспериментов по известным стратегиям в одном процессе.
+# Один WebSocket, отдельный виртуальный счёт на каждый эксперимент.
+# Включает базовые и консервативные варианты для одновременного сравнения.
+#
+#   momentum-breakout / momentum-breakout-conservative
+#   momentum-filtered / momentum-filtered-conservative
+#   opening-range / opening-range-conservative
+#   opening-range-continuation / opening-range-continuation-conservative
+#   mean-reversion / mean-reversion-conservative
+#
+# Запуск: go run ./cmd/bot -config configs/runs/experiments-all.yaml
+
+trading_mode: virtual
+
+tickers:
+  - SBER
+  - GAZP
+  - LKOH
+  - NVTK
+  - ROSN
+  - MGNT
+  - CHMF
+  - TATN
+  - MOEX
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_per_lot: 0.10
+
+session:
+  timezone: Europe/Moscow
+  eod_close_time: "18:40"
+  session_open_time: "10:00"
+
+storage:
+  path: data/trades.db
+
+experiments:
+  - id: momentum-breakout
+    name: "Momentum Breakout"
+    strategy:
+      type: momentum_breakout
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.0
+      breakout_threshold: 0.01
+      trail_activation_r: 1.5
+      trail_discrete_step_r: 0.5
+      trail_stage_max: 3
+      max_trades_per_ticker_per_day: 3
+    risk:
+      deposit: 200000
+      max_daily_loss_percent: 2.0
+      risk_per_trade_percent: 0.5
+      max_parallel_trades: 2
+    virtual:
+      balance: 200000
+
+  - id: momentum-filtered
+    name: "Momentum Filtered"
+    strategy:
+      type: momentum_filtered
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.0
+      breakout_threshold: 0.01
+      reward_ratio: 2.0
+      volume_filter: true
+      volume_min_ratio: 1.5
+      long_only: false
+      trend_sma_period: 20
+      strategy_entry_delay_minutes: 0
+      trail_activation_r: 1.5
+      trail_discrete_step_r: 0.5
+      trail_stage_max: 3
+      max_trades_per_ticker_per_day: 3
+    risk:
+      deposit: 200000
+      max_daily_loss_percent: 2.0
+      risk_per_trade_percent: 0.5
+      max_parallel_trades: 2
+    virtual:
+      balance: 200000
+
+  - id: opening-range
+    name: "Opening Range"
+    strategy:
+      type: opening_range
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.0
+      orb_minutes: 30
+      breakout_threshold: 0.01
+      reward_ratio: 2.0
+      trail_activation_r: 1.5
+      trail_discrete_step_r: 0.5
+      trail_stage_max: 3
+      max_trades_per_ticker_per_day: 3
+    risk:
+      deposit: 200000
+      max_daily_loss_percent: 2.0
+      risk_per_trade_percent: 0.5
+      max_parallel_trades: 2
+    virtual:
+      balance: 200000
+
+  - id: opening-range-continuation
+    name: "Opening Range Continuation (ORC)"
+    tickers:
+      - SBER
+      - MGNT
+      - ROSN
+      - TATN
+    strategy:
+      type: opening_range_continuation
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.0
+      orb_minutes: 30
+      breakout_threshold: 0.0
+      reward_ratio: 2.60
+      trail_activation_r: 1.5
+      trail_stage_max: 1
+      trail_breakeven_r: 0.1
+      max_trades_per_ticker_per_day: 3
+    risk:
+      deposit: 200000
+      max_daily_loss_percent: 2.0
+      risk_per_trade_percent: 0.5
+      max_parallel_trades: 2
+    virtual:
+      balance: 200000
+
+  - id: mean-reversion
+    name: "Mean Reversion"
+    strategy:
+      type: mean_reversion
+      lookback: 20
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.0
+      fade_threshold: 0.02
+      reward_ratio: 1.5
+      volume_filter: false
+      volume_min_ratio: 1.5
+      trail_activation_r: 1.5
+      trail_discrete_step_r: 0.5
+      trail_stage_max: 3
+      max_trades_per_ticker_per_day: 3
+    risk:
+      deposit: 200000
+      max_daily_loss_percent: 2.0
+      risk_per_trade_percent: 0.5
+      max_parallel_trades: 2
+    virtual:
+      balance: 200000
+
+  - id: momentum-breakout-conservative
+    name: "Momentum Breakout (Conservative)"
+    entry_delay_minutes: 15
+    strategy:
+      type: momentum_breakout
+      lookback: 24
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.4
+      breakout_threshold: 0.015
+      trail_activation_r: 1.8
+      trail_discrete_step_r: 0.75
+      trail_stage_max: 2
+      max_trades_per_ticker_per_day: 2
+    risk:
+      deposit: 200000
+      max_daily_loss_percent: 1.5
+      risk_per_trade_percent: 0.35
+      max_parallel_trades: 1
+    virtual:
+      balance: 200000
+
+  - id: momentum-filtered-conservative
+    name: "Momentum Filtered (Conservative)"
+    entry_delay_minutes: 15
+    strategy:
+      type: momentum_filtered
+      lookback: 24
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.4
+      breakout_threshold: 0.015
+      reward_ratio: 2.2
+      volume_filter: true
+      volume_min_ratio: 1.8
+      long_only: false
+      trend_sma_period: 30
+      strategy_entry_delay_minutes: 15
+      trail_activation_r: 1.8
+      trail_discrete_step_r: 0.75
+      trail_stage_max: 2
+      max_trades_per_ticker_per_day: 2
+    risk:
+      deposit: 200000
+      max_daily_loss_percent: 1.5
+      risk_per_trade_percent: 0.35
+      max_parallel_trades: 1
+    virtual:
+      balance: 200000
+
+  - id: opening-range-conservative
+    name: "Opening Range (Conservative)"
+    entry_delay_minutes: 15
+    strategy:
+      type: opening_range
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.5
+      orb_minutes: 45
+      breakout_threshold: 0.015
+      reward_ratio: 2.2
+      trail_activation_r: 1.8
+      trail_discrete_step_r: 0.75
+      trail_stage_max: 2
+      max_trades_per_ticker_per_day: 2
+    risk:
+      deposit: 200000
+      max_daily_loss_percent: 1.5
+      risk_per_trade_percent: 0.35
+      max_parallel_trades: 1
+    virtual:
+      balance: 200000
+
+  - id: opening-range-continuation-conservative
+    name: "Opening Range Continuation (ORC Conservative)"
+    tickers:
+      - SBER
+      - MGNT
+      - ROSN
+      - TATN
+    entry_delay_minutes: 20
+    strategy:
+      type: opening_range_continuation
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.4
+      orb_minutes: 45
+      breakout_threshold: 0.005
+      reward_ratio: 2.60
+      trail_activation_r: 1.8
+      trail_stage_max: 1
+      trail_breakeven_r: 0.15
+      max_trades_per_ticker_per_day: 2
+    risk:
+      deposit: 200000
+      max_daily_loss_percent: 1.5
+      risk_per_trade_percent: 0.35
+      max_parallel_trades: 1
+    virtual:
+      balance: 200000
+
+  - id: mean-reversion-conservative
+    name: "Mean Reversion (Conservative)"
+    entry_delay_minutes: 15
+    strategy:
+      type: mean_reversion
+      lookback: 28
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 2.4
+      fade_threshold: 0.03
+      reward_ratio: 1.6
+      volume_filter: true
+      volume_min_ratio: 1.8
+      trail_activation_r: 1.8
+      trail_discrete_step_r: 0.75
+      trail_stage_max: 2
+      max_trades_per_ticker_per_day: 2
+    risk:
+      deposit: 200000
+      max_daily_loss_percent: 1.5
+      risk_per_trade_percent: 0.35
+      max_parallel_trades: 1
+    virtual:
+      balance: 200000

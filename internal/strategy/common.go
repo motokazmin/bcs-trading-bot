@@ -253,3 +253,17 @@ func splitHHMM(value string) int {
 	}
 	return h*60 + m
 }
+
+func tickerAllowed(ticker string, whitelist, blacklist map[string]struct{}) bool {
+	if ticker == "" {
+		return true
+	}
+	if _, blocked := blacklist[ticker]; blocked {
+		return false
+	}
+	if len(whitelist) == 0 {
+		return true
+	}
+	_, ok := whitelist[ticker]
+	return ok
+}

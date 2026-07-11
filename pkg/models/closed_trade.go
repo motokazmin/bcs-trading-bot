@@ -33,9 +33,10 @@ type ClosedTrade struct {
 	HoldSeconds       int
 	TradingDate       string
 	CandleTimeframe   string
-	Lookback          int
-	RiskPerTradePct   float64
-	DepositPerTicker  float64
+	Lookback           int
+	RiskPerTradePct    float64
+	DepositPerTicker   float64
+	StrategyParamsJSON string `json:"strategy_params,omitempty"`
 }
 
 func (t ClosedTrade) effectiveStepPrice() float64 {

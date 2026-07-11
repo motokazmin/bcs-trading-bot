@@ -1,0 +1,12 @@
+class_code: TQBR
+candle_timeframe: M5
+initial_history_years: 2
+
+costs:
+  commission_per_lot: 0.10
+
+# Lean universe — live virtual atr-1-lean (SBER/ROSN/NVTK).
+tickers:
+  - SBER
+  - ROSN
+  - NVTK

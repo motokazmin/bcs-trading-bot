@@ -1,0 +1,108 @@
+# MF Afternoon wave2 — узкий search вокруг mf-orc-whitelist-seed2 best (2026-07-11).
+trading_mode: virtual
+
+tickers:
+  - ticker: MGNT
+    step_price_value: 1.0
+  - ticker: ROSN
+    step_price_value: 1.0
+  - ticker: TATN
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_per_lot: 0.10
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 150
+
+strategy:
+  type: momentum_filtered
+  stop_mode: atr
+  lookback: 36
+  breakout_threshold: 0.0103
+  reward_ratio: 1.88
+  volume_filter: false
+  volume_min_ratio: 1.5
+  long_only: true
+  trend_sma_period: 33
+  strategy_entry_delay_minutes: 16
+  atr_multiplier: 2.37
+  trail_activation_r: 2.45
+  trail_discrete_step_r: 0.54
+  trail_stage_max: 5
+  max_trades_per_ticker_per_day: 2
+
+search_space:
+  strategy: momentum_filtered
+  parameters:
+    lookback:
+      type: int
+      min: 28
+      max: 44
+    breakoutThreshold:
+      type: float
+      min: 0.005
+      max: 0.018
+    rewardRatio:
+      type: float
+      min: 1.5
+      max: 2.3
+    volumeFilter:
+      type: int
+      min: 0
+      max: 1
+    volumeFilterMultiplier:
+      type: float
+      min: 1.0
+      max: 2.5
+    trendSMAPeriod:
+      type: int
+      min: 20
+      max: 45
+    strategyEntryDelayMinutes:
+      type: int
+      min: 8
+      max: 30
+    atrMultiplier:
+      type: float
+      min: 1.8
+      max: 2.8
+    trailActivationR:
+      type: float
+      min: 1.8
+      max: 2.8
+    trailDiscreteStepR:
+      type: float
+      min: 0.3
+      max: 0.8
+    trailStageMax:
+      type: int
+      min: 3
+      max: 5
+    maxEntriesPerTickerPerDay:
+      type: int
+      min: 1
+      max: 3
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+    longOnly: 1
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-momentum-filtered-afternoon.db

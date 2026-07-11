@@ -1,0 +1,12 @@
+class_code: TQBR
+candle_timeframe: M5
+initial_history_years: 2
+
+costs:
+  commission_per_lot: 0.10
+
+# ORC whitelist без SBER — wave3 (MGNT/ROSN/TATN лучше на breakout).
+tickers:
+  - MGNT
+  - ROSN
+  - TATN

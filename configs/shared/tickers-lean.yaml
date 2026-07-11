@@ -1,0 +1,12 @@
+class_code: TQBR
+candle_timeframe: M5
+initial_history_years: 2
+
+costs:
+  commission_per_lot: 0.10
+
+# Lean universe — лучшие тикеры по live virtual (atr-1-lean, июнь–июль 2026).
+tickers:
+  - SBER
+  - ROSN
+  - NVTK

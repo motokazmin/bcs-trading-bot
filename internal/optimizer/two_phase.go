@@ -3,19 +3,22 @@ package optimizer
 import (
 	"context"
 	"fmt"
+	"math"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	core "bcs-trading-bot/internal/optimizer/core"
+	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
 )
 
 // TwoPhaseConfig — двухфазный поиск: random search на lean universe, финал на полном.
 type TwoPhaseConfig struct {
-	OptimizationConfig
+	eval.OptimizationConfig
 	Phase1Tickers []string
 	Phase2Top     int
 }
@@ -23,12 +26,12 @@ type TwoPhaseConfig struct {
 // RunTwoPhaseOptimization выполняет фазу 1 на подмножестве тикеров и фазу 2 на полном universe.
 func RunTwoPhaseOptimization(
 	ctx context.Context,
-	settings RunSettings,
-	space *SearchSpace,
+	settings eval.RunSettings,
+	space *core.SearchSpace,
 	candleData map[string][]models.Candle,
-	windows []Window,
+	windows []core.Window,
 	cfg TwoPhaseConfig,
-) *RunResult {
+) *eval.RunResult {
 	phase2Top := cfg.Phase2Top
 	if phase2Top <= 0 {
 		phase2Top = 20
@@ -44,9 +47,9 @@ func RunTwoPhaseOptimization(
 	phase1Settings.Tickers = phase1Tickers
 
 	logx.Info("two-phase: фаза 1 — %d trials на %s", cfg.Trials, strings.Join(phase1Tickers, ","))
-	eval1 := NewEvaluator(phase1Settings, space, candleData)
+	eval1 := eval.NewEvaluator(phase1Settings, space, candleData)
 	eval1.PrecomputeWindowSlices(windows)
-	phase1 := RunOptimizationWithConfig(ctx, eval1, space, windows, cfg.OptimizationConfig)
+	phase1 := eval.RunOptimizationWithConfig(ctx, eval1, space, windows, cfg.OptimizationConfig)
 
 	if sameTickerSets(phase1Tickers, settings.Tickers) {
 		logx.Info("two-phase: phase1 tickers = полный universe, фаза 2 пропущена")
@@ -61,10 +64,10 @@ func RunTwoPhaseOptimization(
 		return phase1
 	}
 
-	candidates := append([]TrialResult(nil), phase1.Trials[:topN]...)
+	candidates := append([]eval.TrialResult(nil), phase1.Trials[:topN]...)
 	logx.Info("two-phase: фаза 2 — top %d конфигов на %s", topN, strings.Join(settings.Tickers, ","))
 
-	eval2 := NewEvaluator(settings, space, candleData)
+	eval2 := eval.NewEvaluator(settings, space, candleData)
 	eval2.PrecomputeWindowSlices(windows)
 
 	parallel := cfg.Parallelism
@@ -75,20 +78,20 @@ func RunTwoPhaseOptimization(
 		parallel = len(candidates)
 	}
 
-	results := make([]TrialResult, len(candidates))
+	results := make([]eval.TrialResult, len(candidates))
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, parallel)
 
 	for i, cand := range candidates {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(index int, params ParameterSet) {
+		go func(index int, params core.ParameterSet) {
 			defer wg.Done()
 			defer func() { <-sem }()
 			if ctx.Err() != nil {
 				return
 			}
-			results[index] = eval2.evaluateTrial(ctx, index, params, cfg.MinTrades)
+			results[index] = eval2.EvaluateTrialForCandidate(ctx, index, params, cfg.MinTrades)
 		}(i, cand.Params)
 	}
 	wg.Wait()
@@ -97,7 +100,7 @@ func RunTwoPhaseOptimization(
 		return results[i].Score > results[j].Score
 	})
 
-	best := TrialResult{}
+	best := eval.TrialResult{}
 	if len(results) > 0 {
 		best = results[0]
 	}
@@ -105,7 +108,7 @@ func RunTwoPhaseOptimization(
 	logx.Info("two-phase: фаза 2 лучший score=%s (фаза 1 была %s)",
 		formatOptimizerScore(best.Score), formatOptimizerScore(phase1.Best.Score))
 
-	return &RunResult{
+	return &eval.RunResult{
 		Timestamp: time.Now(),
 		Trials:    results,
 		Best:      best,
@@ -142,7 +145,7 @@ func sameTickerSets(a, b []string) bool {
 	return true
 }
 
-// ResolvePhase1Tickers возвращает тикеры для фазы 1: override, lean из universe или default.
+// ResolvePhase1Tickers возвращает тикеры для фазы 1: override, lean из tickers-config или default.
 func ResolvePhase1Tickers(override string, lean []string, full []string) ([]string, error) {
 	if override != "" {
 		return normalizeSymbols(strings.Split(override, ",")), nil
@@ -156,4 +159,19 @@ func ResolvePhase1Tickers(override string, lean []string, full []string) ([]stri
 		return nil, fmt.Errorf("two-phase: нет пересечения lean tickers с загруженным universe")
 	}
 	return out, nil
+}
+
+func formatOptimizerScore(s float64) string {
+	switch {
+	case math.IsInf(s, -1):
+		return "-Inf"
+	case math.IsInf(s, 1):
+		return "+Inf"
+	case math.IsNaN(s):
+		return "NaN"
+	case math.Abs(s) >= 100:
+		return fmt.Sprintf("%.0f", s)
+	default:
+		return fmt.Sprintf("%.4f", s)
+	}
 }

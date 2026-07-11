@@ -11,18 +11,22 @@
 BINARY_DIR := bin
 GO := go
 
-UNIVERSE          ?= config/optimizer/universe.yaml
+# Основной путь к shared-списку тикеров для optimizer.
+TICKERS_CONFIG    ?= configs/shared/tickers-orc.yaml
+# Legacy-алиас для совместимости со старыми локальными override.
+UNIVERSE          ?= $(TICKERS_CONFIG)
 HISTORY_DIR       ?= data/history
-SEARCH_SPACE      ?= config/optimizer/search-space.yaml
-OPTIMIZER_OUT     ?= results/
+SEARCH_SPACE      ?= configs/strategies/orc.yaml
+OPTIMIZER_STRATEGY ?= opening_range_continuation
+OPTIMIZER_OUT     ?= results/orc/
 PARALLEL_TICKERS  ?= 5
 OPTIMIZER_PARALLEL ?= 0
 OPTIMIZER_TWO_PHASE ?=
 
-BOT_CONFIG ?= configs/experiments-all.yaml
+BOT_CONFIG ?= configs/runs/portfolio-paper.yaml
 
 .PHONY: build build-bot build-optimizer build-admin test \
-        sync-history optimizer-run strategy-matrix \
+        sync-history optimizer-run optimizer-orc optimizer-momentum optimizer-or-fade optimizer-afternoon optimizer-focus strategy-matrix charts-all \
         bot bot-futures bot-real bot-smoke admin help
 
 help:
@@ -32,16 +36,21 @@ help:
 	@echo "  make test               — go test ./..."
 	@echo ""
 	@echo "  make sync-history       — догрузить историю (9 акций, параллельно)"
-	@echo "  make optimizer-run      — sync-history + walk-forward оптимизация"
+	@echo "  make optimizer-run      — sync-history + walk-forward ORC"
+	@echo "  make optimizer-orc        — ORC wave2 (300 trials) → results/orc/"
+	@echo "  make optimizer-or-fade      — OR Fade wave1 (300 trials) → results/or-fade/"
+	@echo "  make optimizer-focus      — alias для optimizer-orc"
+	@echo "  make charts-all         — HTML-графики по всем экспериментам в results/"
 	@echo ""
-	@echo "  make bot                — paper, все A/B-эксперименты (experiments-all.yaml)"
+	@echo "  make bot                — paper, portfolio (3 FROZEN champions)"
 	@echo "  make bot-futures        — paper, фьючерсы SPBFUT"
 	@echo "  make bot-real           — реальная торговля"
 	@echo "  make bot-smoke          — smoke test OAuth+WS"
 	@echo "  make admin              — веб-админка"
 	@echo ""
-	@echo "Переменные: UNIVERSE, HISTORY_DIR, PARALLEL_TICKERS, OPTIMIZER_PARALLEL,"
-	@echo "            OPTIMIZER_TWO_PHASE=1, SEARCH_SPACE, OPTIMIZER_OUT, BOT_CONFIG, BCS_REFRESH_TOKEN"
+	@echo "Переменные: TICKERS_CONFIG, HISTORY_DIR, PARALLEL_TICKERS, OPTIMIZER_PARALLEL,"
+	@echo "            OPTIMIZER_TWO_PHASE=1, OPTIMIZER_STRATEGY, SEARCH_SPACE, OPTIMIZER_OUT,"
+	@echo "            BOT_CONFIG, BCS_REFRESH_TOKEN"
 
 build: build-bot build-optimizer build-admin
 
@@ -64,7 +73,7 @@ test:
 
 sync-history: build-optimizer
 	$(BINARY_DIR)/optimizer sync-history \
-		-universe $(UNIVERSE) \
+		-tickers-config $(TICKERS_CONFIG) \
 		-parallel-tickers $(PARALLEL_TICKERS) \
 		-output-dir $(HISTORY_DIR)
 
@@ -72,7 +81,8 @@ sync-history: build-optimizer
 
 optimizer-run: build-optimizer sync-history
 	$(BINARY_DIR)/optimizer run \
-		-universe $(UNIVERSE) \
+		-strategy $(OPTIMIZER_STRATEGY) \
+		-tickers-config $(TICKERS_CONFIG) \
 		-history-dir $(HISTORY_DIR) \
 		-search-space $(SEARCH_SPACE) \
 		-parallel $(OPTIMIZER_PARALLEL) \
@@ -81,7 +91,35 @@ optimizer-run: build-optimizer sync-history
 
 strategy-matrix: build-optimizer
 	chmod +x scripts/run-strategy-matrix.sh
+	mkdir -p results
 	bash scripts/run-strategy-matrix.sh 2>&1 | tee results/strategy-matrix-run.log
+
+optimizer-orc: build-optimizer
+	chmod +x scripts/run-orc-optimizer.sh
+	mkdir -p results/orc
+	bash scripts/run-orc-optimizer.sh 2>&1 | tee results/orc/last-run.log
+
+optimizer-focus: optimizer-orc
+
+optimizer-momentum: build-optimizer
+	chmod +x scripts/run-momentum-optimizer.sh
+	mkdir -p results/momentum
+	bash scripts/run-momentum-optimizer.sh 2>&1 | tee results/momentum/last-run.log
+
+optimizer-or-fade: build-optimizer
+	chmod +x scripts/run-or-fade-optimizer.sh
+	mkdir -p results/or-fade
+	bash scripts/run-or-fade-optimizer.sh 2>&1 | tee results/or-fade/last-run.log
+
+optimizer-afternoon: build-optimizer
+	chmod +x scripts/run-afternoon-optimizer.sh
+	mkdir -p results/afternoon
+	bash scripts/run-afternoon-optimizer.sh 2>&1 | tee results/afternoon/last-run.log
+
+charts-all: build-optimizer
+	$(BINARY_DIR)/optimizer charts -all \
+		-results-dir $(OPTIMIZER_OUT) \
+		-history-dir $(HISTORY_DIR)
 
 # --- Бот ---
 
@@ -89,10 +127,10 @@ bot: build-bot
 	$(BINARY_DIR)/bot -config $(BOT_CONFIG)
 
 bot-futures: build-bot
-	$(BINARY_DIR)/bot -config configs/virtual-futures.yaml
+	$(BINARY_DIR)/bot -config configs/runs/virtual-futures.yaml
 
 bot-real: build-bot
-	$(BINARY_DIR)/bot -config configs/real-stocks.yaml
+	$(BINARY_DIR)/bot -config configs/runs/real-stocks.yaml
 
 bot-smoke: build-bot
 	$(BINARY_DIR)/bot -config $(BOT_CONFIG) -smoke-test

@@ -25,13 +25,26 @@ risk.Manager), но не трогающий cmd/bot и его runtime-путь.
 
 ```
 cmd/optimizer/
-  main.go                 — точка входа, парсинг CLI-флагов
+  main.go                    — точка входа, парсинг CLI-флагов
 internal/optimizer/
-  config.go                — search space: границы и типы параметров
-  search.go                — алгоритм поиска (см. ниже)
-  walkforward.go            — генерация train/test окон по датам
-  objective.go              — целевая функция (запуск backtest + метрика)
-  report.go                 — экспорт результатов (JSON + человекочитаемый summary)
+  core/
+    config.go                — search space: границы и типы параметров
+    search.go                — алгоритм поиска (см. ниже)
+    walkforward.go           — генерация train/test окон по датам
+    objective.go             — целевая функция/метрики
+  eval/
+    evaluate.go              — Evaluator и запуск прогонов
+    trial_eval.go            — один trial = все окна × тикеры
+    optimization.go          — worker pool, parallel random search
+  report/
+    report.go                — экспорт результатов (JSON + best-config)
+  charts/
+    charts.go                — HTML-графики по сделкам
+  data/
+    tickers_config.go        — tickers.yaml
+    fetch_config.go          — fetch/retry/throttle конфиг
+  history.go, fetch.go       — CSV + BCS API для истории
+  two_phase.go               — lean → full universe
 ```
 
 ## Функциональность
@@ -50,7 +63,7 @@ README `cmd/optimizer`.
 
 ### 2. Search space
 
-Конфигурируемый через YAML (`config/optimizer/search-space.yaml`), пример:
+Конфигурируемый через YAML (в секции `search_space` внутри `configs/strategies/*.yaml`), пример:
 
 ```yaml
 parameters:
@@ -193,7 +206,7 @@ offset безубытка в трейлинге (см. `internal/engine/worker.g
 optimizer run \
   -tickers SBER,ROSN,NVTK \
   -history-dir data/history \
-  -search-space config/optimizer/search-space.yaml \
+  -search-space configs/strategies/orc.yaml \
   -date-from 2024-01-01 -date-to 2026-06-01 \
   -window-months 2 -step-months 1 \
   -trials 200 \

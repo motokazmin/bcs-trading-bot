@@ -1,0 +1,15 @@
+class_code: TQBR
+candle_timeframe: M5
+initial_history_years: 2
+
+costs:
+  commission_per_lot: 0.10
+
+# OR Fade expanded whitelist (per-ticker matrix 2026-07-11).
+# Для live нужен отдельный whitelist в коде — см. docs/strategy-research.md.
+tickers:
+  - LKOH
+  - CHMF
+  - TATN
+  - GAZP
+  - MOEX

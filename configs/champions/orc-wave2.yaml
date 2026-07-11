@@ -1,0 +1,44 @@
+# FROZEN champion — Opening Range Continuation (wave2, seed 1).
+# Не менять без явного запроса. См. docs/champion-orc.md
+# Backtest: +0.51R, PF 1.62, 14/23 WF, 113 trades.
+
+trading_mode: virtual
+
+tickers:
+  - MGNT
+  - ROSN
+  - TATN
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_per_lot: 0.10
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: opening_range_continuation
+  stop_mode: atr
+  atr_period: 14
+  orb_minutes: 13
+  atr_multiplier: 0.83
+  breakout_threshold: 0.0086
+  reward_ratio: 1.47
+  trail_activation_r: 2.04
+  trail_stage_max: 2
+  trail_breakeven_r: 0.028
+  max_trades_per_ticker_per_day: 2
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000

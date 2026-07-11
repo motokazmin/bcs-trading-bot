@@ -1,0 +1,91 @@
+# Momentum Breakout — lean universe (по мотивам live atr-1-lean).
+# Фокус optimizer: NVTK/SBER/ROSN, узкий ATR-стоп, опциональный volume filter.
+trading_mode: virtual
+
+tickers:
+  - ticker: SBER
+    step_price_value: 1.0
+  - ticker: ROSN
+    step_price_value: 1.0
+  - ticker: NVTK
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_per_lot: 0.10
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: momentum_breakout
+  stop_mode: atr
+  lookback: 20
+  atr_period: 14
+  atr_multiplier: 1.0
+  breakout_threshold: 0.0
+  trail_activation_r: 1.0
+  trail_discrete_step_r: 1.0
+  trail_stage_max: 2
+  max_trades_per_ticker_per_day: 3
+
+search_space:
+  strategy: momentum_breakout
+  parameters:
+    lookback:
+      type: int
+      min: 15
+      max: 30
+    breakoutThreshold:
+      type: float
+      min: 0.0
+      max: 0.02
+    volumeFilter:
+      type: int
+      min: 0
+      max: 1
+    volumeFilterMultiplier:
+      type: float
+      min: 1.0
+      max: 2.0
+    atrMultiplier:
+      type: float
+      min: 0.8
+      max: 2.0
+    trailActivationR:
+      type: float
+      min: 0.8
+      max: 2.0
+    trailDiscreteStepR:
+      type: float
+      min: 0.5
+      max: 1.0
+    trailStageMax:
+      type: int
+      min: 1
+      max: 3
+    maxEntriesPerTickerPerDay:
+      type: int
+      min: 1
+      max: 3
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-momentum-lean.db

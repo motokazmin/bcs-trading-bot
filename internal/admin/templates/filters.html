@@ -16,6 +16,7 @@
   <label>Тикер <input name="ticker" value="{{.Filter.Ticker}}" placeholder="SBER"></label>
   <label>С <input type="date" name="date_from" id="date-from" value="{{.Filter.DateFrom}}"></label>
   <label>По <input type="date" name="date_to" id="date-to" value="{{.Filter.DateTo}}"></label>
+  <button type="button" class="btn secondary" id="today-btn">Сегодня</button>
   <button type="button" class="btn secondary" id="archive-btn" disabled>Архивировать</button>
   <button type="submit">Применить</button>
 </form>
@@ -49,6 +50,7 @@
   const archiveSelect = document.getElementById('archive-select');
   const dateFrom = document.getElementById('date-from');
   const dateTo = document.getElementById('date-to');
+  const todayBtn = document.getElementById('today-btn');
   const archiveBtn = document.getElementById('archive-btn');
   const modal = document.getElementById('archive-modal');
   const modalPeriod = document.getElementById('archive-modal-period');
@@ -93,6 +95,14 @@
 
   function updateArchiveBtn() {
     archiveBtn.disabled = !(dateFrom.value && dateTo.value);
+  }
+
+  function todayISODate() {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   }
 
   function renderArchiveOptions() {
@@ -158,6 +168,16 @@
     updateArchiveBtn();
     archiveSelect.value = findMatchingArchiveId();
     updateArchiveComment();
+  });
+
+  todayBtn.addEventListener('click', () => {
+    const today = todayISODate();
+    dateFrom.value = today;
+    dateTo.value = today;
+    updateArchiveBtn();
+    archiveSelect.value = findMatchingArchiveId();
+    updateArchiveComment();
+    form.submit();
   });
 
   commentToggle.addEventListener('click', () => {

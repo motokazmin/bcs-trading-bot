@@ -14,13 +14,14 @@ import (
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine"
+	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/storage/sqlite"
 	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/logx"
 )
 
 func main() {
-	configPath := flag.String("config", "configs/experiments-all.yaml", "путь к YAML-конфигу")
+	configPath := flag.String("config", "configs/runs/portfolio-paper.yaml", "путь к YAML-конфигу")
 	noColor := flag.Bool("no-color", false, "отключить цветной вывод в терминале")
 	smokeTest := flag.Bool("smoke-test", false, "быстрая проверка: OAuth + WebSocket + виртуальная сделка без записи в БД")
 	flag.Parse()
@@ -130,11 +131,25 @@ func main() {
 	routes := make(map[string][]bcs.WorkerRoutes)
 	workerCount := 0
 
+	globalRiskByExp := make(map[string]*risk.GlobalRiskController, len(experiments))
+	for _, exp := range experiments {
+		maxParallel := exp.Risk.MaxParallelTrades
+		if maxParallel <= 0 {
+			maxParallel = 2
+		}
+		pct := exp.Risk.MaxDailyLossPercent
+		if pct <= 0 {
+			pct = 2.0
+		}
+		globalRiskByExp[exp.ID] = risk.NewGlobalRiskController(exp.Risk.Deposit, pct, maxParallel)
+	}
+
 	for _, exp := range experiments {
 		executor := executors[exp.ID]
 		expTickers := cfg.TickersForExperiment(exp)
 		session := cfg.SessionForExperiment(exp)
 		tickerCount := len(expTickers)
+		globalRisk := globalRiskByExp[exp.ID]
 
 		for _, tc := range expTickers {
 			worker, err := engine.NewTickerWorker(
@@ -149,6 +164,7 @@ func main() {
 				cfg.ClassCode,
 				cfg.CandleTimeFrame,
 				tradeStore,
+				globalRisk,
 			)
 			if err != nil {
 				logx.Fatalf("ошибка создания воркера %s/%s: %v", exp.ID, tc.Symbol, err)

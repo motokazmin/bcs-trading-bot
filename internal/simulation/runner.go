@@ -31,9 +31,10 @@ type RunnerConfig struct {
 	Strategy        strategy.CandleStrategy
 	StrategyID      string
 	StopMode        string
-	Lookback        int
-	TrailCfg        trailing.Config
-	SessionCfg      config.SessionConfig
+	Lookback             int
+	TrailCfg             trailing.Config
+	StrategyParamsJSON   string
+	SessionCfg           config.SessionConfig
 }
 
 // Runner воспроизводит торговый цикл воркера на исторических свечах.
@@ -250,9 +251,10 @@ func (r *Runner) closePosition(ctx context.Context, executor interfaces.OrderExe
 		HoldSeconds:       int(closedAt.Sub(pos.OpenedAt).Seconds()),
 		TradingDate:       r.session.Today(closedAt),
 		CandleTimeframe:   r.cfg.CandleTimeframe,
-		Lookback:          r.cfg.Lookback,
-		RiskPerTradePct:   r.cfg.RiskPerTradePct,
-		DepositPerTicker:  r.cfg.Deposit,
+		Lookback:             r.cfg.Lookback,
+		RiskPerTradePct:      r.cfg.RiskPerTradePct,
+		DepositPerTicker:     r.cfg.Deposit,
+		StrategyParamsJSON:   r.cfg.StrategyParamsJSON,
 	}
 	_ = r.store.SaveClosedTrade(ctx, trade)
 }

@@ -2,6 +2,10 @@
 
 Offline-подбор гиперпараметров торговых стратегий: walk-forward backtest + Random Search.
 
+> **Статус исследований (2026-07-11):** portfolio **FROZEN** — 3 champion-стратегии (ORC, OR Fade, MF Afternoon).  
+> Не запускать optimizer по champions без явного запроса.  
+> Главный документ: [`docs/strategy-research.md`](../../docs/strategy-research.md).
+
 Отдельный бинарник — не трогает `cmd/bot`, но использует **тот же код стратегий и тот же торговый цикл** (`internal/simulation` ≈ `engine.TickerWorker`).
 
 ## Содержание
@@ -14,6 +18,7 @@ Offline-подбор гиперпараметров торговых страт�
 - [Scoring и комиссия](#scoring-и-комиссия)
 - [Производительность](#производительность)
 - [Архитектура (для разработчиков)](#архитектура-для-разработчиков)
+- [Стратегии: как добавить и подключить](../../docs/strategies.md)
 - [Результаты экспериментов](experiment-summary-prompt.md)
 
 ---
@@ -99,7 +104,7 @@ flowchart LR
     subgraph offline["Optimizer — offline"]
         API["BCS API"] --> CSV["data/history/*.csv"]
         CSV --> SIM["simulation.Runner"]
-        SIM --> OUT["best-config.yaml<br/>+ JSON отчёт"]
+        SIM --> OUT["best-config.yaml<br/>configs/champions/"]
     end
 
     subgraph live["Бот — live"]
@@ -108,7 +113,7 @@ flowchart LR
         W --> DB["SQLite сделки"]
     end
 
-    OUT -. "ручное копирование<br/>(no auto-deploy)" .-> CFG
+    OUT -. "snapshot в git" .-> CFG
 ```
 
 | | Optimizer | Бот |
@@ -166,18 +171,30 @@ export BCS_REFRESH_TOKEN=...   # только для sync-history
 
 make build-optimizer
 make sync-history
-make optimizer-run               # parallel = NumCPU
-make strategy-matrix             # 4 стратегии, ~1–2 ч
+
+# FROZEN champions — только по явному запросу:
+# make optimizer-orc
+# make optimizer-or-fade
+# make optimizer-afternoon
+
+make optimizer-run        # alias: sync + ORC walk-forward
+make strategy-matrix      # legacy: 4 стратегии, ~1–2 ч
 ```
+
+Champion snapshots для бота: `configs/champions/*.yaml`. Paper portfolio: `configs/runs/portfolio-paper.yaml`.
 
 Стратегии и search space:
 
-| `-strategy` | Search space |
-|-------------|--------------|
-| `momentum_breakout` | `config/optimizer/search-space-momentum.yaml` |
-| `momentum_filtered` | `config/optimizer/search-space-momentum-filtered.yaml` |
-| `opening_range` | `config/optimizer/search-space-orb.yaml` |
-| `mean_reversion` | `config/optimizer/search-space-meanrev.yaml` |
+| `-strategy` | Search space | Статус |
+|-------------|--------------|--------|
+| `opening_range_continuation` | `configs/strategies/orc.yaml` | **FROZEN** champion |
+| `opening_range_fade` | `configs/strategies/or-fade.yaml` | **FROZEN** champion |
+| `momentum_filtered` | `configs/strategies/momentum-filtered-afternoon-wave2-narrow.yaml` | **FROZEN** champion |
+| `momentum_breakout` | `configs/strategies/momentum-breakout.yaml` | legacy |
+| `opening_range` | `configs/strategies/opening-range.yaml` | legacy |
+| `mean_reversion` | `configs/strategies/mean-reversion.yaml` | legacy |
+
+Полный гайд: [docs/strategies.md](../../docs/strategies.md).
 
 ---
 
@@ -221,6 +238,9 @@ make strategy-matrix             # 4 стратегии, ~1–2 ч
 optimizer charts -experiment mean_reversion
 # → results/exp-mean_reversion/charts/SBER.html, GAZP.html, …
 # → results/exp-mean_reversion/export/data-summary.json, data-trades.json, prompt-*.md
+
+optimizer charts -all
+# → графики по всем exp-* в results/ (где есть best-config-*.yaml)
 ```
 
 Свечи + маркеры входа/выхода + панель сделок. Открыть в браузере (нужен интернет для CDN Lightweight Charts).
@@ -234,6 +254,7 @@ PnL в optimizer-экспорте — **net** (комиссия вычтена).
 | Флаг | Default | Описание |
 |------|---------|----------|
 | `-experiment` | — | `momentum_breakout` или `exp-momentum_breakout` |
+| `-all` | `false` | все эксперименты в `results-dir` (взаимоисключающе с `-experiment`) |
 | `-results-dir` | `results` | корень результатов |
 | `-history-dir` | `data/history` | CSV свечей |
 
@@ -252,7 +273,7 @@ optimizer fetch-history ...     # полная перезагрузка (legacy)
 
 ## Конфигурация
 
-### `config/optimizer/universe.yaml`
+### `configs/shared/tickers.yaml`
 
 ```yaml
 lean_tickers: [SBER, ROSN, NVTK]   # для -two-phase
@@ -269,7 +290,7 @@ tickers: [SBER, GAZP, ...]         # полный universe
 
 - Score = **median** по окнам → **ранжирование trials**
 - `VirtualExecutor` не вычитает комиссию из `GrossPnL`; optimizer вычитает `-commission_per_lot × quantity`
-- По умолчанию: **0.10 ₽/акцию** (TQBR), **5.0 ₽/контракт** (SPBFUT) — из `universe.yaml` / `costs.commission_per_lot` или `-commission-per-lot`
+- По умолчанию: **0.10 ₽/акцию** (TQBR), **5.0 ₽/контракт** (SPBFUT) — из `tickers.yaml` / `costs.commission_per_lot` или `-commission-per-lot`
 - `AggregateTrades` сортирует сделки всех тикеров по `ClosedAt` перед MaxDrawdown/Calmar
 
 ---
@@ -297,35 +318,36 @@ flowchart TB
     CLI --> RUN["run"]
     CLI --> SYNC["sync-history"]
     CLI --> BT["backtest"]
+    CLI --> CH["charts"]
 
-    RUN --> E["Evaluator"]
+    RUN --> EV["eval.Evaluator"]
     SYNC --> CSV[("data/history/*.csv")]
-    CSV --> E
+    CSV --> EV
 
-    E --> SL["window_slices<br/>преднарезка"]
-    E --> OPT["optimization.go<br/>parallel trials"]
-    OPT --> TE["trial_eval.go<br/>evaluateTrial"]
+    RUN --> CORE["core/*<br/>search space + windows + objective"]
+    RUN --> REP["report/report.go<br/>JSON + best-config"]
+    CH --> CHP["charts/*<br/>html + export"]
 
-    TE --> SIM["simulation.Runner"]
+    EV --> SL["eval/window_slices.go<br/>преднарезка"]
+    EV --> OPT["eval/optimization.go<br/>parallel trials"]
+    OPT --> TE["eval/trial_eval.go<br/>evaluateTrial"]
+
+    TE --> SIM["simulation.PortfolioRunner"]
     SIM --> STR["strategy"]
     SIM --> RISK["risk + trailing + position"]
-
-    OPT --> REP["report.go<br/>JSON + best-config"]
 ```
 
 ### Модули `internal/optimizer/`
 
 | Модуль | Назначение |
 |--------|------------|
-| `walkforward.go` | Генерация скользящих окон |
-| `window_slices.go` | Преднарезка свечей |
-| `config.go` | Search space, `Sample()` |
-| `trial_eval.go` | Один trial = все окна × тикеры |
-| `objective.go` | `Score`, `Metrics`, комиссия |
-| `optimization.go` | Worker pool, random search |
+| `core/*` | Search space, random search, метрики/score, walk-forward окна |
+| `eval/*` | `Evaluator`, trial execution, backtest, parallel optimization |
+| `report/*` | JSON-отчёт, `best-config`, печать top-N |
+| `charts/*` | HTML-графики, export для ИИ-анализа |
+| `data/*` | `tickers.yaml`, fetch/throttle-конфиг, утилиты свечей |
 | `two_phase.go` | Lean → full |
 | `history.go`, `fetch.go` | CSV и BCS API |
-| `report.go` | Отчёты |
 
 ### Ключевые типы
 
@@ -341,7 +363,7 @@ type TrialResult struct {
 
 - **No auto-deploy** — `best-config` применяется вручную
 - **`stop_mode` / universe** — вне search space, отдельные CLI-запуски
-- **`Searcher`** — задел под TPE/Bayesian (`search.go`)
+- **`Searcher`** — задел под TPE/Bayesian (`internal/optimizer/core/search.go`)
 
 ### Известные исправления (старые прогоны)
 
@@ -359,7 +381,7 @@ type TrialResult struct {
 
 `VirtualExecutor` и `ClosedTrade.GrossPnL` **не вычитают** комиссию. Optimizer вычитает `-commission_per_lot × quantity` при расчёте `Metrics.TotalPnL`.
 
-Defaults: **0.10 ₽** round-trip за акцию (TQBR), **5.0 ₽** за контракт (SPBFUT). Задаётся в `costs.commission_per_lot` (universe / best-config) или флагом `-commission-per-lot`. Трейлинг-стоп использует то же значение для offset безубытка.
+Defaults: **0.10 ₽** round-trip за акцию (TQBR), **5.0 ₽** за контракт (SPBFUT). Задаётся в `costs.commission_per_lot` (`tickers.yaml` / `best-config`) или флагом `-commission-per-lot`. Трейлинг-стоп использует то же значение для offset безубытка.
 
 ## Выходные файлы
 
@@ -369,7 +391,7 @@ Defaults: **0.10 ₽** round-trip за акцию (TQBR), **5.0 ₽** за ко�
 
 ## Design decision: no auto-deploy
 
-Optimizer **только предлагает** конфиг. Ручное применение: скопировать `best-config-*.yaml` в `configs/` и запустить бота отдельно.
+Optimizer **только предлагает** конфиг. Применение вручную: скопировать в `configs/champions/` или `configs/runs/`, затем запустить бота.
 
 ## Известные баги (исправлены)
 
@@ -423,12 +445,15 @@ equity curve и считает `MaxDrawdown`/`Calmar` по порядку эле
 предупреждением. **Вывод: при выборе конфигурации из top-N всегда проверяйте
 не только `score`, но и сумму PnL по окнам в JSON/выводе.**
 
-## Результаты первого честного прогона на реальных данных (после всех фиксов)
+## Результаты первого честного прогона на реальных данных (исторический архив)
+
+> **Примечание:** ниже — результаты **раннего** matrix-прогона (2024–2026), до нахождения champions ORC / OR Fade / MF Afternoon.  
+> Актуальный portfolio: [`docs/strategy-research.md`](../../docs/strategy-research.md).
 
 > Исторические прогоны ниже использовали старую схему train/test (6m/2m/1m).
 > Текущая версия — скользящие окна оценки (`-window-months` / `-step-months`).
 
-MOEX M5, 9 акций (`config/optimizer/universe.yaml`), 2024-07-03 → 2026-07-03,
+MOEX M5, 9 акций (`configs/shared/tickers.yaml`), 2024-07-03 → 2026-07-03,
 17 walk-forward окон (6m/2m/1m). Best score / суммарный PnL по всем окнам:
 
 | strategy            | stop_mode | trials | best test_score | total test PnL, руб |
@@ -475,6 +500,6 @@ universe/периоде для данного набора стратегий н
 
 ## Расширение алгоритма поиска
 
-Интерфейс `optimizer.Searcher` готов для замены Random Search на TPE/Bayesian (см. TODO в `internal/optimizer/search.go`).
+Интерфейс `core.Searcher` готов для замены Random Search на TPE/Bayesian (см. TODO в `internal/optimizer/core/search.go`).
 
 Сборка: `go build -o bin/optimizer ./cmd/optimizer`

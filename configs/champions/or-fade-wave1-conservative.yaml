@@ -1,0 +1,47 @@
+# FROZEN champion — Opening Range Fade (wave1-conservative, seed 1).
+# Не менять без явного запроса. См. docs/champion-or-fade.md
+# Backtest: +0.25R, PF 1.49, 15/23 WF, 133 trades.
+
+trading_mode: virtual
+
+tickers:
+  - LKOH
+  - CHMF
+  - MOEX
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_per_lot: 0.10
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: opening_range_fade
+  stop_mode: atr
+  atr_period: 14
+  orb_minutes: 16
+  breakout_threshold: 0.002762422828227384
+  fade_window_minutes: 13
+  fade_trade_end_minutes: 77
+  require_inside_range: true
+  atr_multiplier: 1.9772193466876373
+  reward_ratio: 1.1900341423998035
+  trail_activation_r: 2.3617199866716763
+  trail_breakeven_r: 0.036
+  trail_stage_max: 3
+  max_trades_per_ticker_per_day: 3
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000

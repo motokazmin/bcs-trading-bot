@@ -1,0 +1,12 @@
+class_code: TQBR
+candle_timeframe: M5
+initial_history_years: 2
+
+costs:
+  commission_per_lot: 0.10
+
+# OR Fade conservative: seed2 by_ticker — LKOH/CHMF/MOEX плюс, GAZP/TATN минус.
+tickers:
+  - LKOH
+  - CHMF
+  - MOEX

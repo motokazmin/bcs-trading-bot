@@ -114,6 +114,7 @@ type RiskConfig struct {
 	MaxDailyLoss        float64 `yaml:"max_daily_loss"`
 	MaxDailyLossPercent float64 `yaml:"max_daily_loss_percent"`
 	RiskPerTradePercent float64 `yaml:"risk_per_trade_percent"`
+	MaxParallelTrades   int     `yaml:"max_parallel_trades"`
 }
 
 type StrategyConfig struct {
@@ -131,11 +132,15 @@ type StrategyConfig struct {
 	TrailActivationR          float64 `yaml:"trail_activation_r"`
 	TrailDiscreteStepR        float64 `yaml:"trail_discrete_step_r"`
 	TrailStageMax             int     `yaml:"trail_stage_max"`
+	TrailBreakevenR           float64 `yaml:"trail_breakeven_r"`
 	LongOnly                  *bool   `yaml:"long_only"`
 	TrendSMAPeriod            int     `yaml:"trend_sma_period"`
 	StrategyEntryDelayMinutes int     `yaml:"strategy_entry_delay_minutes"`
 	ORBMinutes                int     `yaml:"orb_minutes"`
 	FadeThreshold             float64 `yaml:"fade_threshold"`
+	FadeWindowMinutes         int     `yaml:"fade_window_minutes"`
+	FadeTradeEndMinutes       int     `yaml:"fade_trade_end_minutes"`
+	RequireInsideRange        *bool   `yaml:"require_inside_range"`
 }
 
 type VirtualConfig struct {
@@ -338,6 +343,28 @@ func StrategyConfigFromMap(fields map[string]interface{}, stopMode string) Strat
 		b := v
 		cfg.LongOnly = &b
 	}
+	if v, ok := fields["fade_window_minutes"].(int); ok {
+		cfg.FadeWindowMinutes = v
+	}
+	if v, ok := fields["fade_trade_end_minutes"].(int); ok {
+		cfg.FadeTradeEndMinutes = v
+	}
+	if v, ok := fields["require_inside_range"].(bool); ok {
+		b := v
+		cfg.RequireInsideRange = &b
+	}
+	if v, ok := fields["trail_activation_r"].(float64); ok {
+		cfg.TrailActivationR = v
+	}
+	if v, ok := fields["trail_discrete_step_r"].(float64); ok {
+		cfg.TrailDiscreteStepR = v
+	}
+	if v, ok := fields["trail_stage_max"].(int); ok {
+		cfg.TrailStageMax = v
+	}
+	if v, ok := fields["trail_breakeven_r"].(float64); ok {
+		cfg.TrailBreakevenR = v
+	}
 	return cfg
 }
 
@@ -382,6 +409,9 @@ func (s StrategyConfig) TrailingConfig(stepPriceValue, commissionPerLot float64)
 	}
 	if s.TrailStageMax > 0 {
 		cfg.StageMax = s.TrailStageMax
+	}
+	if s.TrailBreakevenR > 0 {
+		cfg.BreakevenR = s.TrailBreakevenR
 	}
 	return cfg
 }
@@ -492,6 +522,9 @@ func (c *Config) applyRiskDefaults(risk *RiskConfig, depositHint float64) {
 	}
 	if risk.RiskPerTradePercent <= 0 {
 		risk.RiskPerTradePercent = defaultRiskPerTradePct
+	}
+	if risk.MaxParallelTrades <= 0 {
+		risk.MaxParallelTrades = 2
 	}
 }
 

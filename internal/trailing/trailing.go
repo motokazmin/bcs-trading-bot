@@ -10,6 +10,7 @@ type Config struct {
 	ActivationR      float64 // порог первой стадии в единицах R (default 1.0)
 	DiscreteStepR    float64 // шаг между стадиями в R (default 1.0)
 	StageMax         int     // макс. дискретная стадия (default 2)
+	BreakevenR       float64 // перенос SL в +BreakevenR при первой стадии (0 = offset по комиссии)
 	CommissionPerLot float64 // комиссия round-trip за единицу quantity для offset безубытка
 	StepPriceValue   float64 // стоимость шага цены
 }
@@ -65,7 +66,7 @@ func Apply(pos *position.State, price float64, cfg Config) {
 
 		var newSL float64
 		if stage == 1 {
-			newSL = breakevenSL(pos, breakevenOffset)
+			newSL = breakevenSL(pos, cfg, breakevenOffset)
 		} else {
 			lockR := cfg.ActivationR + float64(stage-2)*cfg.DiscreteStepR
 			newSL = lockSL(pos, lockR)
@@ -91,12 +92,22 @@ func triggerReached(pos *position.State, price, triggerR float64) bool {
 	}
 }
 
-func breakevenSL(pos *position.State, offset float64) float64 {
+func breakevenSL(pos *position.State, cfg Config, commissionOffset float64) float64 {
+	if cfg.BreakevenR > 0 {
+		switch pos.Direction {
+		case "BUY":
+			return pos.EntryPrice + cfg.BreakevenR*pos.RDistance
+		case "SELL":
+			return pos.EntryPrice - cfg.BreakevenR*pos.RDistance
+		default:
+			return pos.StopLoss
+		}
+	}
 	switch pos.Direction {
 	case "BUY":
-		return pos.EntryPrice + offset
+		return pos.EntryPrice + commissionOffset
 	case "SELL":
-		return pos.EntryPrice - offset
+		return pos.EntryPrice - commissionOffset
 	default:
 		return pos.StopLoss
 	}

@@ -9,7 +9,7 @@ import (
 func init() {
 	Register(Descriptor{
 		ID:                 IDMomentumFiltered,
-		DefaultSearchSpace: "config/optimizer/search-space-momentum-filtered.yaml",
+		DefaultSearchSpace: "configs/strategies/momentum-filtered.yaml",
 		NewFromParams:      newMomentumFilteredFromParams,
 		ParamsToConfigFields: momentumFilteredConfigFields,
 	})

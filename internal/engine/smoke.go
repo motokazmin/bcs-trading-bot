@@ -23,12 +23,12 @@ func RunSmokeTest(ctx context.Context, client *bcs.BCSClient, ticker string, exe
 		ticker: {{TickChan: tickCh}},
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, smokeTestTimeout)
-	defer cancel()
+	wsCtx, wsCancel := context.WithTimeout(ctx, smokeTestTimeout)
+	defer wsCancel()
 
 	wsDone := make(chan error, 1)
 	go func() {
-		wsDone <- client.SubscribeMarketDataFanOut(ctx, routes)
+		wsDone <- client.SubscribeMarketDataFanOut(wsCtx, routes)
 	}()
 
 	var tick models.Tick
@@ -40,11 +40,11 @@ func RunSmokeTest(ctx context.Context, client *bcs.BCSClient, ticker string, exe
 			return fmt.Errorf("websocket: %w", err)
 		}
 		return fmt.Errorf("websocket завершился до получения котировки")
-	case <-ctx.Done():
+	case <-wsCtx.Done():
 		return fmt.Errorf("таймаут %s: нет котировки (рынок закрыт или нет данных)", smokeTestTimeout)
 	}
 
-	cancel()
+	wsCancel()
 
 	if err := runSmokeCycle(ctx, ticker, tick.Price, executor); err != nil {
 		return err

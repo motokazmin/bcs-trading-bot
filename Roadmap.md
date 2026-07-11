@@ -86,7 +86,23 @@ $$\text{Результат} = (\text{Цена}_{\text{выхода}} - \text{Ц�
 
 ---
 
-## 6. Дорожная карта (TODO)
+## 7. Текущий статус торговых стратегий (2026-07-11)
+
+Portfolio **FROZEN** — три champion-стратегии на полный торговый день MOEX:
+
+| Слот | Стратегия | Paper config |
+|------|-----------|--------------|
+| ~10:00–10:30 | ORC (`opening_range_continuation`) | `configs/runs/portfolio-paper.yaml` |
+| ~10:15–12:30 | OR Fade (`opening_range_fade`) | ↑ |
+| 12:30–18:40 | MF Afternoon (`momentum_filtered`) | ↑ |
+
+Детали backtest, whitelist и параметры: [`docs/strategy-research.md`](docs/strategy-research.md).
+
+Следующий шаг: paper-валидация portfolio в virtual-режиме, затем осторожный переход к `real`.
+
+---
+
+## 8. Дорожная карта (TODO)
 
 ### Аналитика и персистентность
 - Учитывать комиссию в `net_pnl` при сохранении сделок (5 ₽/лот на круг в virtual, реальная комиссия — из API брокера).

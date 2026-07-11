@@ -10,6 +10,7 @@ import (
 
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
+	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
 )
@@ -21,7 +22,7 @@ type SyncOptions struct {
 	TimeFrame           string
 	InitialHistoryYears int
 	Tickers             []string
-	Fetch               FetchConfig
+	Fetch               data.FetchConfig
 	ParallelTickers     int
 	Now                 time.Time // для тестов; zero = time.Now()
 }
@@ -37,8 +38,8 @@ func SyncHistory(ctx context.Context, client *bcs.BCSClient, opts SyncOptions) e
 	if opts.InitialHistoryYears <= 0 {
 		opts.InitialHistoryYears = defaultInitialHistoryYears
 	}
-	fetchCfg := opts.Fetch.normalized()
-	fetchCfg.Throttle = NewAdaptiveThrottle(fetchCfg.ChunkDelay, fetchCfg.MaxChunkDelay)
+	fetchCfg := opts.Fetch.Normalized()
+	fetchCfg.Throttle = data.NewAdaptiveThrottle(fetchCfg.ChunkDelay, fetchCfg.MaxChunkDelay)
 
 	now := opts.Now
 	if now.IsZero() {
@@ -117,7 +118,7 @@ func tickerNamesFromErrors(errs []error) []string {
 	return out
 }
 
-func syncOneTicker(ctx context.Context, client *bcs.BCSClient, opts SyncOptions, fetchCfg FetchConfig, ticker string, now time.Time, barDur time.Duration) error {
+func syncOneTicker(ctx context.Context, client *bcs.BCSClient, opts SyncOptions, fetchCfg data.FetchConfig, ticker string, now time.Time, barDur time.Duration) error {
 	path := filepath.Join(opts.OutputDir, ticker+".csv")
 	existing, err := TryLoadCSV(path, ticker)
 	if err != nil {
@@ -170,9 +171,9 @@ func syncFrom(existing []models.Candle, now time.Time, initialYears int, barDur 
 }
 
 // FetchHistory — полная перезагрузка диапазона (legacy, для отладки).
-func FetchHistory(ctx context.Context, client *bcs.BCSClient, tickers []string, classCode, timeFrame, outputDir string, from, to time.Time, fetchCfg FetchConfig) error {
-	fetchCfg = fetchCfg.normalized()
-	fetchCfg.Throttle = NewAdaptiveThrottle(fetchCfg.ChunkDelay, fetchCfg.MaxChunkDelay)
+func FetchHistory(ctx context.Context, client *bcs.BCSClient, tickers []string, classCode, timeFrame, outputDir string, from, to time.Time, fetchCfg data.FetchConfig) error {
+	fetchCfg = fetchCfg.Normalized()
+	fetchCfg.Throttle = data.NewAdaptiveThrottle(fetchCfg.ChunkDelay, fetchCfg.MaxChunkDelay)
 
 	var errs []error
 	for i, ticker := range tickers {

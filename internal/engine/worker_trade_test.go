@@ -55,6 +55,7 @@ func TestClosePositionSavesTrade(t *testing.T) {
 		"TQBR",
 		"M5",
 		store,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("NewTickerWorker: %v", err)
@@ -140,6 +141,7 @@ func TestClosePositionIgnoresSecondCall(t *testing.T) {
 		"SBER", exp, 1, 1.0, 0.10,
 		config.SessionConfig{Timezone: "Europe/Moscow", EODCloseTime: "23:40", SessionOpenTime: "10:00"},
 		config.TradingModeVirtual, "test-run", "TQBR", "M5", store,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("NewTickerWorker: %v", err)
