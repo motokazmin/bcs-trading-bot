@@ -34,7 +34,7 @@
 | Champion run | `wave2-rerun` (seed 1) |
 | Expectancy | **+0.49R** |
 | PF | 1.61 |
-| PnL | +53 559 ₽ / 2 года |
+| PnL | +53 559 ₽ / ~2 года (~13%/год) |
 | WF | 16/23 окон |
 | Сделок | 110 |
 | Тикеры | **MGNT, ROSN, TATN** (без SBER) |
@@ -64,7 +64,7 @@ trail_act≈1.52, max_entries=1
 | Champion run | **`wave1-conservative-rerun`** (seed 1) |
 | Expectancy | **+0.33R** |
 | PF | 1.58 |
-| PnL | +11k / ~2 года |
+| PnL | +11 136 ₽ / ~2 года (~2,8%/год) |
 | WF | **13/23** окон |
 | Сделок | 34 |
 | Тикеры | **LKOH, CHMF, MOEX** |
@@ -95,7 +95,7 @@ atr≈1.08, RR≈1.16, require_inside_range=false
 | Champion run | **`mf-wave2-narrow-rerun`** (seed 1) |
 | Expectancy | **+0.18R** |
 | PF | 1.34 |
-| PnL | +12k / ~2 года |
+| PnL | +11 974 ₽ / ~2 года (~3,0%/год) |
 | WF | **13/23** окон |
 | Сделок | 67 |
 | Тикеры | **MGNT, TATN** |
