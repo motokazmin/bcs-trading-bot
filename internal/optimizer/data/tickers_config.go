@@ -64,7 +64,12 @@ func (u *TickersConfig) ResolveTickers(override string) []string {
 	return append([]string(nil), u.Tickers...)
 }
 
-// CommissionPerLot возвращает комиссию round-trip за единицу quantity.
+// ResolvedCosts возвращает модель издержек с учётом CLI-override.
+func (u *TickersConfig) ResolvedCosts(perLotFlag, rateFlag float64) costs.Config {
+	return costs.ResolveCosts(perLotFlag, rateFlag, u.ClassCode, u.Costs)
+}
+
+// CommissionPerLot возвращает flat round-trip (legacy API).
 func (u *TickersConfig) CommissionPerLot(flagOverride float64) float64 {
 	return costs.ResolveFlag(flagOverride, u.ClassCode, u.Costs)
 }

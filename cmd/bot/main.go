@@ -157,7 +157,7 @@ func main() {
 				exp,
 				tickerCount,
 				tc.StepPriceValue,
-				cfg.CommissionPerLot(),
+				cfg.CostsConfig(),
 				session,
 				cfg.TradingMode,
 				runID,

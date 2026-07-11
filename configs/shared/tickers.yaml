@@ -4,7 +4,7 @@ candle_timeframe: M5
 initial_history_years: 2
 
 costs:
-  commission_per_lot: 0.10  # round-trip за акцию, руб (≈ типичный тариф БКС)
+  commission_rate_per_leg: 0.00008  # 0,008% за leg (тариф БКС «Трейдер»)
 
 # Lean universe для двухфазного поиска (-two-phase)
 lean_tickers:

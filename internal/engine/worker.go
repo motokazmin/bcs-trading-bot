@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/config"
+	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/strategy"
@@ -37,6 +38,7 @@ type TickerWorker struct {
 	session          *SessionClock
 	store            interfaces.TradeStore
 	trailCfg         trailing.Config
+	costsCfg         costs.Config
 	candleChan       chan models.Candle
 	tickChan         chan models.Tick
 	position         *position.State
@@ -53,7 +55,7 @@ func NewTickerWorker(
 	exp config.ResolvedExperiment,
 	tickerCount int,
 	stepPriceValue float64,
-	commissionPerLot float64,
+	costsCfg costs.Config,
 	sessionCfg config.SessionConfig,
 	tradingMode, runID, classCode, candleTimeframe string,
 	store interfaces.TradeStore,
@@ -78,7 +80,7 @@ func NewTickerWorker(
 		label = fmt.Sprintf("%s/%s", exp.ID, ticker)
 	}
 
-	trailCfg := exp.Strategy.TrailingConfig(stepPriceValue, commissionPerLot)
+	trailCfg := exp.Strategy.TrailingConfig(stepPriceValue, costsCfg, classCode)
 
 	strat, err := exp.Strategy.BuildStrategy(sessionCfg)
 	if err != nil {
@@ -105,6 +107,7 @@ func NewTickerWorker(
 		session:                  clock,
 		store:                    store,
 		trailCfg:                 trailCfg,
+		costsCfg:                 costsCfg,
 		maxTradesPerTickerPerDay: exp.Strategy.MaxTradesPerTickerPerDay,
 		candleChan:               make(chan models.Candle, 64),
 		tickChan:                 make(chan models.Tick, 256),
@@ -304,13 +307,19 @@ func (w *TickerWorker) closePosition(ctx context.Context, executor interfaces.Or
 	}
 
 	order := models.Order{
-		Ticker:      w.ticker,
-		Direction:   closeDir,
-		Quantity:    pos.Quantity,
-		Price:       price,
-		OrderType:   models.OrderTypeMarket,
-		CloseReason: reason,
+		Ticker:        w.ticker,
+		Direction:     closeDir,
+		Quantity:      pos.Quantity,
+		Price:         price,
+		OrderType:     models.OrderTypeMarket,
+		CloseReason:   reason,
+		CommissionRub: 0,
 	}
+
+	grossPnL := position.CalcPnL(pos, price, w.stepPriceValue)
+	commission := costs.RoundTrip(w.costsCfg, w.classCode, pos.EntryPrice, price, pos.Quantity, w.stepPriceValue)
+	order.CommissionRub = commission
+	pnl := costs.NetPnL(grossPnL, w.costsCfg, w.classCode, pos.EntryPrice, price, pos.Quantity, w.stepPriceValue)
 
 	if err := executor.ExecuteOrder(ctx, order); err != nil {
 		logx.Error("[%s] ошибка закрытия позиции (%s): %v", w.label, reason, err)
@@ -318,7 +327,6 @@ func (w *TickerWorker) closePosition(ctx context.Context, executor interfaces.Or
 		return
 	}
 
-	pnl := position.CalcPnL(pos, price, w.stepPriceValue)
 	if pnl < 0 {
 		w.riskMgr.RegisterLoss(-pnl)
 	} else if pnl > 0 {

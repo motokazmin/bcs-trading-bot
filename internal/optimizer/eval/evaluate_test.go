@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/pkg/models"
@@ -65,7 +66,7 @@ func TestAggregateTradesSortsAcrossTickersByTime(t *testing.T) {
 	// Порядок поступления, как в EvaluatePeriod: сначала все сделки A, потом все сделки B.
 	concatenated := append(append([]models.ClosedTrade{}, tickerAOrder...), tickerBOrder...)
 
-	got := eval.AggregateTrades(concatenated, 0)
+	got := eval.AggregateTrades(concatenated, costs.Config{}, costs.ClassCodeStocks)
 
 	// Хронологический порядок [+200,-150,+150,-50]: equity 200,50,200,150,
 	// просадка от пика 200 до 50 = 150.

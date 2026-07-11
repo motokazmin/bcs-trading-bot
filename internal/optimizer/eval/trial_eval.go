@@ -7,6 +7,7 @@ import (
 
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
+	"bcs-trading-bot/internal/costs"
 	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/simulation"
@@ -63,7 +64,7 @@ func (e *Evaluator) evaluateTrial(ctx context.Context, index int, params core.Pa
 	for i, slices := range e.windowSlices {
 		pr := e.evaluateCandles(ctx, tc, slices.Candles)
 		scores = append(scores, core.Score(pr.Metrics, minTrades))
-		bySide, byTickerSide := buildTradeSideStats(pr.Trades, e.settings.CommissionPerLot)
+		bySide, byTickerSide := buildTradeSideStats(pr.Trades, e.settings.Costs, e.settings.ClassCode)
 		windowResults[i] = WindowResult{
 			Metrics:      pr.Metrics,
 			BySide:       bySide,
@@ -79,7 +80,7 @@ func (e *Evaluator) evaluateTrial(ctx context.Context, index int, params core.Pa
 	}
 }
 
-func buildTradeSideStats(trades []models.ClosedTrade, commissionPerLot float64) (map[string]TradeSideStats, map[string]map[string]TradeSideStats) {
+func buildTradeSideStats(trades []models.ClosedTrade, costsCfg costs.Config, classCode string) (map[string]TradeSideStats, map[string]map[string]TradeSideStats) {
 	bySide := make(map[string]TradeSideStats)
 	byTickerSide := make(map[string]map[string]TradeSideStats)
 
@@ -88,7 +89,7 @@ func buildTradeSideStats(trades []models.ClosedTrade, commissionPerLot float64) 
 		if side != "BUY" && side != "SELL" {
 			continue
 		}
-		net := core.NetPnLFromGross(trade.GrossPnL, trade.Quantity, commissionPerLot)
+		net := core.NetPnLFromTrade(trade, costsCfg, classCode)
 		isWin := net > 0
 		addSideStat(bySide, side, isWin, net)
 
@@ -224,7 +225,7 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 
 	// Агрегируем сделки портфеля в единые метрики периода (после сортировки в AggregateTrades).
 	return PeriodResult{
-		Metrics: AggregateTrades(trades, e.settings.CommissionPerLot),
+		Metrics: AggregateTrades(trades, e.settings.Costs, e.settings.ClassCode),
 		Trades:  trades,
 	}
 }

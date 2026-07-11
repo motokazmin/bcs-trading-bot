@@ -73,14 +73,19 @@ func WritePackage(dir string, data models.ExportData, prompt string, mode Mode) 
 }
 
 // ApplyNetPnL копирует сделки с net PnL в GrossPnL (для optimizer backtest).
-func ApplyNetPnL(trades []models.ClosedTrade, commissionPerLot float64) []models.ClosedTrade {
+func ApplyNetPnL(trades []models.ClosedTrade, costsCfg costs.Config, classCode string) []models.ClosedTrade {
 	out := make([]models.ClosedTrade, len(trades))
 	for i, t := range trades {
 		out[i] = t
-		net := costs.NetPnL(t.GrossPnL, t.Quantity, commissionPerLot)
+		step := stepPriceValue(t)
+		cc := t.ClassCode
+		if cc == "" {
+			cc = classCode
+		}
+		net := costs.NetPnL(t.GrossPnL, costsCfg, cc, t.EntryPrice, t.ExitPrice, t.Quantity, step)
 		out[i].GrossPnL = net
 		out[i].IsWinner = net > 0
-		riskAmt := t.RDistance * float64(t.Quantity) * stepPriceValue(t)
+		riskAmt := t.RDistance * float64(t.Quantity) * step
 		if riskAmt > 0 {
 			out[i].PnLR = net / riskAmt
 		}

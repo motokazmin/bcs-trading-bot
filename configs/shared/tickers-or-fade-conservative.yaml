@@ -3,7 +3,7 @@ candle_timeframe: M5
 initial_history_years: 2
 
 costs:
-  commission_per_lot: 0.10
+  commission_rate_per_leg: 0.00008
 
 # OR Fade conservative: seed2 by_ticker — LKOH/CHMF/MOEX плюс, GAZP/TATN минус.
 tickers:

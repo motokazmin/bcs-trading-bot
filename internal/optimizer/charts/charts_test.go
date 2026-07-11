@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"bcs-trading-bot/internal/costs"
 	core "bcs-trading-bot/internal/optimizer/core"
 	evalpkg "bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/pkg/models"
@@ -63,7 +64,7 @@ func TestBuildChartHTMLContainsData(t *testing.T) {
 		PeriodFrom: now,
 		PeriodTo:   now.Add(time.Hour),
 		Metrics:    core.Metrics{NumTrades: 1, TotalPnL: 5},
-	}, candles, trades, 5)
+	}, candles, trades, costs.Config{CommissionPerLot: 5.0}, costs.ClassCodeStocks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +133,7 @@ func TestTradesToChartSpans(t *testing.T) {
 		OpenedAt:    now,
 		ClosedAt:    now.Add(time.Minute),
 		CloseReason: models.CloseReasonEOD,
-	}}, 5)
+	}}, costs.Config{CommissionPerLot: 5.0}, costs.ClassCodeStocks)
 	if len(spans) != 1 {
 		t.Fatalf("spans: got %d", len(spans))
 	}
@@ -168,7 +169,7 @@ func TestTradesToChartMarkersPnL(t *testing.T) {
 		OpenedAt:    now,
 		ClosedAt:    now.Add(time.Minute),
 		CloseReason: models.CloseReasonTakeProfit,
-	}}, 5)
+	}}, costs.Config{CommissionPerLot: 5.0}, costs.ClassCodeStocks)
 	if len(markers) != 2 {
 		t.Fatalf("markers: got %d", len(markers))
 	}
@@ -277,7 +278,7 @@ func TestChartStats(t *testing.T) {
 		{GrossPnL: -30, Quantity: 1, RDistance: 1, StepPriceValue: 1, PnLR: -0.3},
 		{GrossPnL: -40, Quantity: 1, RDistance: 1, StepPriceValue: 1, PnLR: -0.4},
 		{GrossPnL: -100, Quantity: 1, RDistance: 1, StepPriceValue: 1, PnLR: -1.0},
-	}, 0)
+	}, costs.Config{}, costs.ClassCodeStocks)
 	if len(stats) < 6 {
 		t.Fatalf("stats: %d", len(stats))
 	}
@@ -343,7 +344,7 @@ func TestBuildChartHTMLZoomsToTrades(t *testing.T) {
 		PeriodFrom: base,
 		PeriodTo:   far,
 		Metrics:    core.Metrics{NumTrades: 1, TotalPnL: 5, WinRate: 1},
-	}, candles, trades, 0)
+	}, candles, trades, costs.Config{}, costs.ClassCodeStocks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,8 +358,8 @@ func TestChartPayloadJSON(t *testing.T) {
 	now := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
 	payload := chartPayload{
 		Candles: candlesToChartCandles([]models.Candle{{Open: 99, High: 101, Low: 98, Close: 100, Timestamp: now}}),
-		Markers: tradesToChartMarkers(nil, 0),
-		Trades:  tradesToChartSpans(nil, 0),
+		Markers: tradesToChartMarkers(nil, costs.Config{}, costs.ClassCodeStocks),
+		Trades:  tradesToChartSpans(nil, costs.Config{}, costs.ClassCodeStocks),
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {

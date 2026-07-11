@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/strategy"
@@ -48,7 +49,7 @@ func TestClosePositionSavesTrade(t *testing.T) {
 		exp,
 		1,
 		1.0,
-		0.10,
+		costs.Config{CommissionPerLot: 0.10},
 		config.SessionConfig{Timezone: "Europe/Moscow", EODCloseTime: "23:40", SessionOpenTime: "10:00"},
 		config.TradingModeVirtual,
 		"test-run",
@@ -99,11 +100,11 @@ func TestClosePositionSavesTrade(t *testing.T) {
 	if tr.InitialStopLoss != 95 || tr.FinalStopLoss != 100 {
 		t.Fatalf("SL: initial=%.2f final=%.2f", tr.InitialStopLoss, tr.FinalStopLoss)
 	}
-	if tr.GrossPnL != 100 {
-		t.Fatalf("gross_pnl: got %.2f, want 100", tr.GrossPnL)
+	if tr.GrossPnL != 99 {
+		t.Fatalf("net pnl: got %.2f, want 99", tr.GrossPnL)
 	}
-	if tr.PnLR != 2 {
-		t.Fatalf("pnl_r: got %.2f, want 2", tr.PnLR)
+	if tr.PnLR != 1.98 {
+		t.Fatalf("pnl_r: got %.2f, want 1.98", tr.PnLR)
 	}
 	if tr.CloseReason != models.CloseReasonTakeProfit {
 		t.Fatalf("close_reason: got %q", tr.CloseReason)
@@ -138,7 +139,7 @@ func TestClosePositionIgnoresSecondCall(t *testing.T) {
 		Risk:     config.RiskConfig{Deposit: 100_000, MaxDailyLoss: 2_000, RiskPerTradePercent: 0.5},
 	}
 	worker, err := NewTickerWorker(
-		"SBER", exp, 1, 1.0, 0.10,
+		"SBER", exp, 1, 1.0, costs.Config{CommissionPerLot: 0.10},
 		config.SessionConfig{Timezone: "Europe/Moscow", EODCloseTime: "23:40", SessionOpenTime: "10:00"},
 		config.TradingModeVirtual, "test-run", "TQBR", "M5", store,
 		nil,

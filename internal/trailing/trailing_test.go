@@ -3,13 +3,14 @@ package trailing_test
 import (
 	"testing"
 
+	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/trailing"
 )
 
 func TestApplyTrailingStopBuy(t *testing.T) {
 	cfg := trailing.DefaultConfig()
-	cfg.CommissionPerLot = 5.0
+	cfg.Costs = costs.Config{CommissionPerLot: 5.0}
 	pos := &position.State{
 		Direction:  "BUY",
 		EntryPrice: 100,
@@ -63,7 +64,7 @@ func TestApplyTrailingStopBuy(t *testing.T) {
 
 func TestApplyTrailingStopVariantCBuy(t *testing.T) {
 	cfg := trailing.DefaultConfig()
-	cfg.CommissionPerLot = 5.0
+	cfg.Costs = costs.Config{CommissionPerLot: 5.0}
 	pos := &position.State{
 		Direction:  "BUY",
 		EntryPrice: 100,
@@ -87,7 +88,7 @@ func TestApplyTrailingStopVariantCBuy(t *testing.T) {
 
 func TestApplyTrailingStopSell(t *testing.T) {
 	cfg := trailing.DefaultConfig()
-	cfg.CommissionPerLot = 5.0
+	cfg.Costs = costs.Config{CommissionPerLot: 5.0}
 	pos := &position.State{
 		Direction:  "SELL",
 		EntryPrice: 100,
@@ -123,7 +124,7 @@ func TestApplyTrailingStopSell(t *testing.T) {
 
 func TestApplyTrailingStopFuturesStepPrice(t *testing.T) {
 	cfg := trailing.DefaultConfig()
-	cfg.CommissionPerLot = 5.0
+	cfg.Costs = costs.Config{CommissionPerLot: 5.0}
 	cfg.StepPriceValue = 1.2
 	pos := &position.State{
 		Direction:  "BUY",

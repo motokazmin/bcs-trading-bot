@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/internal/optimizer"
@@ -85,9 +86,9 @@ fixed:
 		ClassCode:          "TQBR",
 		CandleTimeframe:    "M5",
 		Deposit:            100_000,
-		StepPriceValue:     1.0,
-		CommissionPerLot: 0.10,
-		MinTrades:          1,
+		StepPriceValue:  1.0,
+		Costs:           costs.Config{CommissionPerLot: 0.10},
+		MinTrades:       1,
 		Session:            optimizer.DefaultSession(),
 	}
 

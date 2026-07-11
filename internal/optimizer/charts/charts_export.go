@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"bcs-trading-bot/internal/config"
+	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/export"
 	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/pkg/logx"
@@ -24,12 +25,12 @@ type AnalysisExportResult struct {
 }
 
 // WriteAnalysisExport сохраняет data-summary.json, data-trades.json и промпты.
-func WriteAnalysisExport(expDir, expName string, cfg *config.Config, cfgPath string, trades []models.ClosedTrade, commission float64, meta *models.OptimizerExportInfo) (*AnalysisExportResult, error) {
+func WriteAnalysisExport(expDir, expName string, cfg *config.Config, cfgPath string, trades []models.ClosedTrade, costsCfg costs.Config, classCode string, meta *models.OptimizerExportInfo) (*AnalysisExportResult, error) {
 	if len(trades) == 0 {
 		return nil, fmt.Errorf("нет сделок для экспорта")
 	}
 
-	netTrades := export.ApplyNetPnL(trades, commission)
+	netTrades := export.ApplyNetPnL(trades, costsCfg, classCode)
 	normalizeTradesForExport(netTrades, expName, cfg)
 
 	report := export.BuildExperimentReport(expName, cfg.Strategy.StopMode, netTrades)
@@ -48,8 +49,9 @@ func WriteAnalysisExport(expDir, expName string, cfg *config.Config, cfgPath str
 	if meta.BestConfig == "" {
 		meta.BestConfig = filepath.Base(cfgPath)
 	}
-	if meta.CommissionPerLot <= 0 {
-		meta.CommissionPerLot = commission
+	if meta.CommissionPerLot <= 0 && meta.CommissionRatePerLeg <= 0 {
+		meta.CommissionPerLot = costsCfg.CommissionPerLot
+		meta.CommissionRatePerLeg = costsCfg.CommissionRatePerLeg
 	}
 
 	experiments := []models.ExperimentReport{report}

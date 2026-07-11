@@ -4,6 +4,8 @@
 
 **См. также:**
 - [strategy-research.md](strategy-research.md) — FROZEN portfolio, champions, методология исследований
+- [system.md](system.md) — риск, lifecycle сделки, paper trading
+- [champion-baseline.md](champion-baseline.md) — baseline доходности для сравнения с paper/live
 - [champion-orc.md](champion-orc.md), [champion-or-fade.md](champion-or-fade.md), [champion-mf-afternoon.md](champion-mf-afternoon.md) — параметры production-стратегий
 - [README](../README.md), [cmd/optimizer/README.md](../cmd/optimizer/README.md)
 

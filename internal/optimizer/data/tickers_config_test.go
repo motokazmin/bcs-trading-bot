@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/pkg/models"
 )
 
@@ -31,8 +30,11 @@ tickers: [SBER, GAZP]
 	if got := u.ResolveTickers("ROSN,SBER"); len(got) != 2 || got[0] != "ROSN" {
 		t.Fatalf("override: got %v", got)
 	}
-	if got := u.CommissionPerLot(-1); got != costs.DefaultPerLotStocks {
-		t.Fatalf("commission default: got %v", got)
+	if got := u.CommissionPerLot(-1); got != 0 {
+		t.Fatalf("commission default flat: got %v, want 0", got)
+	}
+	if !u.ResolvedCosts(-1, -1).UsesRate("TQBR") {
+		t.Fatal("expected default rate commission model")
 	}
 }
 

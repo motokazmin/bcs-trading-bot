@@ -3,7 +3,7 @@ candle_timeframe: M5
 initial_history_years: 2
 
 costs:
-  commission_per_lot: 0.10
+  commission_rate_per_leg: 0.00008
 
 # ORC whitelist — лучшие тикеры по live virtual (opening-range-continuation).
 tickers:

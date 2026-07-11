@@ -389,18 +389,22 @@ func (s StrategyConfig) StrategyOptions() strategy.Options {
 	return opts
 }
 
-// CommissionPerLot возвращает комиссию round-trip за единицу quantity.
+// CostsConfig возвращает модель издержек с учётом class_code.
+func (c *Config) CostsConfig() costs.Config {
+	return c.Costs
+}
+
+// CommissionPerLot возвращает flat round-trip (legacy API; 0 при rate-модели).
 func (c *Config) CommissionPerLot() float64 {
 	return c.Costs.PerLot(c.ClassCode)
 }
 
 // TrailingConfig конвертирует параметры трейлинга из YAML в trailing.Config.
-func (s StrategyConfig) TrailingConfig(stepPriceValue, commissionPerLot float64) trailing.Config {
+func (s StrategyConfig) TrailingConfig(stepPriceValue float64, costsCfg costs.Config, classCode string) trailing.Config {
 	cfg := trailing.DefaultConfig()
 	cfg.StepPriceValue = stepPriceValue
-	if commissionPerLot > 0 {
-		cfg.CommissionPerLot = commissionPerLot
-	}
+	cfg.Costs = costsCfg
+	cfg.ClassCode = classCode
 	if s.TrailActivationR > 0 {
 		cfg.ActivationR = s.TrailActivationR
 	}

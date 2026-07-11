@@ -1,6 +1,6 @@
-# FROZEN champion — Opening Range Continuation (wave2, seed 1).
-# Не менять без явного запроса. См. docs/champion-orc.md
-# Backtest: +0.51R, PF 1.62, 14/23 WF, 113 trades.
+# FROZEN champion — Opening Range Continuation (wave2-rerun, seed 1).
+# Комиссия: 0.008% за leg (BCS «Трейдер»). См. docs/champion-orc.md
+# Backtest rerun: +0.49R, PF 1.61, 16/23 WF, 110 trades.
 
 trading_mode: virtual
 
@@ -13,7 +13,7 @@ class_code: TQBR
 candle_timeframe: M5
 
 costs:
-  commission_per_lot: 0.10
+  commission_rate_per_leg: 0.00008
 
 session:
   timezone: Europe/Moscow
@@ -25,14 +25,14 @@ strategy:
   type: opening_range_continuation
   stop_mode: atr
   atr_period: 14
-  orb_minutes: 13
-  atr_multiplier: 0.83
-  breakout_threshold: 0.0086
-  reward_ratio: 1.47
-  trail_activation_r: 2.04
-  trail_stage_max: 2
-  trail_breakeven_r: 0.028
-  max_trades_per_ticker_per_day: 2
+  orb_minutes: 15
+  atr_multiplier: 0.841239838255675
+  breakout_threshold: 0.008381572367285477
+  reward_ratio: 1.6410674740062587
+  trail_activation_r: 1.5150736483279235
+  trail_breakeven_r: 0.01394552332498874
+  trail_stage_max: 1
+  max_trades_per_ticker_per_day: 1
 
 risk:
   deposit: 200000

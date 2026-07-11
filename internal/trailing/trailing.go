@@ -7,22 +7,23 @@ import (
 
 // Config задаёт параметры дискретного и непрерывного трейлинг-стопа.
 type Config struct {
-	ActivationR      float64 // порог первой стадии в единицах R (default 1.0)
-	DiscreteStepR    float64 // шаг между стадиями в R (default 1.0)
-	StageMax         int     // макс. дискретная стадия (default 2)
-	BreakevenR       float64 // перенос SL в +BreakevenR при первой стадии (0 = offset по комиссии)
-	CommissionPerLot float64 // комиссия round-trip за единицу quantity для offset безубытка
-	StepPriceValue   float64 // стоимость шага цены
+	ActivationR    float64 // порог первой стадии в единицах R (default 1.0)
+	DiscreteStepR  float64 // шаг между стадиями в R (default 1.0)
+	StageMax       int     // макс. дискретная стадия (default 2)
+	BreakevenR     float64 // перенос SL в +BreakevenR при первой стадии (0 = offset по комиссии)
+	Costs          costs.Config
+	ClassCode      string
+	StepPriceValue float64 // стоимость шага цены
 }
 
 // DefaultConfig возвращает Variant C (+1R безубыток, +2R фиксация, затем MFE-1R).
 func DefaultConfig() Config {
 	return Config{
-		ActivationR:      1.0,
-		DiscreteStepR:    1.0,
-		StageMax:         2,
-		CommissionPerLot: costs.DefaultPerLotStocks,
-		StepPriceValue:   1.0,
+		ActivationR:    1.0,
+		DiscreteStepR:  1.0,
+		StageMax:       2,
+		ClassCode:      costs.ClassCodeStocks,
+		StepPriceValue: 1.0,
 	}
 }
 
@@ -37,8 +38,8 @@ func (c Config) normalized() Config {
 	if out.StageMax < 1 {
 		out.StageMax = 2
 	}
-	if out.CommissionPerLot <= 0 {
-		out.CommissionPerLot = costs.DefaultPerLotStocks
+	if out.ClassCode == "" {
+		out.ClassCode = costs.ClassCodeStocks
 	}
 	if out.StepPriceValue <= 0 {
 		out.StepPriceValue = 1.0
@@ -53,7 +54,7 @@ func Apply(pos *position.State, price float64, cfg Config) {
 		return
 	}
 
-	breakevenOffset := cfg.CommissionPerLot / cfg.StepPriceValue
+	breakevenOffset := costs.BreakevenOffset(cfg.Costs, cfg.ClassCode, pos.EntryPrice, cfg.StepPriceValue)
 
 	for stage := 1; stage <= cfg.StageMax; stage++ {
 		if pos.TrailStage >= stage {

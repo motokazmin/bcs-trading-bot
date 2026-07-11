@@ -116,7 +116,8 @@ type OptimizerExportInfo struct {
 	BestConfig     string  `json:"best_config,omitempty"`
 	WalkForwardScore float64 `json:"walk_forward_score,omitempty"`
 	TotalWindowPnL   float64 `json:"total_window_pnl,omitempty"`
-	CommissionPerLot float64 `json:"commission_per_lot"`
+	CommissionPerLot     float64 `json:"commission_per_lot,omitempty"`
+	CommissionRatePerLeg float64 `json:"commission_rate_per_leg,omitempty"`
 }
 
 // DateRange — фактический диапазон дат в выборке.

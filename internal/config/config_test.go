@@ -14,14 +14,14 @@ func TestLoadORFadeChampion(t *testing.T) {
 	if cfg.Strategy.Type != "opening_range_fade" {
 		t.Fatalf("type: got %q", cfg.Strategy.Type)
 	}
-	if cfg.Strategy.FadeWindowMinutes != 13 {
-		t.Fatalf("fade_window_minutes: got %d, want 13", cfg.Strategy.FadeWindowMinutes)
+	if cfg.Strategy.FadeWindowMinutes != 57 {
+		t.Fatalf("fade_window_minutes: got %d, want 57", cfg.Strategy.FadeWindowMinutes)
 	}
-	if cfg.Strategy.FadeTradeEndMinutes != 77 {
-		t.Fatalf("fade_trade_end_minutes: got %d, want 77", cfg.Strategy.FadeTradeEndMinutes)
+	if cfg.Strategy.FadeTradeEndMinutes != 124 {
+		t.Fatalf("fade_trade_end_minutes: got %d, want 124", cfg.Strategy.FadeTradeEndMinutes)
 	}
-	if cfg.Strategy.RequireInsideRange == nil || !*cfg.Strategy.RequireInsideRange {
-		t.Fatal("require_inside_range: want true")
+	if cfg.Strategy.RequireInsideRange == nil || *cfg.Strategy.RequireInsideRange {
+		t.Fatal("require_inside_range: want false")
 	}
 	s, err := cfg.Strategy.BuildStrategy(cfg.Session)
 	if err != nil {
@@ -58,8 +58,8 @@ func TestLoadExperimentsAll(t *testing.T) {
 	if exps[0].ID != "momentum-breakout" {
 		t.Fatalf("first experiment: got %q", exps[0].ID)
 	}
-	if cfg.CommissionPerLot() != 0.10 {
-		t.Fatalf("commission_per_lot: got %v, want 0.10", cfg.CommissionPerLot())
+	if cfg.CommissionPerLot() != 0 {
+		t.Fatalf("commission_per_lot: got %v, want 0 (rate model)", cfg.CommissionPerLot())
 	}
 }
 
@@ -144,8 +144,11 @@ risk:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := cfg.CommissionPerLot(); got != 0.10 {
-		t.Fatalf("TQBR default commission: got %v, want 0.10", got)
+	if got := cfg.CommissionPerLot(); got != 0 {
+		t.Fatalf("TQBR default flat commission: got %v, want 0 (rate model)", got)
+	}
+	if !cfg.CostsConfig().UsesRate("TQBR") {
+		t.Fatal("expected default rate commission model for TQBR")
 	}
 }
 func TestTickerConfigUnmarshalObject(t *testing.T) {

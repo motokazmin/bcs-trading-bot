@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/config"
+	"bcs-trading-bot/internal/costs"
 	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/internal/strategy"
@@ -27,7 +28,7 @@ type RunSettings struct {
 	CandleTimeframe    string
 	Deposit            float64
 	StepPriceValue     float64
-	CommissionPerLot     float64
+	Costs              costs.Config
 	MinTrades          int
 	Session            config.SessionConfig
 }
@@ -117,7 +118,7 @@ func candlesByTickerInRange(dataByTicker map[string][]models.Candle, tickers []s
 // порядок закрытия позиций на уровне портфеля — MaxDrawdown/Calmar
 // считались бы по бессмысленной "сначала весь SBER, потом весь GAZP"
 // последовательности вместо настоящей хронологии.
-func AggregateTrades(trades []models.ClosedTrade, commissionPerTrade float64) core.Metrics {
+func AggregateTrades(trades []models.ClosedTrade, costsCfg costs.Config, classCode string) core.Metrics {
 	sorted := make([]models.ClosedTrade, len(trades))
 	copy(sorted, trades)
 	sort.Slice(sorted, func(i, j int) bool {
@@ -127,15 +128,13 @@ func AggregateTrades(trades []models.ClosedTrade, commissionPerTrade float64) co
 	var netPnLs []float64
 	var returns []float64
 	for _, trade := range sorted {
-		net := core.NetPnLFromGross(trade.GrossPnL, trade.Quantity, commissionPerTrade)
+		net := core.NetPnLFromTrade(trade, costsCfg, classCode)
 		netPnLs = append(netPnLs, net)
-		if trade.PnLR != 0 {
+		riskAmt := trade.RDistance * float64(trade.Quantity) * trade.StepPriceValue
+		if riskAmt > 0 {
+			returns = append(returns, net/riskAmt)
+		} else if trade.PnLR != 0 {
 			returns = append(returns, trade.PnLR)
-		} else {
-			riskAmt := trade.RDistance * float64(trade.Quantity) * trade.StepPriceValue
-			if riskAmt > 0 {
-				returns = append(returns, net/riskAmt)
-			}
 		}
 	}
 
@@ -145,7 +144,8 @@ func AggregateTrades(trades []models.ClosedTrade, commissionPerTrade float64) co
 func (e *Evaluator) trailCfg(params core.ParameterSet) trailing.Config {
 	cfg := trailing.DefaultConfig()
 	cfg.StepPriceValue = e.settings.StepPriceValue
-	cfg.CommissionPerLot = e.settings.CommissionPerLot
+	cfg.Costs = e.settings.Costs
+	cfg.ClassCode = e.settings.ClassCode
 	if v := params.FloatParam("trailActivationR"); v > 0 {
 		cfg.ActivationR = v
 	}

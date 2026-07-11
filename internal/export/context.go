@@ -18,7 +18,7 @@ func StrategyContextFromConfig(cfg *config.Config) models.StrategyContext {
 		stopMode = "range"
 	}
 
-	commission := cfg.CommissionPerLot()
+	commission := cfg.CostsConfig().Description(cfg.ClassCode)
 	return models.StrategyContext{
 		Name:           s.TypeOrDefault(),
 		Philosophy:     "Рынок непредсказуем; управляем риском. Оценка edge по walk-forward backtest на истории.",
@@ -27,7 +27,7 @@ func StrategyContextFromConfig(cfg *config.Config) models.StrategyContext {
 		RiskPerTrade:   fmt.Sprintf("%.2f%% депозита %d ₽ на сделку.", cfg.Risk.RiskPerTradePercent, int(cfg.Risk.Deposit)),
 		TrailingStop:   fmt.Sprintf("trail_activation_r=%.2f, trail_stage_max=%d.", s.TrailActivationR, s.TrailStageMax),
 		CircuitBreaker: fmt.Sprintf("%.1f%% дневного убытка.", cfg.Risk.MaxDailyLossPercent),
-		PnLNote:        fmt.Sprintf("Главная метрика прибыльности — expectancy_r (средний PnL в R на сделку): >0 edge, <0 убыток. PnL в ₽ net (комиссия %.2f ₽ round-trip за единицу quantity). avg_pnl_r = expectancy_r.", commission),
+		PnLNote:        fmt.Sprintf("Главная метрика прибыльности — expectancy_r (средний PnL в R на сделку): >0 edge, <0 убыток. PnL в ₽ net (комиссия: %s). avg_pnl_r = expectancy_r.", commission),
 		ExperimentNote: "Optimizer backtest на CSV-истории MOEX; best-config из walk-forward random search.",
 	}
 }

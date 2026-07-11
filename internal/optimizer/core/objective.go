@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/pkg/models"
 )
 
 // Metrics — агрегированные метрики backtest.
@@ -137,7 +138,21 @@ func filterFiniteScores(values []float64) []float64 {
 	return out
 }
 
-// NetPnLFromGross вычитает комиссию round-trip за сделку.
+// NetPnLFromTrade вычитает комиссию round-trip из gross PnL сделки.
+func NetPnLFromTrade(trade models.ClosedTrade, cfg costs.Config, classCode string) float64 {
+	cc := trade.ClassCode
+	if cc == "" {
+		cc = classCode
+	}
+	step := trade.StepPriceValue
+	if step <= 0 {
+		step = 1
+	}
+	return costs.NetPnL(trade.GrossPnL, cfg, cc, trade.EntryPrice, trade.ExitPrice, trade.Quantity, step)
+}
+
+// NetPnLFromGross — legacy flat round-trip за quantity.
 func NetPnLFromGross(grossPnL float64, quantity int, commissionPerLot float64) float64 {
-	return costs.NetPnL(grossPnL, quantity, commissionPerLot)
+	cfg := costs.Config{CommissionPerLot: commissionPerLot}
+	return costs.NetPnL(grossPnL, cfg, costs.ClassCodeStocks, 0, 0, quantity, 1)
 }

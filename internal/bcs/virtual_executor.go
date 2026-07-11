@@ -91,17 +91,17 @@ func (v *VirtualExecutor) closePosition(order models.Order) error {
 
 	closePrice := order.Price
 	qty := float64(pos.quantity)
-	pnl := calcVirtualPnL(pos, closePrice)
+	commission := order.CommissionRub
 
 	switch pos.direction {
 	case "BUY":
-		v.balance += closePrice * qty
+		v.balance += closePrice*qty - commission
 	case "SELL":
-		v.balance -= closePrice * qty
+		v.balance -= closePrice*qty + commission
 	}
 
 	delete(v.positions, order.Ticker)
-	_ = pnl
+	_ = calcVirtualPnL(pos, closePrice)
 
 	return nil
 }

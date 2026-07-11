@@ -1,10 +1,10 @@
 # BCS Trading Bot (MVP)
 
-Торговый робот на Go для [BCS Trade API](https://trade-api.bcs.ru). Предназначен для дейтрейдинга на 5-минутных свечах с жёстким риск-менеджментом.
+Торговый робот на Go для [BCS Trade API](https://trade-api.bcs.ru). **Дейтрейдинг акциями MOEX** (TQBR) на 5-минутных свечах с жёстким риск-менеджментом. FROZEN portfolio — ORC, OR Fade, MF Afternoon на акциях MGNT, ROSN, TATN, LKOH, CHMF, MOEX.
 
 Робот не пытается «угадать» рынок — он контролирует убытки:
 
-- соотношение риск/прибыль **1:3**;
+- асимметрия R:R через `strategy.reward_ratio` (у champions ~1,2–1,8);
 - риск на сделку **0.5%** от депозита;
 - суточный предохранитель **Circuit Breaker**.
 
@@ -13,9 +13,9 @@
 | Режим | `trading_mode` в конфиге | Поведение |
 |---|---|---|
 | Виртуальный (paper trading) | `virtual` | Сделки симулируются в памяти, деньги не тратятся |
-| Реальный | `real` | Ордера отправляются в BCS Trade API |
+| Реальный | `real` | Ордера отправляются в BCS Trade API (**сейчас — один experiment за запуск**) |
 
-> **Важно.** Для реальной торговли нужен refresh token со скоупом `trade-api-write`. Начинайте всегда с `trading_mode: virtual` в конфиге.
+> **Важно.** Для реальной торговли нужен refresh token со скоупом `trade-api-write`. Начинайте с `trading_mode: virtual`. Portfolio на одном real-счёте — [Roadmap.md](Roadmap.md).
 
 ### Production portfolio (FROZEN)
 
@@ -29,7 +29,9 @@
 
 Paper trading: `configs/runs/portfolio-paper.yaml`. Параметры: `configs/champions/*.yaml`.
 
-Документация исследований: [`docs/strategy-research.md`](docs/strategy-research.md). Техника стратегий: [`docs/strategies.md`](docs/strategies.md).
+Baseline доходности (для сравнения с live): [`docs/champion-baseline.md`](docs/champion-baseline.md).
+
+Документация: [`docs/strategy-research.md`](docs/strategy-research.md) · [`docs/system.md`](docs/system.md) · [`docs/strategies.md`](docs/strategies.md)
 
 ---
 
@@ -45,7 +47,8 @@ Paper trading: `configs/runs/portfolio-paper.yaml`. Параметры: `configs
 - [Исследования и champions](docs/strategy-research.md)
 - [Модули](#модули)
 - [Структура проекта](#структура-проекта)
-- [Дорожная карта](#дорожная-карта)
+- [Дорожная карта](Roadmap.md)
+- [Как устроена система](docs/system.md)
 
 ---
 
@@ -137,13 +140,15 @@ go run ./cmd/bot -config configs/runs/experiments-all.yaml
 
 10 экспериментов momentum/OR — архив ранних опытов, см. `configs/runs/legacy/`.
 
-### 4. Paper trading — фьючерсы
+### 4. Paper trading — фьючерсы (legacy, не champions)
 
 ```bash
 go run ./cmd/bot -config configs/runs/virtual-futures.yaml
 # или
 make bot-futures
 ```
+
+Ранний MVP-путь; все optimizer-прогоны и FROZEN portfolio — **только акции TQBR**.
 
 ### 5. Реальная торговля
 
@@ -330,7 +335,7 @@ go run ./cmd/bot
 |---|---|
 | `configs/runs/portfolio-paper.yaml` | **Paper trading, 3 FROZEN champions** (ORC + OR Fade + MF Afternoon) |
 | `configs/champions/*.yaml` | Snapshot параметров champions (solo-запуск одной стратегии) |
-| `configs/runs/virtual-futures.yaml` | Paper trading, фьючерсы SPBFUT |
+| `configs/runs/virtual-futures.yaml` | Legacy: paper trading, фьючерсы SPBFUT (не champions) |
 | `configs/runs/real-stocks.yaml` | Реальные ордера, акции TQBR |
 | `configs/runs/experiments-all.yaml` | Legacy A/B momentum (архив) |
 
@@ -344,7 +349,8 @@ go run ./cmd/bot
 | `tickers` | — | Список тикеров |
 | `class_code` | `TQBR` | Класс инструмента: `TQBR` (акции), `SPBFUT` (фьючерсы) |
 | `candle_timeframe` | `M5` | Таймфрейм свечей WebSocket: M1, M5, M15, ... |
-| `costs.commission_per_lot` | `0.10` (TQBR) / `5.0` (SPBFUT) | Комиссия round-trip за акцию или контракт |
+| `costs.commission_rate_per_leg` | `0.00008` (TQBR) | **0,008% за leg** — основная модель для акций |
+| `costs.commission_per_lot` | `5.0` (SPBFUT) | Flat round-trip за контракт фьючерса (legacy) |
 | `risk.deposit` | `100000` | Депозит для расчёта лота (руб.) |
 | `risk.max_daily_loss` | — | Абсолютный дневной лимит убытков (руб.) |
 | `risk.max_daily_loss_percent` | `2` | % от депозита, если `max_daily_loss` не задан |
@@ -360,7 +366,7 @@ go run ./cmd/bot
 | `strategy.volume_min_ratio` | `1.5` | Множитель к среднему объёму (при `volume_filter: true`) |
 | `virtual.balance` | = `risk.deposit` | Стартовый баланс virtual-счёта **на эксперимент** |
 | `storage.path` | `data/trades.db` | SQLite с закрытыми сделками |
-| `experiments[]` | — | Параллельные virtual-счета с разными `strategy` / `risk` (только `virtual`) |
+| `experiments[]` | — | Несколько стратегий в одном процессе (`virtual`: отдельный virtual-счёт на experiment; `real`: пока **1** experiment) |
 | `experiments[].id` | — | Идентификатор (`experiment_id` в БД и в логе `id/ticker`) |
 | `experiments[].tickers` | корневой `tickers` | Подмножество тикеров для этого эксперимента |
 | `experiments[].entry_delay_minutes` | корневой `session.entry_delay_minutes` | Задержка входов для эксперимента (минуты) |
@@ -504,8 +510,10 @@ bcs-trading-bot/
 │   ├── shared/                        # Whitelist тикеров для optimizer
 │   └── strategies/                    # Search space для optimizer
 ├── docs/
-│   ├── strategy-research.md           # Portfolio FROZEN, методология
+│   ├── strategy-research.md           # Champions, методология optimizer
+│   ├── system.md                      # Философия, риск, lifecycle сделки
 │   ├── champion-*.md                  # Детали champions
+│   ├── champion-baseline.md           # Baseline доходности для live
 │   └── strategies.md                  # Архитектура и гайд по стратегиям
 ├── data/trades.db                     # SQLite (создаётся ботом)
 ├── internal/
@@ -534,40 +542,11 @@ bcs-trading-bot/
 
 ## Дорожная карта
 
-**Готово:**
+План работ и недавно закрытое: **[Roadmap.md](Roadmap.md)**.
 
-- [x] OAuth2 авторизация
-- [x] WebSocket-поток 5-минутных свечей (multi-ticker Fan-Out)
-- [x] Стратегия пробоя уровней
-- [x] Расчёт лота и Circuit Breaker
-- [x] Paper trading (`VirtualExecutor`)
-- [x] Параллельные A/B-эксперименты (`experiments` + fan-out WebSocket)
-- [x] Персистентность сделок (SQLite) и веб-админка
-- [x] Единый формат логов virtual/real (`pkg/logx`)
-- [x] Масштабирование: воркер на пару эксперимент × тикер
-- [x] Отправка ордеров в BCS Trade API (режим `real`)
+Принципы риска, lifecycle сделки, paper trading: **[docs/system.md](docs/system.md)**.
 
-- [x] Walk-forward optimizer и 3 FROZEN champion-стратегии (ORC, OR Fade, MF Afternoon)
-- [x] Paper portfolio (`configs/runs/portfolio-paper.yaml`)
-
-**Планируется:**
-
-- [ ] Paper/live валидация portfolio (2–4 недели)
-- [ ] Автообновление `access_token` при истечении
-- [ ] Переподписка WebSocket после реконнекта с новым токеном
-- [ ] Учёт реального депозита из портфеля (вместо `risk.deposit` в конфиге)
-- [ ] Тесты (unit + интеграционные с mock-сервером)
-
-**Готово (риск-менеджмент):**
-
-- [x] Мониторинг SL/TP по потоку котировок (tick-by-tick)
-- [x] Принудительное закрытие позиций в `session.eod_close_time`
-- [x] `RegisterLoss` / `RegisterProfit` при закрытии позиции
-- [x] Рыночные ордера для закрытия (virtual + real)
-- [x] YAML-конфиги с настройками сессии
-- [x] Сброс дневного Circuit Breaker в `session.session_open_time`
-
-Подробная бизнес-логика — в [Roadmap.md](Roadmap.md).
+Champions и optimizer: **[docs/strategy-research.md](docs/strategy-research.md)**.
 
 ## Полезные ссылки
 

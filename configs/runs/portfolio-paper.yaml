@@ -1,9 +1,11 @@
 # Paper trading: три FROZEN champion-стратегии в одном процессе.
 # Слоты не пересекаются по времени; MGNT/TATN в ORC (утро) и MF (день).
 #
+# Baseline доходности (сверка с live): docs/champion-baseline.md
+#
 # Запуск: go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
 #
-# Champion snapshots: configs/champions/*.yaml
+# Champion snapshots: configs/champions/*.yaml (обновлены после commission-rerun 2026-07-11)
 
 trading_mode: virtual
 
@@ -19,7 +21,7 @@ class_code: TQBR
 candle_timeframe: M5
 
 costs:
-  commission_per_lot: 0.10
+  commission_rate_per_leg: 0.00008
 
 session:
   timezone: Europe/Moscow
@@ -40,14 +42,14 @@ experiments:
       type: opening_range_continuation
       stop_mode: atr
       atr_period: 14
-      orb_minutes: 13
-      atr_multiplier: 0.83
-      breakout_threshold: 0.0086
-      reward_ratio: 1.47
-      trail_activation_r: 2.04
-      trail_stage_max: 2
-      trail_breakeven_r: 0.028
-      max_trades_per_ticker_per_day: 2
+      orb_minutes: 15
+      atr_multiplier: 0.841239838255675
+      breakout_threshold: 0.008381572367285477
+      reward_ratio: 1.6410674740062587
+      trail_activation_r: 1.5150736483279235
+      trail_breakeven_r: 0.01394552332498874
+      trail_stage_max: 1
+      max_trades_per_ticker_per_day: 1
     risk:
       deposit: 200000
       max_daily_loss_percent: 2.0
@@ -66,15 +68,15 @@ experiments:
       type: opening_range_fade
       stop_mode: atr
       atr_period: 14
-      orb_minutes: 16
-      breakout_threshold: 0.002762422828227384
-      fade_window_minutes: 13
-      fade_trade_end_minutes: 77
-      require_inside_range: true
-      atr_multiplier: 1.9772193466876373
-      reward_ratio: 1.1900341423998035
-      trail_activation_r: 2.3617199866716763
-      trail_breakeven_r: 0.036
+      orb_minutes: 25
+      breakout_threshold: 0.003823943039450681
+      fade_window_minutes: 57
+      fade_trade_end_minutes: 124
+      require_inside_range: false
+      atr_multiplier: 1.0815366215225666
+      reward_ratio: 1.1569715395700808
+      trail_activation_r: 1.9851362319892052
+      trail_breakeven_r: 0.009146763491487745
       trail_stage_max: 3
       max_trades_per_ticker_per_day: 3
     risk:
@@ -95,17 +97,18 @@ experiments:
       type: momentum_filtered
       stop_mode: atr
       atr_period: 14
-      lookback: 37
-      breakout_threshold: 0.009417073737837274
-      reward_ratio: 1.9026308021374099
-      volume_filter: false
+      lookback: 31
+      breakout_threshold: 0.008331434122254639
+      reward_ratio: 1.8380671358074852
+      volume_filter: true
+      volume_min_ratio: 2.4863697165554925
       long_only: true
-      trend_sma_period: 32
-      strategy_entry_delay_minutes: 21
-      atr_multiplier: 2.1908875571737174
-      trail_activation_r: 2.1542158180746154
-      trail_discrete_step_r: 0.33896654497213896
-      trail_stage_max: 5
+      trend_sma_period: 20
+      strategy_entry_delay_minutes: 24
+      atr_multiplier: 2.727324932266869
+      trail_activation_r: 2.400288919185261
+      trail_discrete_step_r: 0.6639651274158297
+      trail_stage_max: 3
       max_trades_per_ticker_per_day: 1
     risk:
       deposit: 200000

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/export"
 	"bcs-trading-bot/pkg/models"
 )
@@ -38,7 +39,7 @@ func TestApplyNetPnL(t *testing.T) {
 	trades := []models.ClosedTrade{{
 		GrossPnL: 100, Quantity: 10, RDistance: 1, StepPriceValue: 1,
 	}}
-	out := export.ApplyNetPnL(trades, 0.10)
+	out := export.ApplyNetPnL(trades, costs.Config{CommissionPerLot: 0.10}, costs.ClassCodeStocks)
 	if out[0].GrossPnL != 99 {
 		t.Fatalf("net: %.2f", out[0].GrossPnL)
 	}

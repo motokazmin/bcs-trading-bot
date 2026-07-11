@@ -20,7 +20,7 @@ class_code: TQBR
 candle_timeframe: M5
 
 costs:
-  commission_per_lot: 0.10
+  commission_rate_per_leg: 0.00008
 
 session:
   timezone: Europe/Moscow

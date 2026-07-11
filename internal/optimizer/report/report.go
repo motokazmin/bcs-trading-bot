@@ -124,7 +124,8 @@ type bestConfigYAML struct {
 }
 
 type costsYAML struct {
-	CommissionPerLot float64 `yaml:"commission_per_lot"`
+	CommissionPerLot     float64 `yaml:"commission_per_lot,omitempty"`
+	CommissionRatePerLeg float64 `yaml:"commission_rate_per_leg,omitempty"`
 }
 
 type sessionYAML struct {
@@ -189,7 +190,8 @@ func buildBestConfig(params core.ParameterSet, settings eval.RunSettings, space 
 		ClassCode:       settings.ClassCode,
 		CandleTimeframe: settings.CandleTimeframe,
 		Costs: costsYAML{
-			CommissionPerLot: settings.CommissionPerLot,
+			CommissionPerLot:     settings.Costs.CommissionPerLot,
+			CommissionRatePerLeg: settings.Costs.CommissionRatePerLeg,
 		},
 		Session: sessionYAML{
 			Timezone:          settings.Session.Timezone,

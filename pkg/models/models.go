@@ -42,4 +42,5 @@ type Order struct {
 	BreakoutLower float64
 	OrderType     string
 	CloseReason   string
+	CommissionRub float64 // комиссия round-trip при закрытии (virtual/live)
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/bcs"
+	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/internal/optimizer/charts"
 	"bcs-trading-bot/internal/optimizer/core"
@@ -77,7 +78,8 @@ func runCmd(args []string) {
 	stepMonths := fs.Int("step-months", 1, "шаг сдвига окна в месяцах")
 	trials := fs.Int("trials", 200, "число random search trials")
 	minTrades := fs.Int("min-trades", 20, "мин. сделок для валидного score")
-	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из tickers-config или class_code)")
+	commission := fs.Float64("commission-per-lot", -1, "flat round-trip за акцию/контракт, руб (<=0: из tickers-config)")
+	commissionRate := fs.Float64("commission-rate", -1, "ставка за leg, доля оборота (0.00008 = 0,008%%; <=0: из tickers-config)")
 	stopMode := fs.String("stop-mode", "atr", "stop_mode: range или atr")
 	deposit := fs.Float64("deposit", 200000, "депозит для risk manager")
 	stepPrice := fs.Float64("step-price-value", 1.0, "стоимость шага цены")
@@ -139,7 +141,7 @@ func runCmd(args []string) {
 		CandleTimeframe:    u.CandleTimeframe,
 		Deposit:            *deposit,
 		StepPriceValue:     *stepPrice,
-		CommissionPerLot:     u.CommissionPerLot(*commission),
+		Costs:              u.ResolvedCosts(*commission, *commissionRate),
 		MinTrades:          *minTrades,
 		Session:            optimizer.DefaultSession(),
 	}
@@ -188,7 +190,7 @@ func runCmd(args []string) {
 	chartsResult, chartsErr := charts.RunCharts(ctx, charts.ChartsOptions{
 		ExperimentDir:      *output,
 		HistoryDir:         *historyDir,
-		CommissionPerLot:     u.CommissionPerLot(*commission),
+		Costs:              u.ResolvedCosts(*commission, *commissionRate),
 	})
 	if chartsErr != nil {
 		logx.Warn("charts: %v", chartsErr)
@@ -209,7 +211,8 @@ func backtestCmd(args []string) {
 	searchSpace := fs.String("search-space", "", "YAML search space (default: из стратегии)")
 	dateFrom := fs.String("date-from", "", "начало периода YYYY-MM-DD")
 	dateTo := fs.String("date-to", "", "конец периода YYYY-MM-DD")
-	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из tickers-config или class_code)")
+	commission := fs.Float64("commission-per-lot", -1, "flat round-trip за акцию/контракт, руб (<=0: из tickers-config)")
+	commissionRate := fs.Float64("commission-rate", -1, "ставка за leg, доля оборота (0.00008 = 0,008%%; <=0: из tickers-config)")
 	stopMode := fs.String("stop-mode", "atr", "stop_mode: range или atr")
 	deposit := fs.Float64("deposit", 200000, "депозит")
 	stepPrice := fs.Float64("step-price-value", 1.0, "стоимость шага цены")
@@ -256,7 +259,7 @@ func backtestCmd(args []string) {
 		CandleTimeframe:    u.CandleTimeframe,
 		Deposit:            *deposit,
 		StepPriceValue:     *stepPrice,
-		CommissionPerLot:     u.CommissionPerLot(*commission),
+		Costs:              u.ResolvedCosts(*commission, *commissionRate),
 		MinTrades:          1,
 		Session:            optimizer.DefaultSession(),
 	}
@@ -278,7 +281,8 @@ func chartsCmd(args []string) {
 	all := fs.Bool("all", false, "собрать графики по всем экспериментам в results-dir")
 	resultsDir := fs.String("results-dir", "results", "директория с результатами optimizer")
 	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
-	commission := fs.Float64("commission-per-lot", -1, "комиссия round-trip за акцию/контракт, руб (<=0: из tickers-config или class_code)")
+	commission := fs.Float64("commission-per-lot", -1, "flat round-trip за акцию/контракт, руб (<=0: из tickers-config)")
+	commissionRate := fs.Float64("commission-rate", -1, "ставка за leg, доля оборота (0.00008 = 0,008%%; <=0: из tickers-config)")
 	_ = fs.Parse(args)
 
 	if *all && *experiment != "" {
@@ -290,9 +294,9 @@ func chartsCmd(args []string) {
 
 	ctx := context.Background()
 	opts := charts.ChartsOptions{
-		ResultsDir:       *resultsDir,
-		HistoryDir:       *historyDir,
-		CommissionPerLot: *commission,
+		ResultsDir: *resultsDir,
+		HistoryDir: *historyDir,
+		Costs:      costs.ResolveCosts(*commission, *commissionRate, costs.ClassCodeStocks, costs.Config{}),
 	}
 
 	if *all {
