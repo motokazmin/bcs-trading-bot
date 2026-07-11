@@ -1,0 +1,16 @@
+class_code: TQBR
+candle_timeframe: M5
+initial_history_years: 2
+
+costs:
+  commission_per_lot: 0.10
+
+# MF Afternoon expanded whitelist (per-ticker matrix 2026-07-11).
+# Исключены: LKOH (−0.55R), MOEX (−0.73R).
+tickers:
+  - MGNT
+  - SBER
+  - NVTK
+  - ROSN
+  - TATN
+  - GAZP

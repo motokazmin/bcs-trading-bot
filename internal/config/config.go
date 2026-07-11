@@ -138,6 +138,9 @@ type StrategyConfig struct {
 	StrategyEntryDelayMinutes int     `yaml:"strategy_entry_delay_minutes"`
 	ORBMinutes                int     `yaml:"orb_minutes"`
 	FadeThreshold             float64 `yaml:"fade_threshold"`
+	FadeWindowMinutes         int     `yaml:"fade_window_minutes"`
+	FadeTradeEndMinutes       int     `yaml:"fade_trade_end_minutes"`
+	RequireInsideRange        *bool   `yaml:"require_inside_range"`
 }
 
 type VirtualConfig struct {
@@ -339,6 +342,28 @@ func StrategyConfigFromMap(fields map[string]interface{}, stopMode string) Strat
 	if v, ok := fields["long_only"].(bool); ok {
 		b := v
 		cfg.LongOnly = &b
+	}
+	if v, ok := fields["fade_window_minutes"].(int); ok {
+		cfg.FadeWindowMinutes = v
+	}
+	if v, ok := fields["fade_trade_end_minutes"].(int); ok {
+		cfg.FadeTradeEndMinutes = v
+	}
+	if v, ok := fields["require_inside_range"].(bool); ok {
+		b := v
+		cfg.RequireInsideRange = &b
+	}
+	if v, ok := fields["trail_activation_r"].(float64); ok {
+		cfg.TrailActivationR = v
+	}
+	if v, ok := fields["trail_discrete_step_r"].(float64); ok {
+		cfg.TrailDiscreteStepR = v
+	}
+	if v, ok := fields["trail_stage_max"].(int); ok {
+		cfg.TrailStageMax = v
+	}
+	if v, ok := fields["trail_breakeven_r"].(float64); ok {
+		cfg.TrailBreakevenR = v
 	}
 	return cfg
 }

@@ -2,7 +2,10 @@
 
 Документ описывает архитектуру торговых стратегий, процесс добавления новой и подключение в **боте** (live/paper) и **optimizer** (offline backtest).
 
-См. также: [README](../README.md), [cmd/optimizer/README.md](../cmd/optimizer/README.md).
+**См. также:**
+- [strategy-research.md](strategy-research.md) — FROZEN portfolio, champions, методология исследований
+- [champion-orc.md](champion-orc.md), [champion-or-fade.md](champion-or-fade.md), [champion-mf-afternoon.md](champion-mf-afternoon.md) — параметры production-стратегий
+- [README](../README.md), [cmd/optimizer/README.md](../cmd/optimizer/README.md)
 
 ---
 
@@ -89,7 +92,7 @@ flowchart TB
         CSV["data/history/*.csv"]
         SIM["simulation.PortfolioRunner"]
         RS["Random Search + Walk-forward"]
-        OUT["best-config-*.yaml"]
+        OUT["best-config-*.yaml<br/>configs/champions/"]
     end
 
     YAML --> TW
@@ -102,7 +105,7 @@ flowchart TB
     RS --> REG
     SIM --> CS
     RS --> OUT
-    OUT -. "ручное копирование" .-> YAML
+    OUT -. "snapshot в git" .-> YAML
 ```
 
 **Важно:** optimizer и бот используют **один и тот же код стратегий**. Симулятор (`internal/simulation`) повторяет торговый цикл `TickerWorker`: те же стратегии, риск, трейлинг, EOD.
@@ -131,15 +134,34 @@ flowchart TB
 
 ## Встроенные стратегии
 
-| ID (`strategy.type`) | Файл | Идея | Дефолт R:R |
-|---|---|---|---|
-| `momentum_breakout` | `momentum.go` | Пробой high/low за `lookback` баров | 3.0 |
-| `momentum_filtered` | `momentum_filtered.go` | Momentum + SMA-тренд, long-only, volume filter | 2.0 |
-| `opening_range` | `opening_range.go` | ORB: пробой диапазона первых `orb_minutes` минут | 2.0 |
-| `opening_range_continuation` | `opening_range_continuation.go` | ORB + вход на ретесте лимитом; whitelist тикеров | 2.6 |
-| `mean_reversion` | `mean_reversion.go` | Fade от SMA при отклонении > `fade_threshold` | 1.5 |
+| ID (`strategy.type`) | Файл | Идея | Дефолт R:R | Статус |
+|---|---|---|---|---|
+| `opening_range_continuation` | `opening_range_continuation.go` | ORB + вход на ретесте лимитом; whitelist в коде | 2.6 | **FROZEN champion** (ORC) |
+| `opening_range_fade` | `opening_range_fade.go` | Ложный пробой OR → fade; whitelist в коде | 1.5 | **FROZEN champion** (OR Fade) |
+| `momentum_filtered` | `momentum_filtered.go` | Momentum + SMA-тренд, long-only, volume filter | 2.0 | **FROZEN champion** (MF Afternoon) |
+| `momentum_breakout` | `momentum.go` | Пробой high/low за `lookback` баров | 3.0 | исследования закрыты |
+| `opening_range` | `opening_range.go` | ORB: market-пробой диапазона первых `orb_minutes` | 2.0 | отклонено (хуже ORC) |
+| `mean_reversion` | `mean_reversion.go` | Fade от SMA при отклонении > `fade_threshold` | 1.5 | отклонено |
 
 Search space по умолчанию — в `configs/strategies/` (см. `DefaultSearchSpace` в каждом `init()`).
+
+### Production portfolio (paper)
+
+Три champion-стратегии в одном процессе:
+
+```bash
+go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
+```
+
+Snapshot параметров: `configs/champions/*.yaml` (source of truth в git).
+
+| Эксперимент | `strategy.type` | Слот MSK | Тикеры |
+|---|---|---|---|
+| ORC | `opening_range_continuation` | ~10:00–10:30 | MGNT, ROSN, TATN |
+| OR Fade | `opening_range_fade` | ~10:15–12:30 | LKOH, CHMF, MOEX |
+| MF Afternoon | `momentum_filtered` | 12:30–18:40 | MGNT, TATN |
+
+Подробнее: [strategy-research.md](strategy-research.md).
 
 Список зарегистрированных ID в рантайме:
 
@@ -215,7 +237,7 @@ func (s *MyStrategy) OnCandle(c candle models.Candle) *models.Order {
 
 Существующие поля, которые уже есть в `StrategyConfig`:
 
-`lookback`, `stop_mode`, `atr_period`, `atr_multiplier`, `reward_ratio`, `range_use_cap`, `volume_filter`, `volume_min_ratio`, `breakout_threshold`, `max_trades_per_ticker_per_day`, `long_only`, `trend_sma_period`, `strategy_entry_delay_minutes`, `orb_minutes`, `fade_threshold`, а также параметры трейлинга (`trail_*`).
+`lookback`, `stop_mode`, `atr_period`, `atr_multiplier`, `reward_ratio`, `range_use_cap`, `volume_filter`, `volume_min_ratio`, `breakout_threshold`, `max_trades_per_ticker_per_day`, `long_only`, `trend_sma_period`, `strategy_entry_delay_minutes`, `orb_minutes`, `fade_threshold`, параметры OR Fade (`fade_window_minutes`, `fade_trade_end_minutes`, `require_inside_range`), а также трейлинг (`trail_*`).
 
 ### Шаг 4. YAML search space
 
@@ -334,22 +356,27 @@ experiments:
 
 ```bash
 export BCS_REFRESH_TOKEN=...
-go run ./cmd/bot -config configs/runs/my-run.yaml
-# или
-make bot   # experiments-all.yaml — все эксперименты momentum_breakout с разными stop_mode
+go run ./cmd/bot -config configs/runs/portfolio-paper.yaml   # production champions
+# go run ./cmd/bot -config configs/runs/experiments-all.yaml  # legacy A/B momentum
 ```
 
-### Из best-config optimizer
+### Из champion snapshot или best-config optimizer
 
-После прогона optimizer:
+Готовые параметры — в `configs/champions/`:
 
 ```bash
-cp results/exp-mean_reversion/best-config-20260707-*.yaml configs/runs/mean-reversion-paper.yaml
-# проверьте tickers, session, virtual.balance
-go run ./cmd/bot -config configs/runs/mean-reversion-paper.yaml
+go run ./cmd/bot -config configs/champions/orc-wave2.yaml
 ```
 
-Auto-deploy **не** предусмотрен — конфиг применяется вручную.
+После нового прогона optimizer:
+
+```bash
+cp results/or-fade/wave1-conservative/best-config-*.yaml configs/champions/or-fade-wave1-conservative.yaml
+# проверьте tickers, session, virtual.balance
+go run ./cmd/bot -config configs/champions/or-fade-wave1-conservative.yaml
+```
+
+Auto-deploy **не** предусмотрен — конфиг применяется вручную, champion snapshot коммитится в git.
 
 ### Валидация при загрузке
 
@@ -458,9 +485,29 @@ bin/optimizer run -strategy my_strategy -trials 1 -output /tmp/test-my-strategy/
 
 Не путайте их при настройке.
 
-### ORC и тикеры
+### ORC, OR Fade и whitelist тикеров
 
-`opening_range_continuation` фильтрует тикеры через `ORCWhitelist` / `ORCBlacklist` в коде стратегии. Optimizer может прогонять полный universe, но сигналы будут только на разрешённых тикерах.
+В коде заданы **per-strategy whitelist/blacklist** (`internal/strategy/common.go` → `tickerAllowed`):
+
+| Стратегия | Whitelist (код) | Blacklist | Champion-тикеры (paper) |
+|---|---|---|---|
+| `opening_range_continuation` | MGNT, ROSN, TATN | SBER, GAZP, LKOH, … | MGNT, ROSN, TATN |
+| `opening_range_fade` | LKOH, CHMF, TATN, GAZP, MOEX | SBER, NVTK, ROSN, MGNT | LKOH, CHMF, MOEX |
+
+Optimizer может прогонять широкий universe, но сигналы генерируются только на тикерах из whitelist.  
+В `experiments[].tickers` задаётся фактический набор инструментов для счёта — он может быть **уже** whitelist (как у OR Fade conservative).
+
+### OR Fade — параметры слота
+
+Помимо `orb_minutes` и `breakout_threshold`:
+
+| YAML (`strategy.*`) | Optimizer (`Params`) | Смысл |
+|---|---|---|
+| `fade_window_minutes` | `fadeWindowMinutes` | Окно ожидания возврата в диапазон после пробоя |
+| `fade_trade_end_minutes` | `fadeTradeEndMinutes` | Конец торговли fade от open (минуты) |
+| `require_inside_range` | `requireInsideRange` | Вход только если close вернулся внутрь OR |
+
+Если не заданы — дефолты в коде: 30 / 90 / `true`.
 
 ### Трейлинг
 

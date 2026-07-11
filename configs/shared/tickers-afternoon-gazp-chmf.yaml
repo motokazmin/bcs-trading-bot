@@ -1,0 +1,10 @@
+class_code: TQBR
+candle_timeframe: M5
+initial_history_years: 2
+
+costs:
+  commission_per_lot: 0.10
+
+tickers:
+  - GAZP
+  - CHMF

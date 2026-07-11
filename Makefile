@@ -23,10 +23,10 @@ PARALLEL_TICKERS  ?= 5
 OPTIMIZER_PARALLEL ?= 0
 OPTIMIZER_TWO_PHASE ?=
 
-BOT_CONFIG ?= configs/runs/experiments-all.yaml
+BOT_CONFIG ?= configs/runs/portfolio-paper.yaml
 
 .PHONY: build build-bot build-optimizer build-admin test \
-        sync-history optimizer-run optimizer-orc optimizer-momentum optimizer-or-fade optimizer-focus strategy-matrix charts-all \
+        sync-history optimizer-run optimizer-orc optimizer-momentum optimizer-or-fade optimizer-afternoon optimizer-focus strategy-matrix charts-all \
         bot bot-futures bot-real bot-smoke admin help
 
 help:
@@ -42,7 +42,7 @@ help:
 	@echo "  make optimizer-focus      — alias для optimizer-orc"
 	@echo "  make charts-all         — HTML-графики по всем экспериментам в results/"
 	@echo ""
-	@echo "  make bot                — paper, все A/B-эксперименты (experiments-all.yaml)"
+	@echo "  make bot                — paper, portfolio (3 FROZEN champions)"
 	@echo "  make bot-futures        — paper, фьючерсы SPBFUT"
 	@echo "  make bot-real           — реальная торговля"
 	@echo "  make bot-smoke          — smoke test OAuth+WS"
@@ -110,6 +110,11 @@ optimizer-or-fade: build-optimizer
 	chmod +x scripts/run-or-fade-optimizer.sh
 	mkdir -p results/or-fade
 	bash scripts/run-or-fade-optimizer.sh 2>&1 | tee results/or-fade/last-run.log
+
+optimizer-afternoon: build-optimizer
+	chmod +x scripts/run-afternoon-optimizer.sh
+	mkdir -p results/afternoon
+	bash scripts/run-afternoon-optimizer.sh 2>&1 | tee results/afternoon/last-run.log
 
 charts-all: build-optimizer
 	$(BINARY_DIR)/optimizer charts -all \

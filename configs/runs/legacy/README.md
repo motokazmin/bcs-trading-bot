@@ -25,4 +25,4 @@ go run ./cmd/bot -config configs/runs/legacy/bot-experiments-atr-ab.yaml
 
 ## Эквивалент для optimizer
 
-См. `configs/strategies/momentum-breakout-lean.yaml` и `make optimizer-focus`.
+См. `configs/strategies/momentum-breakout-lean.yaml` и [`docs/legacy/momentum-optimizer.md`](../../../docs/legacy/momentum-optimizer.md).

@@ -17,6 +17,20 @@
 
 > **Важно.** Для реальной торговли нужен refresh token со скоупом `trade-api-write`. Начинайте всегда с `trading_mode: virtual` в конфиге.
 
+### Production portfolio (FROZEN)
+
+После walk-forward исследований зафиксированы **3 champion-стратегии** на полный торговый день MOEX (10:00–18:40 MSK):
+
+| Слот | Стратегия | Тикеры |
+|------|-----------|--------|
+| ~10:00–10:30 | ORC | MGNT, ROSN, TATN |
+| ~10:15–12:30 | OR Fade | LKOH, CHMF, MOEX |
+| 12:30–18:40 | MF Afternoon | MGNT, TATN |
+
+Paper trading: `configs/runs/portfolio-paper.yaml`. Параметры: `configs/champions/*.yaml`.
+
+Документация исследований: [`docs/strategy-research.md`](docs/strategy-research.md). Техника стратегий: [`docs/strategies.md`](docs/strategies.md).
+
 ---
 
 ## Содержание
@@ -28,6 +42,7 @@
 - [Конфигурация](#конфигурация)
 - [Веб-админка и экспорт для ИИ](#веб-админка-и-экспорт-для-ии)
 - [Стратегии](docs/strategies.md)
+- [Исследования и champions](docs/strategy-research.md)
 - [Модули](#модули)
 - [Структура проекта](#структура-проекта)
 - [Дорожная карта](#дорожная-карта)
@@ -85,12 +100,11 @@ go build -o bot ./cmd/bot
 Или через **Makefile** (бот, optimizer, админка):
 
 ```bash
-make help          # список команд
-make build         # bin/bot, bin/optimizer, bin/admin
-make bot             # paper trading, все A/B-эксперименты
-make sync-history       # догрузить CSV-историю для optimizer (9 акций)
-make optimizer-run      # sync + walk-forward оптимизация (parallel = NumCPU)
-make strategy-matrix    # сравнить 4 стратегии, ~1–2 ч
+make help              # список команд
+make build             # bin/bot, bin/optimizer, bin/admin
+make bot               # paper trading, portfolio (3 champions)
+make sync-history      # догрузить CSV-историю для optimizer (9 акций)
+make optimizer-orc     # ORC (FROZEN — только по запросу)
 ```
 
 Переменные optimizer: `OPTIMIZER_PARALLEL`, `OPTIMIZER_TWO_PHASE=1`, `SEARCH_SPACE`. Документация: [`cmd/optimizer/README.md`](cmd/optimizer/README.md) ([подход](cmd/optimizer/README.md#подход), [архитектура](cmd/optimizer/README.md#архитектура-для-разработчиков)).
@@ -105,15 +119,23 @@ export BCS_REFRESH_TOKEN="ваш_refresh_token"
 
 Токен **не хранится в конфиге** — только в env.
 
-### 3. Paper trading — все A/B-эксперименты (по умолчанию)
+### 3. Paper trading — portfolio (рекомендуется)
 
 ```bash
-go run ./cmd/bot -config configs/runs/experiments-all.yaml
+go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
 # или
 make bot
 ```
 
-6 экспериментов × до 10 тикеров, один WebSocket. Сделки пишутся в `data/trades.db` с полем `experiment_id`.
+3 FROZEN champion-стратегии × 7 тикеров, один WebSocket. Сделки пишутся в `data/trades.db` с полем `experiment_id`.
+
+### 3a. Paper trading — legacy A/B (momentum)
+
+```bash
+go run ./cmd/bot -config configs/runs/experiments-all.yaml
+```
+
+10 экспериментов momentum/OR — архив ранних опытов, см. `configs/runs/legacy/`.
 
 ### 4. Paper trading — фьючерсы
 
@@ -137,7 +159,7 @@ make bot-real
 Проверяет OAuth, WebSocket и виртуальное исполнение **без ожидания lookback** и **без записи в БД**:
 
 ```bash
-go run ./cmd/bot -config configs/runs/experiments-all.yaml -smoke-test
+go run ./cmd/bot -config configs/runs/portfolio-paper.yaml -smoke-test
 ```
 
 Бот ждёт первую котировку по первому тикеру из конфига, открывает и сразу закрывает 1 лот в `VirtualExecutor`, затем завершается. Работает только с `trading_mode: virtual`. При успехе в логе:
@@ -153,7 +175,7 @@ Smoke-test: OK — OAuth, WebSocket и виртуальное исполнени
 Скопируйте профиль и настройте под себя (файлы `configs/local*.yaml` в `.gitignore`):
 
 ```bash
-cp configs/runs/experiments-all.yaml configs/local.yaml
+cp configs/runs/portfolio-paper.yaml configs/local.yaml
 # отредактируйте configs/local.yaml
 go run ./cmd/bot -config configs/local.yaml
 ```
@@ -306,11 +328,13 @@ go run ./cmd/bot
 
 | Файл | Назначение |
 |---|---|
-| `configs/runs/experiments-all.yaml` | **Paper trading, все A/B-опыты** (6 экспериментов, 10 акций TQBR) |
+| `configs/runs/portfolio-paper.yaml` | **Paper trading, 3 FROZEN champions** (ORC + OR Fade + MF Afternoon) |
+| `configs/champions/*.yaml` | Snapshot параметров champions (solo-запуск одной стратегии) |
 | `configs/runs/virtual-futures.yaml` | Paper trading, фьючерсы SPBFUT |
 | `configs/runs/real-stocks.yaml` | Реальные ордера, акции TQBR |
+| `configs/runs/experiments-all.yaml` | Legacy A/B momentum (архив) |
 
-Запуск: `go run ./cmd/bot -config configs/runs/experiments-all.yaml` или `make bot`
+Запуск: `go run ./cmd/bot -config configs/runs/portfolio-paper.yaml` или `make bot`
 
 ### Поля конфига
 
@@ -325,7 +349,7 @@ go run ./cmd/bot
 | `risk.max_daily_loss` | — | Абсолютный дневной лимит убытков (руб.) |
 | `risk.max_daily_loss_percent` | `2` | % от депозита, если `max_daily_loss` не задан |
 | `risk.risk_per_trade_percent` | `0.5` | Риск на сделку (% депозита) |
-| `strategy.type` | `momentum_breakout` | ID стратегии: `momentum_breakout`, `momentum_filtered`, `opening_range`, `opening_range_continuation`, `mean_reversion` — [подробнее](docs/strategies.md) |
+| `strategy.type` | `momentum_breakout` | ID стратегии — см. [docs/strategies.md](docs/strategies.md): `opening_range_continuation`, `opening_range_fade`, `momentum_filtered`, … |
 | `strategy.lookback` | `20` | Окно свечей стратегии |
 | `strategy.stop_mode` | `range` | `range` — стоп от половины диапазона; `atr` — ATR × multiplier |
 | `strategy.atr_period` | `14` | Период ATR (для `stop_mode: atr`) |
@@ -376,7 +400,7 @@ go run ./cmd/admin -db data/trades.db -listen 127.0.0.1:8090
 
 ### Как анализировать с ИИ
 
-1. Накопите сделки ботом (`make bot` / `configs/runs/experiments-all.yaml`).
+1. Накопите сделки ботом (`make bot` / `configs/runs/portfolio-paper.yaml`).
 2. В админке задайте фильтры → откройте `/export`.
 3. Выберите вариант:
    - **Краткий** — метрики и сравнение экспериментов (`data-summary.json`);
@@ -448,11 +472,12 @@ type OrderExecutor interface {
 
 | ID | Описание |
 |---|---|
-| `momentum_breakout` | Пробой high/low за lookback (дефолт, R:R 1:3) |
-| `momentum_filtered` | Momentum + SMA-тренд, long-only, volume filter |
-| `opening_range` | ORB — пробой утреннего диапазона |
-| `opening_range_continuation` | ORB + вход на ретесте лимитом |
-| `mean_reversion` | Fade от SMA при экстремальном отклонении |
+| `opening_range_continuation` | ORC — ORB + retest (**FROZEN champion**) |
+| `opening_range_fade` | OR Fade — fade ложного пробоя OR (**FROZEN champion**) |
+| `momentum_filtered` | Momentum + SMA, long-only (**FROZEN champion**, afternoon) |
+| `momentum_breakout` | Пробой high/low за lookback (legacy research) |
+| `opening_range` | ORB market-пробой (legacy) |
+| `mean_reversion` | Fade от SMA (legacy) |
 
 Как добавить новую стратегию и подключить в боте/optimizer: **[docs/strategies.md](docs/strategies.md)**.
 
@@ -471,11 +496,16 @@ type OrderExecutor interface {
 bcs-trading-bot/
 ├── cmd/
 │   ├── bot/main.go                    # Точка входа, оркестрация, fan-out
+│   ├── optimizer/                     # Walk-forward optimizer
 │   └── admin/main.go                  # Веб-админка и экспорт для ИИ
 ├── configs/
+│   ├── champions/                     # FROZEN snapshot параметров
 │   ├── runs/                          # Профили запуска бота
+│   ├── shared/                        # Whitelist тикеров для optimizer
 │   └── strategies/                    # Search space для optimizer
 ├── docs/
+│   ├── strategy-research.md           # Portfolio FROZEN, методология
+│   ├── champion-*.md                  # Детали champions
 │   └── strategies.md                  # Архитектура и гайд по стратегиям
 ├── data/trades.db                     # SQLite (создаётся ботом)
 ├── internal/
@@ -517,8 +547,12 @@ bcs-trading-bot/
 - [x] Масштабирование: воркер на пару эксперимент × тикер
 - [x] Отправка ордеров в BCS Trade API (режим `real`)
 
+- [x] Walk-forward optimizer и 3 FROZEN champion-стратегии (ORC, OR Fade, MF Afternoon)
+- [x] Paper portfolio (`configs/runs/portfolio-paper.yaml`)
+
 **Планируется:**
 
+- [ ] Paper/live валидация portfolio (2–4 недели)
 - [ ] Автообновление `access_token` при истечении
 - [ ] Переподписка WebSocket после реконнекта с новым токеном
 - [ ] Учёт реального депозита из портфеля (вместо `risk.deposit` в конфиге)

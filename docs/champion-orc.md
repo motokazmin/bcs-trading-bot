@@ -33,7 +33,8 @@ max_entries_per_ticker_per_day: 2
 
 ### Артефакты
 
-- `results/orc/wave2/best-config-20260710-153944.yaml`
+- `configs/champions/orc-wave2.yaml`
+- `results/orc/wave2/best-config-20260710-153944.yaml` (если есть локально)
 - `results/orc/runs-registry.json`
 
 ## Принцип
@@ -43,3 +44,13 @@ max_entries_per_ticker_per_day: 2
 ## Слот времени
 
 ~10:00–10:30 MSK (после ORB 13 мин).
+
+## Запуск
+
+```bash
+# Solo
+go run ./cmd/bot -config configs/champions/orc-wave2.yaml
+
+# В portfolio
+go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
+```

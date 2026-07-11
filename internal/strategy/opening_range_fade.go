@@ -16,6 +16,23 @@ func init() {
 	})
 }
 
+// ORFadeWhitelist — рабочий whitelist OR Fade (per-ticker matrix 2026-07-11).
+var ORFadeWhitelist = map[string]struct{}{
+	"LKOH": {},
+	"CHMF": {},
+	"TATN": {},
+	"GAZP": {},
+	"MOEX": {},
+}
+
+// ORFadeBlacklist — тикеры без edge на OR Fade.
+var ORFadeBlacklist = map[string]struct{}{
+	"SBER": {},
+	"NVTK": {},
+	"ROSN": {},
+	"MGNT": {},
+}
+
 // OpeningRangeFade — fade ложного пробоя утреннего диапазона (зеркало ORC).
 type OpeningRangeFade struct {
 	mu sync.Mutex
@@ -196,17 +213,7 @@ func (s *OpeningRangeFade) watchExpired(now time.Time) bool {
 }
 
 func (s *OpeningRangeFade) isTickerAllowed(ticker string) bool {
-	if ticker == "" {
-		return true
-	}
-	if _, blocked := ORCBlacklist[ticker]; blocked {
-		return false
-	}
-	if len(ORCWhitelist) == 0 {
-		return true
-	}
-	_, ok := ORCWhitelist[ticker]
-	return ok
+	return tickerAllowed(ticker, ORFadeWhitelist, ORFadeBlacklist)
 }
 
 func (s *OpeningRangeFade) resetDay(day string) {

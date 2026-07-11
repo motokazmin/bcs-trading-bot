@@ -1,8 +1,8 @@
-# Momentum Breakout — optimizer (весь торговый день)
+# Momentum Breakout — optimizer (legacy)
 
-Вторая линия исследований: **momentum_breakout** на полной сессии 10:00–18:40.
+> **Архив.** Линия **отклонена** (нет champion). Актуальный portfolio: [`../strategy-research.md`](../strategy-research.md).
 
-ORC (утро) зафиксирован в [`champion-orc.md`](champion-orc.md).
+**momentum_breakout** на полной сессии 10:00–18:40.
 
 ## Реестр
 

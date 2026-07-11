@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 
 ORF_RUN_ID="${ORF_RUN_ID:-wave1}"
 ORF_SEARCH_SPACE="${ORF_SEARCH_SPACE:-configs/strategies/or-fade.yaml}"
-ORF_TICKERS="${ORF_TICKERS:-configs/shared/tickers-orc-no-sber.yaml}"
+ORF_TICKERS="${ORF_TICKERS:-configs/shared/tickers-or-fade-conservative.yaml}"
 ORF_TRIALS="${ORF_TRIALS:-300}"
 ORF_SEED="${ORF_SEED:-1}"
 ORF_MIN_TRADES="${ORF_MIN_TRADES:-10}"

@@ -1,0 +1,48 @@
+# FROZEN champion — MF Afternoon (mf-wave2-narrow, seed 1).
+# Не менять без явного запроса. См. docs/champion-mf-afternoon.md
+# Backtest: +0.38R, PF 1.64, 14/23 WF, 53 trades.
+
+trading_mode: virtual
+
+tickers:
+  - MGNT
+  - TATN
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_per_lot: 0.10
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 150
+
+strategy:
+  type: momentum_filtered
+  stop_mode: atr
+  atr_period: 14
+  lookback: 37
+  breakout_threshold: 0.009417073737837274
+  reward_ratio: 1.9026308021374099
+  volume_filter: false
+  volume_min_ratio: 1.3091660219198147
+  long_only: true
+  trend_sma_period: 32
+  strategy_entry_delay_minutes: 21
+  atr_multiplier: 2.1908875571737174
+  trail_activation_r: 2.1542158180746154
+  trail_discrete_step_r: 0.33896654497213896
+  trail_stage_max: 5
+  max_trades_per_ticker_per_day: 1
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000

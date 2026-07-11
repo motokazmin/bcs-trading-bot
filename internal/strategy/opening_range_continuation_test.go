@@ -56,14 +56,14 @@ func TestORCRetestLimitFill(t *testing.T) {
 
 	for m := 0; m < 6; m++ {
 		_ = s.OnCandle(models.Candle{
-			Ticker: "SBER",
+			Ticker: "MGNT",
 			Open: 100, High: 101, Low: 99, Close: 100, Volume: 1000,
 			Timestamp: base.Add(time.Duration(m*5) * time.Minute),
 		})
 	}
 
 	breakout := models.Candle{
-		Ticker: "SBER",
+		Ticker: "MGNT",
 		Open: 102, High: 105, Low: 102, Close: 104, Volume: 5000,
 		Timestamp: base.Add(35 * time.Minute),
 	}
@@ -72,7 +72,7 @@ func TestORCRetestLimitFill(t *testing.T) {
 	}
 
 	retest := models.Candle{
-		Ticker: "SBER",
+		Ticker: "MGNT",
 		Open: 104, High: 104, Low: 100.5, Close: 101, Volume: 3000,
 		Timestamp: base.Add(40 * time.Minute),
 	}
@@ -105,14 +105,14 @@ func TestORCPendingExpiresWithoutPanic(t *testing.T) {
 
 	for m := 0; m < 6; m++ {
 		_ = s.OnCandle(models.Candle{
-			Ticker: "SBER",
+			Ticker: "MGNT",
 			Open: 100, High: 101, Low: 99, Close: 100, Volume: 1000,
 			Timestamp: base.Add(time.Duration(m*5) * time.Minute),
 		})
 	}
 
 	breakout := models.Candle{
-		Ticker: "SBER",
+		Ticker: "MGNT",
 		Open: 102, High: 105, Low: 103, Close: 104, Volume: 5000,
 		Timestamp: base.Add(35 * time.Minute),
 	}
@@ -122,7 +122,7 @@ func TestORCPendingExpiresWithoutPanic(t *testing.T) {
 
 	// Свеча в следующем часе без ретеста — pending истекает, паники быть не должно.
 	expired := models.Candle{
-		Ticker: "SBER",
+		Ticker: "MGNT",
 		Open: 104, High: 105, Low: 103, Close: 104, Volume: 1000,
 		Timestamp: base.Add(65 * time.Minute),
 	}

@@ -1,4 +1,6 @@
-# ORC — единственная стратегия в работе (optimizer)
+# ORC — optimizer (legacy)
+
+> **Архив.** Champion FROZEN: [`../champion-orc.md`](../champion-orc.md), [`../strategy-research.md`](../strategy-research.md).
 
 Бот не в приоритете. Все прогоны — walk-forward backtest в `cmd/optimizer`.
 

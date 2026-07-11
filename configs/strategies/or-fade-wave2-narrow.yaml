@@ -1,16 +1,13 @@
-# OR Fade — fade ложного пробоя утреннего диапазона (complement к ORC).
+# OR Fade wave2 — узкий search вокруг wave1 best (2026-07-10).
+# Якорь: orb=11, breakout≈0.005, fade_window≈44, fade_end≈138, atr≈0.95, RR≈1.77.
 trading_mode: virtual
 
 tickers:
-  - ticker: LKOH
+  - ticker: MGNT
     step_price_value: 1.0
-  - ticker: CHMF
+  - ticker: ROSN
     step_price_value: 1.0
   - ticker: TATN
-    step_price_value: 1.0
-  - ticker: GAZP
-    step_price_value: 1.0
-  - ticker: MOEX
     step_price_value: 1.0
 
 class_code: TQBR
@@ -29,13 +26,13 @@ strategy:
   type: opening_range_fade
   stop_mode: atr
   atr_period: 14
-  atr_multiplier: 1.2
-  orb_minutes: 15
-  breakout_threshold: 0.008
-  fade_window_minutes: 30
-  fade_trade_end_minutes: 90
-  require_inside_range: true
-  reward_ratio: 1.5
+  atr_multiplier: 0.95
+  orb_minutes: 11
+  breakout_threshold: 0.005
+  fade_window_minutes: 44
+  fade_trade_end_minutes: 138
+  require_inside_range: false
+  reward_ratio: 1.77
   trail_activation_r: 1.5
   trail_stage_max: 2
   trail_breakeven_r: 0.05
@@ -46,19 +43,19 @@ search_space:
   parameters:
     orbMinutes:
       type: int
-      min: 10
-      max: 25
+      min: 8
+      max: 14
     breakoutThreshold:
       type: float
-      min: 0.0
-      max: 0.02
+      min: 0.002
+      max: 0.01
     fadeWindowMinutes:
       type: int
-      min: 10
+      min: 30
       max: 60
     fadeTradeEndMinutes:
       type: int
-      min: 45
+      min: 120
       max: 150
     requireInsideRange:
       type: int
@@ -66,12 +63,12 @@ search_space:
       max: 1
     rewardRatio:
       type: float
-      min: 1.0
+      min: 1.4
       max: 2.0
     atrMultiplier:
       type: float
-      min: 0.8
-      max: 2.0
+      min: 0.7
+      max: 1.2
     trailActivationR:
       type: float
       min: 1.0

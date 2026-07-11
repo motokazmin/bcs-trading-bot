@@ -2,6 +2,10 @@
 
 Offline-подбор гиперпараметров торговых стратегий: walk-forward backtest + Random Search.
 
+> **Статус исследований (2026-07-11):** portfolio **FROZEN** — 3 champion-стратегии (ORC, OR Fade, MF Afternoon).  
+> Не запускать optimizer по champions без явного запроса.  
+> Главный документ: [`docs/strategy-research.md`](../../docs/strategy-research.md).
+
 Отдельный бинарник — не трогает `cmd/bot`, но использует **тот же код стратегий и тот же торговый цикл** (`internal/simulation` ≈ `engine.TickerWorker`).
 
 ## Содержание
@@ -100,7 +104,7 @@ flowchart LR
     subgraph offline["Optimizer — offline"]
         API["BCS API"] --> CSV["data/history/*.csv"]
         CSV --> SIM["simulation.Runner"]
-        SIM --> OUT["best-config.yaml<br/>+ JSON отчёт"]
+        SIM --> OUT["best-config.yaml<br/>configs/champions/"]
     end
 
     subgraph live["Бот — live"]
@@ -109,7 +113,7 @@ flowchart LR
         W --> DB["SQLite сделки"]
     end
 
-    OUT -. "ручное копирование<br/>(no auto-deploy)" .-> CFG
+    OUT -. "snapshot в git" .-> CFG
 ```
 
 | | Optimizer | Бот |
@@ -167,21 +171,30 @@ export BCS_REFRESH_TOKEN=...   # только для sync-history
 
 make build-optimizer
 make sync-history
-make optimizer-run               # parallel = NumCPU
-make strategy-matrix             # 4 стратегии, ~1–2 ч
+
+# FROZEN champions — только по явному запросу:
+# make optimizer-orc
+# make optimizer-or-fade
+# make optimizer-afternoon
+
+make optimizer-run        # alias: sync + ORC walk-forward
+make strategy-matrix      # legacy: 4 стратегии, ~1–2 ч
 ```
+
+Champion snapshots для бота: `configs/champions/*.yaml`. Paper portfolio: `configs/runs/portfolio-paper.yaml`.
 
 Стратегии и search space:
 
-| `-strategy` | Search space |
-|-------------|--------------|
-| `momentum_breakout` | `configs/strategies/momentum-breakout.yaml` (`search_space`) |
-| `momentum_filtered` | `configs/strategies/momentum-filtered.yaml` (`search_space`) |
-| `opening_range` | `configs/strategies/opening-range.yaml` (`search_space`) |
-| `opening_range_continuation` | `configs/strategies/orc.yaml` (`search_space`) |
-| `mean_reversion` | `configs/strategies/mean-reversion.yaml` (`search_space`) |
+| `-strategy` | Search space | Статус |
+|-------------|--------------|--------|
+| `opening_range_continuation` | `configs/strategies/orc.yaml` | **FROZEN** champion |
+| `opening_range_fade` | `configs/strategies/or-fade.yaml` | **FROZEN** champion |
+| `momentum_filtered` | `configs/strategies/momentum-filtered-afternoon-wave2-narrow.yaml` | **FROZEN** champion |
+| `momentum_breakout` | `configs/strategies/momentum-breakout.yaml` | legacy |
+| `opening_range` | `configs/strategies/opening-range.yaml` | legacy |
+| `mean_reversion` | `configs/strategies/mean-reversion.yaml` | legacy |
 
-Полный гайд по архитектуре и добавлению новых стратегий: [docs/strategies.md](../../docs/strategies.md).
+Полный гайд: [docs/strategies.md](../../docs/strategies.md).
 
 ---
 
@@ -378,7 +391,7 @@ Defaults: **0.10 ₽** round-trip за акцию (TQBR), **5.0 ₽** за ко�
 
 ## Design decision: no auto-deploy
 
-Optimizer **только предлагает** конфиг. Ручное применение: скопировать `best-config-*.yaml` в `configs/` и запустить бота отдельно.
+Optimizer **только предлагает** конфиг. Применение вручную: скопировать в `configs/champions/` или `configs/runs/`, затем запустить бота.
 
 ## Известные баги (исправлены)
 
@@ -432,7 +445,10 @@ equity curve и считает `MaxDrawdown`/`Calmar` по порядку эле
 предупреждением. **Вывод: при выборе конфигурации из top-N всегда проверяйте
 не только `score`, но и сумму PnL по окнам в JSON/выводе.**
 
-## Результаты первого честного прогона на реальных данных (после всех фиксов)
+## Результаты первого честного прогона на реальных данных (исторический архив)
+
+> **Примечание:** ниже — результаты **раннего** matrix-прогона (2024–2026), до нахождения champions ORC / OR Fade / MF Afternoon.  
+> Актуальный portfolio: [`docs/strategy-research.md`](../../docs/strategy-research.md).
 
 > Исторические прогоны ниже использовали старую схему train/test (6m/2m/1m).
 > Текущая версия — скользящие окна оценки (`-window-months` / `-step-months`).

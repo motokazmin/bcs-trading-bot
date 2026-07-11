@@ -16,19 +16,21 @@ func init() {
 	})
 }
 
-// ORCWhitelist — разрешённые тикеры для стратегии Opening Range Continuation.
+// ORCWhitelist — рабочий whitelist ORC (matrix 2026-07-11).
 var ORCWhitelist = map[string]struct{}{
-	"SBER": {},
 	"MGNT": {},
 	"ROSN": {},
 	"TATN": {},
 }
 
-// ORCBlacklist — жёстко запрещённые тикеры (игнорируются сигнальным модулем).
+// ORCBlacklist — тикеры без edge на ORC.
 var ORCBlacklist = map[string]struct{}{
+	"SBER": {},
+	"GAZP": {},
 	"LKOH": {},
 	"NVTK": {},
 	"MOEX": {},
+	"CHMF": {},
 }
 
 // OpeningRangeContinuation — пробой утреннего диапазона с входом на ретесте лимитным ордером.
@@ -173,17 +175,7 @@ func (s *OpeningRangeContinuation) OnCandle(candle models.Candle) *models.Order 
 }
 
 func (s *OpeningRangeContinuation) isTickerAllowed(ticker string) bool {
-	if ticker == "" {
-		return true
-	}
-	if _, blocked := ORCBlacklist[ticker]; blocked {
-		return false
-	}
-	if len(ORCWhitelist) == 0 {
-		return true
-	}
-	_, ok := ORCWhitelist[ticker]
-	return ok
+	return tickerAllowed(ticker, ORCWhitelist, ORCBlacklist)
 }
 
 func (s *OpeningRangeContinuation) resetDay(day string) {

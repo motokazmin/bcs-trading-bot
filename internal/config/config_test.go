@@ -6,6 +6,43 @@ import (
 	"bcs-trading-bot/internal/config"
 )
 
+func TestLoadORFadeChampion(t *testing.T) {
+	cfg, err := config.Load("../../configs/champions/or-fade-wave1-conservative.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Strategy.Type != "opening_range_fade" {
+		t.Fatalf("type: got %q", cfg.Strategy.Type)
+	}
+	if cfg.Strategy.FadeWindowMinutes != 13 {
+		t.Fatalf("fade_window_minutes: got %d, want 13", cfg.Strategy.FadeWindowMinutes)
+	}
+	if cfg.Strategy.FadeTradeEndMinutes != 77 {
+		t.Fatalf("fade_trade_end_minutes: got %d, want 77", cfg.Strategy.FadeTradeEndMinutes)
+	}
+	if cfg.Strategy.RequireInsideRange == nil || !*cfg.Strategy.RequireInsideRange {
+		t.Fatal("require_inside_range: want true")
+	}
+	s, err := cfg.Strategy.BuildStrategy(cfg.Session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.ID() != "opening_range_fade" {
+		t.Fatalf("strategy id: got %q", s.ID())
+	}
+}
+
+func TestLoadPortfolioPaper(t *testing.T) {
+	cfg, err := config.Load("../../configs/runs/portfolio-paper.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exps := cfg.ResolvedExperiments()
+	if len(exps) != 3 {
+		t.Fatalf("experiments: got %d, want 3", len(exps))
+	}
+}
+
 func TestLoadExperimentsAll(t *testing.T) {
 	cfg, err := config.Load("../../configs/runs/experiments-all.yaml")
 	if err != nil {
