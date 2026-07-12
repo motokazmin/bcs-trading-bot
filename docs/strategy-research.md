@@ -12,6 +12,7 @@
 |--------|-----------------|
 | Paper portfolio | `configs/runs/portfolio-paper.yaml` |
 | Baseline доходности (live) | [`champion-baseline.md`](champion-baseline.md) |
+| После paper/live — рост доходности | [Post-validation](#post-validation-повышение-доходности) (ниже) |
 | План работ | [`../Roadmap.md`](../Roadmap.md) |
 | Как устроена система | [`system.md`](system.md) |
 | Champion params | `configs/champions/*.yaml` |
@@ -292,6 +293,47 @@ Solo-run 100 trials на каждой акции. Артефакты: `results/t
 
 ---
 
+## Post-validation: повышение доходности
+
+**Когда применять:** после paper/live-валидации portfolio (`configs/runs/portfolio-paper.yaml`), не раньше.  
+**До этого** — только сверка с [`champion-baseline.md`](champion-baseline.md) (exp_R, PF, ₽/мес), без optimizer по FROZEN champions.
+
+Baseline portfolio: **~19%/год**, **+0,37R**/сделку, **~9** сделок/мес на 200k. ORC даёт **~70%** PnL; OR Fade и MF — хороший exp_R, но мало сделок.
+
+### Развилка после live
+
+| Ситуация | Куда копать | Не делать |
+|----------|-------------|-----------|
+| **Live ≈ baseline** (exp_R ≥ +0,25R на 30+ сделках) | Research ниже: частота, universe, portfolio-real | Перетюнивать ORC «на всякий случай» |
+| **Live хуже backtest** (exp_R < 0 два месяца или PF < 1 на 30+ сделках) | Исполнение: fill, slippage, portfolio-real — [`Roadmap.md`](../Roadmap.md) | Optimizer / разморозка champions |
+| **Один слот слабый, остальные ок** | Точечно слабый слот (OR Fade / MF); ORC не трогать первым | Менять весь portfolio |
+
+### Приоритеты (если edge подтверждён)
+
+| # | Направление | Зачем | Ожидание |
+|---|-------------|-------|----------|
+| 1 | **OR Fade — частота** | 34 сделки / ~2 года (~2,8%/год) при +0,33R | +2–3%/год к portfolio |
+| 2 | **MF — расширение whitelist** | matrix: SBER, NVTK, ROSN (+0,13…+0,22R); champion — MGNT+TATN | +сделки, проверить seed2 |
+| 3 | **Portfolio-real backtest** | один счёт 200k, общий CB, MGNT/TATN утро+день | уточнить baseline vs сумма 3 прогонов |
+| 4 | **Wave3-narrow** | search ±10–15% вокруг FROZEN params; ранжировать по **expectancy_r** | OR Fade / MF первыми; ORC — последним |
+| 5 | **Risk scaling** | 0,5% → 0,75% на сделку | только после 2–3 мес live с exp_R > 0; линейный рост ₽ и просадки |
+| 6 | **Новый слот / гипотеза** | скачок выше ~25–30%/год | новый принцип + время; не перебирать отклонённые линии |
+
+### Stop-rules
+
+- Champions **не размораживать** без явного запроса и go/no-go по критериям ниже (exp_R, PF, WF, seed2).
+- **Не** масштабировать risk из одного backtest.
+- **Не** возвращаться к отклонённым линиям ([«Что пробовали и отклонили»](#что-пробовали-и-отклонили)) без новой гипотезы.
+- Calmar score — **не** единственный критерий; главная метрика — **expectancy_r**.
+
+### Go/no-go для wave3 / нового whitelist
+
+Те же пороги, что для champion: exp_R > +0,15R (лучше > +0,25R), PF > 1,3, WF ≥ 10/23, seed2 не сильно хуже seed1, достаточно сделок (OR Fade < 30 за 2 года — осторожно).
+
+Инфраструктура (slippage, GetBalance, portfolio-real.yaml): [`Roadmap.md`](../Roadmap.md).
+
+---
+
 ## Открытые задачи (research)
 
 - [x] OR Fade → **FROZEN** (`wave1-conservative-rerun`) — 2026-07-11
@@ -333,7 +375,7 @@ make optimizer-orc
 
 | Документ | Содержание |
 |---|---|
-| **Этот файл** | Методология, champions, статус исследований |
+| **Этот файл** | Методология, champions, post-validation, статус исследований |
 | [`champion-orc.md`](champion-orc.md) | ORC champion |
 | [`champion-or-fade.md`](champion-or-fade.md) | OR Fade champion |
 | [`champion-mf-afternoon.md`](champion-mf-afternoon.md) | MF Afternoon champion |
@@ -345,4 +387,4 @@ make optimizer-orc
 
 ---
 
-*Последнее обновление: 2026-07-11 (portfolio FROZEN, commission rerun, baseline docs)*
+*Последнее обновление: 2026-07-11 (portfolio FROZEN, baseline docs, post-validation procedure)*
