@@ -16,6 +16,7 @@ tickers:
   - LKOH
   - CHMF
   - MOEX
+  - AFKS
 
 class_code: TQBR
 candle_timeframe: M5
@@ -64,21 +65,22 @@ experiments:
       - LKOH
       - CHMF
       - MOEX
+      - AFKS
     strategy:
       type: opening_range_fade
       stop_mode: atr
       atr_period: 14
-      orb_minutes: 25
-      breakout_threshold: 0.003823943039450681
-      fade_window_minutes: 57
-      fade_trade_end_minutes: 124
+      orb_minutes: 26
+      breakout_threshold: 0.0034895165897401237
+      fade_window_minutes: 52
+      fade_trade_end_minutes: 106
       require_inside_range: false
-      atr_multiplier: 1.0815366215225666
-      reward_ratio: 1.1569715395700808
-      trail_activation_r: 1.9851362319892052
-      trail_breakeven_r: 0.009146763491487745
+      atr_multiplier: 1.2317886975190864
+      reward_ratio: 1.2709535081206467
+      trail_activation_r: 2.0039286981203337
+      trail_breakeven_r: 0.017723090353826982
       trail_stage_max: 3
-      max_trades_per_ticker_per_day: 3
+      max_trades_per_ticker_per_day: 2
     risk:
       deposit: 200000
       max_daily_loss_percent: 2.0

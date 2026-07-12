@@ -62,23 +62,24 @@ trail_act≈1.52, max_entries=1
 | Статус | **FROZEN** — не оптимизировать без явного запроса |
 | Принцип | Ложный пробой OR → **fade** (вход против пробоя) |
 | Слот | ~10:15–12:30 |
-| Champion run | **`wave1-conservative-rerun`** (seed 1) |
-| Expectancy | **+0.33R** |
-| PF | 1.58 |
-| PnL | +11 136 ₽ / ~2 года (~2,8%/год) |
-| WF | **13/23** окон |
-| Сделок | 34 |
-| Тикеры | **LKOH, CHMF, MOEX** |
+| Champion run | **`wave3-narrow-afks`** (seed 1) |
+| Expectancy | **+0.50R** |
+| PF | 1.99 |
+| PnL | +44 514 ₽ / ~2 года (~11%/год) |
+| WF | **18/23** окон |
+| Сделок | 89 |
+| Тикеры | **LKOH, CHMF, MOEX, AFKS** |
 | Комиссия | 0,008% за leg |
 
 ```
-orb=25, breakout≈0.38%, fade_window=57, fade_end=124
-atr≈1.08, RR≈1.16, require_inside_range=false
+orb=26, breakout≈0.35%, fade_window=52, fade_end=106
+atr≈1.23, RR≈1.27, require_inside_range=false
 ```
 
 - Реестр: `results/or-fade/runs-registry.json`
-- Best config: `configs/champions/or-fade-wave1-conservative.yaml`
+- Best config: `configs/champions/or-fade-wave3-afks.yaml`
 - Tickers: `configs/shared/tickers-or-fade-conservative.yaml`
+- Discovery: [`discovery-v2.md`](discovery-v2.md) (ветка `research/ticker-discovery`)
 - Подробнее: [`champion-or-fade.md`](champion-or-fade.md)
 
 **Complement к ORC:** разные принципы (continuation vs reversal) и слоты времени.
@@ -230,7 +231,7 @@ AFT_STRATEGY=momentum_filtered AFT_RUN_ID=mf-wave1 make optimizer-afternoon
 | Файл | Тикеры | Для чего |
 |---|---|---|
 | `tickers-orc-no-sber.yaml` | MGNT, ROSN, TATN | **ORC** champion |
-| `tickers-or-fade-conservative.yaml` | LKOH, CHMF, MOEX | **OR Fade** champion |
+| `tickers-or-fade-conservative.yaml` | LKOH, CHMF, MOEX, AFKS | **OR Fade** champion |
 | `tickers-mf-afternoon-mgnt-tatn.yaml` | MGNT, TATN | **MF Afternoon** champion |
 | `tickers-or-fade-expanded.yaml` | LKOH, CHMF, TATN, GAZP, MOEX | архив matrix OR Fade |
 | `tickers-mf-afternoon-expanded.yaml` | MGNT, SBER, NVTK, ROSN, TATN, GAZP | архив matrix MF |

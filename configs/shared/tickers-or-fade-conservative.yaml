@@ -5,8 +5,9 @@ initial_history_years: 2
 costs:
   commission_rate_per_leg: 0.00008
 
-# OR Fade conservative: seed2 by_ticker — LKOH/CHMF/MOEX плюс, GAZP/TATN минус.
+# OR Fade conservative + AFKS (wave3-narrow-afks, 2026-07-12).
 tickers:
   - LKOH
   - CHMF
   - MOEX
+  - AFKS

@@ -16,13 +16,14 @@ func init() {
 	})
 }
 
-// ORFadeWhitelist — рабочий whitelist OR Fade (per-ticker matrix 2026-07-11).
+// ORFadeWhitelist — рабочий whitelist OR Fade (wave3-narrow-afks, 2026-07-12).
 var ORFadeWhitelist = map[string]struct{}{
 	"LKOH": {},
 	"CHMF": {},
 	"TATN": {},
 	"GAZP": {},
 	"MOEX": {},
+	"AFKS": {},
 }
 
 // ORFadeBlacklist — тикеры без edge на OR Fade.

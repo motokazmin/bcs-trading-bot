@@ -160,7 +160,7 @@ Snapshot параметров: `configs/champions/*.yaml` (source of truth в gi
 | Эксперимент | `strategy.type` | Слот MSK | Тикеры |
 |---|---|---|---|
 | ORC | `opening_range_continuation` | ~10:00–10:30 | MGNT, ROSN, TATN |
-| OR Fade | `opening_range_fade` | ~10:15–12:30 | LKOH, CHMF, MOEX |
+| OR Fade | `opening_range_fade` | ~10:15–12:30 | LKOH, CHMF, MOEX, AFKS |
 | MF Afternoon | `momentum_filtered` | 12:30–18:40 | MGNT, TATN |
 
 Подробнее: [strategy-research.md](strategy-research.md).
@@ -494,7 +494,7 @@ bin/optimizer run -strategy my_strategy -trials 1 -output /tmp/test-my-strategy/
 | Стратегия | Whitelist (код) | Blacklist | Champion-тикеры (paper) |
 |---|---|---|---|
 | `opening_range_continuation` | MGNT, ROSN, TATN | SBER, GAZP, LKOH, … | MGNT, ROSN, TATN |
-| `opening_range_fade` | LKOH, CHMF, TATN, GAZP, MOEX | SBER, NVTK, ROSN, MGNT | LKOH, CHMF, MOEX |
+| `opening_range_fade` | LKOH, CHMF, TATN, GAZP, MOEX, AFKS | SBER, NVTK, ROSN, MGNT | LKOH, CHMF, MOEX, AFKS |
 
 Optimizer может прогонять широкий universe, но сигналы генерируются только на тикерах из whitelist.  
 В `experiments[].tickers` задаётся фактический набор инструментов для счёта — он может быть **уже** whitelist (как у OR Fade conservative).

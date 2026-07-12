@@ -1,6 +1,6 @@
 # BCS Trading Bot (MVP)
 
-Торговый робот на Go для [BCS Trade API](https://trade-api.bcs.ru). **Дейтрейдинг акциями MOEX** (TQBR) на 5-минутных свечах с жёстким риск-менеджментом. FROZEN portfolio — ORC, OR Fade, MF Afternoon на акциях MGNT, ROSN, TATN, LKOH, CHMF, MOEX.
+Торговый робот на Go для [BCS Trade API](https://trade-api.bcs.ru). **Дейтрейдинг акциями MOEX** (TQBR) на 5-минутных свечах с жёстким риск-менеджментом. FROZEN portfolio — ORC, OR Fade, MF Afternoon на акциях MGNT, ROSN, TATN, LKOH, CHMF, MOEX, AFKS.
 
 Робот не пытается «угадать» рынок — он контролирует убытки:
 
@@ -24,7 +24,7 @@
 | Слот | Стратегия | Тикеры |
 |------|-----------|--------|
 | ~10:00–10:30 | ORC | MGNT, ROSN, TATN |
-| ~10:15–12:30 | OR Fade | LKOH, CHMF, MOEX |
+| ~10:15–12:30 | OR Fade | LKOH, CHMF, MOEX, AFKS |
 | 12:30–18:40 | MF Afternoon | MGNT, TATN |
 
 Paper trading: `configs/runs/portfolio-paper.yaml`. Параметры: `configs/champions/*.yaml`.
