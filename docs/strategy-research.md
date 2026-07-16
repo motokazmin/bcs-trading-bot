@@ -13,6 +13,7 @@
 | Paper portfolio | `configs/runs/portfolio-paper.yaml` |
 | Baseline доходности (live) | [`champion-baseline.md`](champion-baseline.md) |
 | После paper/live — рост доходности | [Post-validation](#post-validation-повышение-доходности) (ниже) |
+| **Бриф для поиска новых гипотез (без кода)** | [`strategy-ideation-brief.md`](strategy-ideation-brief.md) |
 | План работ | [`../Roadmap.md`](../Roadmap.md) |
 | Как устроена система | [`system.md`](system.md) |
 | Champion params | `configs/champions/*.yaml` |
