@@ -116,6 +116,7 @@ optimizer-afternoon: build-optimizer
 	mkdir -p results/afternoon
 	bash scripts/run-afternoon-optimizer.sh 2>&1 | tee results/afternoon/last-run.log
 
+
 charts-all: build-optimizer
 	$(BINARY_DIR)/optimizer charts -all \
 		-results-dir $(OPTIMIZER_OUT) \

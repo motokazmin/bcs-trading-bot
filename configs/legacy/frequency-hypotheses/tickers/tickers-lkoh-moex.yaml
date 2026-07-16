@@ -5,9 +5,7 @@ initial_history_years: 2
 costs:
   commission_rate_per_leg: 0.00008
 
-# OR Fade conservative + AFKS (wave3-narrow-afks, 2026-07-12). FROZEN universe.
+# Midday compression / late session: LKOH + MOEX.
 tickers:
   - LKOH
-  - CHMF
   - MOEX
-  - AFKS

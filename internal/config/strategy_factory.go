@@ -43,6 +43,27 @@ func (s StrategyConfig) toStrategyParams(session SessionConfig) (strategy.Params
 			p["requireInsideRange"] = 0
 		}
 	}
+	if s.MinMinutesAboveVWAP > 0 {
+		p["minMinutesAboveVWAP"] = float64(s.MinMinutesAboveVWAP)
+	}
+	if s.CompressionPercentile > 0 {
+		p["compressionPercentile"] = s.CompressionPercentile
+	}
+	if s.ATRBars > 0 {
+		p["atrBars"] = float64(s.ATRBars)
+	}
+	if s.EntryStartMinutes > 0 {
+		p["entryStartMinutes"] = float64(s.EntryStartMinutes)
+	}
+	if s.EntryEndMinutes > 0 {
+		p["entryEndMinutes"] = float64(s.EntryEndMinutes)
+	}
+	if s.RangeStartMinutes > 0 {
+		p["rangeStartMinutes"] = float64(s.RangeStartMinutes)
+	}
+	if s.RangeEndMinutes > 0 {
+		p["rangeEndMinutes"] = float64(s.RangeEndMinutes)
+	}
 	if s.RangeUseCap != nil && !*s.RangeUseCap {
 		p["rangeUseCap"] = 0
 	} else {

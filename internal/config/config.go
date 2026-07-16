@@ -141,6 +141,13 @@ type StrategyConfig struct {
 	FadeWindowMinutes         int     `yaml:"fade_window_minutes"`
 	FadeTradeEndMinutes       int     `yaml:"fade_trade_end_minutes"`
 	RequireInsideRange        *bool   `yaml:"require_inside_range"`
+	MinMinutesAboveVWAP       int     `yaml:"min_minutes_above_vwap"`
+	CompressionPercentile     float64 `yaml:"compression_percentile"`
+	ATRBars                   int     `yaml:"atr_bars"`
+	EntryStartMinutes         int     `yaml:"entry_start_minutes"`
+	EntryEndMinutes           int     `yaml:"entry_end_minutes"`
+	RangeStartMinutes         int     `yaml:"range_start_minutes"`
+	RangeEndMinutes           int     `yaml:"range_end_minutes"`
 }
 
 type VirtualConfig struct {
@@ -352,6 +359,27 @@ func StrategyConfigFromMap(fields map[string]interface{}, stopMode string) Strat
 	if v, ok := fields["require_inside_range"].(bool); ok {
 		b := v
 		cfg.RequireInsideRange = &b
+	}
+	if v, ok := fields["min_minutes_above_vwap"].(int); ok {
+		cfg.MinMinutesAboveVWAP = v
+	}
+	if v, ok := fields["compression_percentile"].(float64); ok {
+		cfg.CompressionPercentile = v
+	}
+	if v, ok := fields["atr_bars"].(int); ok {
+		cfg.ATRBars = v
+	}
+	if v, ok := fields["entry_start_minutes"].(int); ok {
+		cfg.EntryStartMinutes = v
+	}
+	if v, ok := fields["entry_end_minutes"].(int); ok {
+		cfg.EntryEndMinutes = v
+	}
+	if v, ok := fields["range_start_minutes"].(int); ok {
+		cfg.RangeStartMinutes = v
+	}
+	if v, ok := fields["range_end_minutes"].(int); ok {
+		cfg.RangeEndMinutes = v
 	}
 	if v, ok := fields["trail_activation_r"].(float64); ok {
 		cfg.TrailActivationR = v

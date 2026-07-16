@@ -24,6 +24,8 @@
 
 ## Найденные стратегии (3) — portfolio FROZEN
 
+Только эти три в paper (`configs/runs/portfolio-paper.yaml`). Research frequency/whitelist 2026-07-16 **закрыт** — архив: [`legacy/frequency-hypotheses-2026-07-16.md`](legacy/frequency-hypotheses-2026-07-16.md).
+
 ### 1. ORC — Opening Range Continuation ✅ CHAMPION (FROZEN)
 
 | | |
@@ -202,6 +204,8 @@ AFT_STRATEGY=momentum_filtered AFT_RUN_ID=mf-wave1 make optimizer-afternoon
 
 Универсальный recorder: `scripts/record-strategy-run.py`
 
+Закрытые frequency/whitelist прогоны (2026-07-16) и их реестры — в [`legacy/frequency-hypotheses-2026-07-16.md`](legacy/frequency-hypotheses-2026-07-16.md); конфиги в `configs/legacy/frequency-hypotheses/`.
+
 ---
 
 ## Что пробовали и отклонили
@@ -221,8 +225,10 @@ AFT_STRATEGY=momentum_filtered AFT_RUN_ID=mf-wave1 make optimizer-afternoon
 | ORC на 9 тикеров | −280k | whitelist критичен |
 | ORC + SBER | −4.6k…−10k | SBER исключён |
 | ORC seed2 | exp +0.14R | overfit score, не champion |
+| OR Fade maxEntries ablation 1/2/3 | ~89 сделок при любом max | **отклонено** 2026-07-16 — нет прироста частоты |
+| Frequency/whitelist wave 2026-07-16 (VWAP, Midday, Late, SBER daytrend, MF solo, ORC LKOH, PrevDay, Afternoon fade; candidates OR Fade+TATN / VWAP MGNT+ROSN не влиты) | см. legacy | **закрыто** — остаёмся с 3 FROZEN |
 
-Подробнее по momentum (архив): [`legacy/momentum-optimizer.md`](legacy/momentum-optimizer.md)
+Подробнее: [`legacy/frequency-hypotheses-2026-07-16.md`](legacy/frequency-hypotheses-2026-07-16.md), [`legacy/momentum-optimizer.md`](legacy/momentum-optimizer.md)
 
 ---
 
@@ -237,6 +243,8 @@ AFT_STRATEGY=momentum_filtered AFT_RUN_ID=mf-wave1 make optimizer-afternoon
 | `tickers-mf-afternoon-expanded.yaml` | MGNT, SBER, NVTK, ROSN, TATN, GAZP | архив matrix MF |
 | `tickers-orc.yaml` | + SBER | архив / сравнение |
 | `tickers-momentum.yaml` | 9 тикеров | legacy momentum discovery |
+
+Research tickers 2026-07-16 (VWAP, solo MF, LKOH ORC, …): `configs/legacy/frequency-hypotheses/tickers/`.
 
 **MGNT** — сильнейший тикер в ORC и OR Fade.
 
@@ -343,6 +351,8 @@ Baseline portfolio: **~19%/год**, **+0,37R**/сделку, **~9** сдело�
 - [x] Per-ticker matrix, per-strategy whitelist
 - [x] Комиссия BCS «Трейдер» + commission-rerun champions
 - [x] Baseline доходности — [`champion-baseline.md`](champion-baseline.md)
+- [x] Frequency/whitelist research 2026-07-16 — **закрыто**, архив [`legacy/frequency-hypotheses-2026-07-16.md`](legacy/frequency-hypotheses-2026-07-16.md); portfolio = 3 FROZEN
+- [ ] Paper-валидация portfolio vs baseline
 - [ ] Опционально: optimizer ранжирует по `expectancy_r`, а не Calmar score
 
 Paper/live, portfolio-real, slippage, ГО — [`Roadmap.md`](../Roadmap.md).
@@ -384,8 +394,8 @@ make optimizer-orc
 | [`system.md`](system.md) | Риск, lifecycle, paper trading |
 | [`../Roadmap.md`](../Roadmap.md) | План работ |
 | [`strategies.md`](strategies.md) | Код стратегий, подключение в боте/optimizer |
-| [`legacy/README.md`](legacy/README.md) | Архив optimizer-доков (закрытые линии) |
+| [`legacy/README.md`](legacy/README.md) | Архив закрытых линий (в т.ч. frequency 2026-07-16) |
 
 ---
 
-*Последнее обновление: 2026-07-11 (portfolio FROZEN, baseline docs, post-validation procedure)*
+*Последнее обновление: 2026-07-16 (frequency research → legacy; portfolio = 3 FROZEN champions)*

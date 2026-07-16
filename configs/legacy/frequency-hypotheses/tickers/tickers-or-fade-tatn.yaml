@@ -5,9 +5,6 @@ initial_history_years: 2
 costs:
   commission_rate_per_leg: 0.00008
 
-# OR Fade conservative + AFKS (wave3-narrow-afks, 2026-07-12). FROZEN universe.
+# OR Fade research: TATN solo (matrix +0.98R, low trade count).
 tickers:
-  - LKOH
-  - CHMF
-  - MOEX
-  - AFKS
+  - TATN

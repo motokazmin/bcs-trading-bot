@@ -1,0 +1,110 @@
+# Afternoon Range Fade — fade ложного пробоя послеобеденного диапазона (зеркало OR Fade).
+trading_mode: virtual
+
+tickers:
+  - ticker: LKOH
+    step_price_value: 1.0
+  - ticker: CHMF
+    step_price_value: 1.0
+  - ticker: MOEX
+    step_price_value: 1.0
+  - ticker: AFKS
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: afternoon_range_fade
+  stop_mode: atr
+  atr_period: 14
+  atr_multiplier: 1.2
+  range_start_minutes: 150
+  range_end_minutes: 240
+  breakout_threshold: 0.008
+  fade_window_minutes: 30
+  fade_trade_end_minutes: 390
+  require_inside_range: true
+  reward_ratio: 1.5
+  trail_activation_r: 1.5
+  trail_stage_max: 2
+  trail_breakeven_r: 0.05
+  max_trades_per_ticker_per_day: 2
+
+search_space:
+  strategy: afternoon_range_fade
+  parameters:
+    rangeStartMinutes:
+      type: int
+      min: 120
+      max: 180
+    rangeEndMinutes:
+      type: int
+      min: 210
+      max: 270
+    breakoutThreshold:
+      type: float
+      min: 0.0
+      max: 0.02
+    fadeWindowMinutes:
+      type: int
+      min: 15
+      max: 60
+    fadeTradeEndMinutes:
+      type: int
+      min: 330
+      max: 420
+    requireInsideRange:
+      type: int
+      min: 0
+      max: 1
+    rewardRatio:
+      type: float
+      min: 1.0
+      max: 2.0
+    atrMultiplier:
+      type: float
+      min: 0.8
+      max: 2.0
+    trailActivationR:
+      type: float
+      min: 1.0
+      max: 2.5
+    trailStageMax:
+      type: int
+      min: 1
+      max: 3
+    trailBreakevenR:
+      type: float
+      min: 0.0
+      max: 0.15
+    maxEntriesPerTickerPerDay:
+      type: int
+      min: 1
+      max: 3
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+    maxParallelTrades: 2
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-afternoon-range-fade.db

@@ -48,6 +48,7 @@ max_entries_per_ticker_per_day: 2
 - `configs/champions/or-fade-wave3-afks.yaml`
 - `results/or-fade/wave3-narrow-afks/` (research branch, локально)
 - Архив: `configs/champions/or-fade-wave1-conservative.yaml`
+- Закрытый candidate +TATN (не в portfolio): `configs/champions/legacy/or-fade-plus-tatn.yaml` — см. [`legacy/frequency-hypotheses-2026-07-16.md`](legacy/frequency-hypotheses-2026-07-16.md)
 
 ## Принцип
 

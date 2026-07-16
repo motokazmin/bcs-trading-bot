@@ -5,9 +5,7 @@ initial_history_years: 2
 costs:
   commission_rate_per_leg: 0.00008
 
-# OR Fade conservative + AFKS (wave3-narrow-afks, 2026-07-12). FROZEN universe.
+# VWAP Pullback: MGNT+ROSN only (TATN dropped after wave1).
 tickers:
-  - LKOH
-  - CHMF
-  - MOEX
-  - AFKS
+  - MGNT
+  - ROSN

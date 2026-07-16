@@ -5,9 +5,8 @@ initial_history_years: 2
 costs:
   commission_rate_per_leg: 0.00008
 
-# OR Fade conservative + AFKS (wave3-narrow-afks, 2026-07-12). FROZEN universe.
+# Prev-day level breakout: MGNT / ROSN / LKOH.
 tickers:
+  - MGNT
+  - ROSN
   - LKOH
-  - CHMF
-  - MOEX
-  - AFKS
