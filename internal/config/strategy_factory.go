@@ -68,8 +68,8 @@ func (s StrategyConfig) toStrategyParams(session SessionConfig) (strategy.Params
 	return p, ctx
 }
 
-// ParamsForOptimizer — strategy.Params из YAML (для charts / offline tools).
-func (s StrategyConfig) ParamsForOptimizer(session SessionConfig) (strategy.Params, strategy.BuildContext) {
+// ToParams — strategy.Params из YAML (bot BuildStrategy и offline tools).
+func (s StrategyConfig) ToParams(session SessionConfig) (strategy.Params, strategy.BuildContext) {
 	return s.toStrategyParams(session)
 }
 

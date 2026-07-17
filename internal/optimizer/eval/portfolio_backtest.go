@@ -60,9 +60,10 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 		return PortfolioBacktestResult{}, fmt.Errorf("portfolio-backtest: нет experiments в %s", opts.ConfigPath)
 	}
 
+	accountRisk := cfg.AccountRisk()
 	deposit := opts.Deposit
 	if deposit <= 0 {
-		deposit = cfg.AccountRisk().Deposit
+		deposit = accountRisk.Deposit
 	}
 	if deposit <= 0 {
 		deposit = 200_000
@@ -71,12 +72,16 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 	if maxParallel <= 0 {
 		maxParallel = 5
 	}
-	dailyLossPct := cfg.AccountRisk().MaxDailyLossPercent
+	dailyLossPct := accountRisk.MaxDailyLossPercent
 	if dailyLossPct <= 0 {
 		dailyLossPct = 2.0
 	}
 	maxDailyLoss := deposit * dailyLossPct / 100
 	costsCfg := cfg.CostsConfig()
+	riskPerTrade := accountRisk.RiskPerTradePercent
+	if riskPerTrade <= 0 {
+		riskPerTrade = 0.5
+	}
 
 	tickers := cfg.AllTickerSymbols()
 	candleData, err := LoadCandleData(opts.HistoryDir, tickers)
@@ -131,7 +136,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 				StepPriceValue:  step,
 				Deposit:         deposit,
 				MaxDailyLoss:    maxDailyLoss,
-				RiskPerTradePct: exp.Risk.RiskPerTradePercent,
+				RiskPerTradePct: riskPerTrade,
 				MaxTradesPerDay: exp.Strategy.MaxTradesPerTickerPerDay,
 				Strategy:        rcStrat,
 				StrategyID:      exp.Strategy.TypeOrDefault(),

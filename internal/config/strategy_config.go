@@ -158,10 +158,7 @@ func (s StrategyConfig) EffectiveRewardRatio() float64 {
 	return strategy.DefaultRewardRatio(s.TypeOrDefault())
 }
 
-func (s StrategyConfig) LongOnlyEnabled() bool {
-	return s.Bool("long_only")
-}
-
+// VolumeFilterEnabled — volume_filter из YAML.
 func (s StrategyConfig) VolumeFilterEnabled() bool {
 	return s.Bool("volume_filter")
 }
@@ -192,52 +189,6 @@ func (s StrategyConfig) BoolPtr(key string) *bool {
 	}
 	b := v
 	return &b
-}
-
-// Удобные аксессоры для тестов и legacy call-sites (читают raw).
-func (s StrategyConfig) ATRPeriod() int              { return s.Int("atr_period") }
-func (s StrategyConfig) ATRMultiplier() float64      { return s.Float("atr_multiplier") }
-func (s StrategyConfig) RewardRatio() float64        { return s.Float("reward_ratio") }
-func (s StrategyConfig) BreakoutThreshold() float64  { return s.Float("breakout_threshold") }
-func (s StrategyConfig) VolumeMinRatio() float64     { return s.Float("volume_min_ratio") }
-func (s StrategyConfig) ORBMinutes() int             { return s.Int("orb_minutes") }
-func (s StrategyConfig) FadeThreshold() float64      { return s.Float("fade_threshold") }
-func (s StrategyConfig) FadeWindowMinutes() int      { return s.Int("fade_window_minutes") }
-func (s StrategyConfig) FadeTradeEndMinutes() int    { return s.Int("fade_trade_end_minutes") }
-func (s StrategyConfig) RequireInsideRange() *bool   { return s.BoolPtr("require_inside_range") }
-func (s StrategyConfig) TrendSMAPeriod() int         { return s.Int("trend_sma_period") }
-func (s StrategyConfig) StrategyEntryDelayMinutes() int {
-	return s.Int("strategy_entry_delay_minutes")
-}
-func (s StrategyConfig) MinMinutesAboveVWAP() int    { return s.Int("min_minutes_above_vwap") }
-func (s StrategyConfig) CompressionPercentile() float64 {
-	return s.Float("compression_percentile")
-}
-func (s StrategyConfig) ATRBars() int            { return s.Int("atr_bars") }
-func (s StrategyConfig) EntryStartMinutes() int  { return s.Int("entry_start_minutes") }
-func (s StrategyConfig) EntryEndMinutes() int    { return s.Int("entry_end_minutes") }
-func (s StrategyConfig) GapThreshold() float64   { return s.Float("gap_threshold") }
-func (s StrategyConfig) RangeStartMinutes() int  { return s.Int("range_start_minutes") }
-func (s StrategyConfig) RangeEndMinutes() int    { return s.Int("range_end_minutes") }
-func (s StrategyConfig) RangeUseCap() *bool      { return s.BoolPtr("range_use_cap") }
-
-// StrategyOptions конвертирует конфиг стратегии в параметры MomentumBreakout (legacy).
-func (s StrategyConfig) StrategyOptions() strategy.Options {
-	rangeUseCap := true
-	if p := s.RangeUseCap(); p != nil {
-		rangeUseCap = *p
-	}
-	return strategy.Options{
-		Lookback:          s.Lookback,
-		StopMode:          strings.ToLower(strings.TrimSpace(s.StopMode)),
-		ATRPeriod:         s.ATRPeriod(),
-		ATRMultiplier:     s.ATRMultiplier(),
-		RewardRatio:       s.RewardRatio(),
-		RangeUseCap:       rangeUseCap,
-		VolumeFilter:      s.VolumeFilterEnabled(),
-		VolumeMinRatio:    s.VolumeMinRatio(),
-		BreakoutThreshold: s.BreakoutThreshold(),
-	}
 }
 
 // TrailingConfig конвертирует параметры трейлинга из YAML в trailing.Config.
@@ -271,10 +222,10 @@ func (s *StrategyConfig) applyDefaults() {
 		s.StopMode = strategy.StopModeRange
 		s.setRaw("stop_mode", s.StopMode)
 	}
-	if s.ATRPeriod() < 2 {
+	if s.Int("atr_period") < 2 {
 		s.setRaw("atr_period", defaultATRPeriod)
 	}
-	if s.ATRMultiplier() <= 0 {
+	if s.Float("atr_multiplier") <= 0 {
 		s.setRaw("atr_multiplier", defaultATRMultiplier)
 	}
 }

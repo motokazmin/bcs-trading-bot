@@ -30,7 +30,7 @@ type TickerWorker struct {
 	candleTimeframe  string
 	lookback         int
 	riskPerTradePct  float64
-	depositPerTicker float64
+	depositPerTicker float64 // полный депозит счёта (имя колонки ClosedTrade / SQLite)
 	strategy         strategy.CandleStrategy
 	strategyID       string
 	riskMgr          *risk.RiskManager

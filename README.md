@@ -60,7 +60,7 @@ Baseline доходности (для сравнения с live): [`docs/champi
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                              cmd/bot/main.go                                 │
 │                                                                              │
-│  YAML-конфиг ──► OAuth2 ──► OrderExecutor на эксперимент (virtual / real)   │
+│  YAML-конфиг ──► OAuth2 ──► единый OrderExecutor (virtual / real)           │
 │                                    ▲                                         │
 │  WebSocket Fan-Out ──┬──► TickerWorker [baseline/SBER] ──► Strategy + Risk  │
 │  (свечи + котировки) ├──► TickerWorker [atr-2/SBER]    ──► Strategy + Risk  │
@@ -74,7 +74,7 @@ Baseline доходности (для сравнения с live): [`docs/champi
 
 1. Загрузка YAML-конфига (`-config`), токен из `BCS_REFRESH_TOKEN`.
 2. Авторизация через OAuth2 Keycloak → `access_token`.
-3. Инициализация исполнителя: один `VirtualExecutor` (или `BCSClient`) **на эксперимент**.
+3. Инициализация исполнителя: один `VirtualExecutor` (или `BCSClient`) на весь процесс.
 4. Для каждой пары «эксперимент × тикер» создаётся `TickerWorker` в отдельной горутине.
 5. WebSocket подписывается на **свечи** (сигналы стратегии) и **котировки** (тики для SL/TP).
 6. Воркер на каждом тике проверяет стоп/тейк и EOD; на свече — стратегию из `strategy.type` (см. [docs/strategies.md](docs/strategies.md)).
@@ -212,7 +212,7 @@ go run ./cmd/bot
 | Тег | Значение |
 |---|---|
 | `[SYS]` | Старт, конфиг, шаги инициализации |
-| `[MODE]` | Режим торговли и баланс virtual-счёта на эксперимент |
+| `[MODE]` | Режим торговли и баланс единого virtual-счёта |
 | `[WS]` | WebSocket: подписка, реконнект, ошибки сервера |
 | `[OPEN]` | Позиция открыта |
 | `[TP]` / `[SL]` / `[EOD]` | Позиция закрыта по тейку, стопу или концу дня |
@@ -366,9 +366,9 @@ go run ./cmd/bot
 | `strategy.max_trades_per_ticker_per_day` | `0` | Лимит входов на тикер в день (`0` — без лимита) |
 | `strategy.volume_filter` | `false` | Фильтр по объёму: вход только при объёме свечи > `volume_min_ratio` × средний объём окна |
 | `strategy.volume_min_ratio` | `1.5` | Множитель к среднему объёму (при `volume_filter: true`) |
-| `virtual.balance` | = `risk.deposit` | Стартовый баланс virtual-счёта **на эксперимент** |
+| `virtual.balance` | = `risk.deposit` | Стартовый баланс единого virtual-счёта |
 | `storage.path` | `data/trades.db` | SQLite с закрытыми сделками |
-| `experiments[]` | — | Несколько стратегий в одном процессе (`virtual`: отдельный virtual-счёт на experiment; `real`: пока **1** experiment) |
+| `experiments[]` | — | Слоты стратегий в одном процессе на общем счёте (`real`: пока **1** experiment) |
 | `experiments[].id` | — | Идентификатор (`experiment_id` в БД и в логе `id/ticker`) |
 | `experiments[].tickers` | корневой `tickers` | Подмножество тикеров для этого эксперимента |
 | `experiments[].entry_delay_minutes` | корневой `session.entry_delay_minutes` | Задержка входов для эксперимента (минуты) |

@@ -602,7 +602,7 @@ func tradesToChartMarkers(trades []models.ClosedTrade, costsCfg costs.Config, cl
 
 func parameterSetFromConfig(cfg *config.Config) core.ParameterSet {
 	s := cfg.Strategy
-	p, _ := s.ParamsForOptimizer(cfg.Session)
+	p, _ := s.ToParams(cfg.Session)
 	out := make(core.ParameterSet, len(p))
 	for k, v := range p {
 		out[k] = v

@@ -14,13 +14,14 @@ func TestLoadORFadeChampion(t *testing.T) {
 	if cfg.Strategy.Type != "opening_range_fade" {
 		t.Fatalf("type: got %q", cfg.Strategy.Type)
 	}
-	if cfg.Strategy.FadeWindowMinutes() != 57 {
-		t.Fatalf("fade_window_minutes: got %d, want 57", cfg.Strategy.FadeWindowMinutes())
+	if cfg.Strategy.Int("fade_window_minutes") != 57 {
+		t.Fatalf("fade_window_minutes: got %d, want 57", cfg.Strategy.Int("fade_window_minutes"))
 	}
-	if cfg.Strategy.FadeTradeEndMinutes() != 124 {
-		t.Fatalf("fade_trade_end_minutes: got %d, want 124", cfg.Strategy.FadeTradeEndMinutes())
+	if cfg.Strategy.Int("fade_trade_end_minutes") != 124 {
+		t.Fatalf("fade_trade_end_minutes: got %d, want 124", cfg.Strategy.Int("fade_trade_end_minutes"))
 	}
-	if cfg.Strategy.RequireInsideRange() == nil || *cfg.Strategy.RequireInsideRange() {
+	rir := cfg.Strategy.BoolPtr("require_inside_range")
+	if rir == nil || *rir {
 		t.Fatal("require_inside_range: want false")
 	}
 	s, err := cfg.Strategy.BuildStrategy(cfg.Session)
@@ -92,12 +93,12 @@ func TestLoadLegacyATRExperiments(t *testing.T) {
 	if vol.ID != "atr-2-lean-vol" || !vol.Strategy.VolumeFilterEnabled() {
 		t.Fatalf("atr-2-lean-vol: %+v", vol)
 	}
-	if vol.Strategy.VolumeMinRatio() != 1.5 {
-		t.Fatalf("volume_min_ratio: got %f", vol.Strategy.VolumeMinRatio())
+	if vol.Strategy.Float("volume_min_ratio") != 1.5 {
+		t.Fatalf("volume_min_ratio: got %f", vol.Strategy.Float("volume_min_ratio"))
 	}
 	lean1 := exps[1]
-	if lean1.ID != "atr-1-lean" || lean1.Strategy.ATRMultiplier() != 1.0 {
-		t.Fatalf("atr-1-lean: id=%q atr=%f", lean1.ID, lean1.Strategy.ATRMultiplier())
+	if lean1.ID != "atr-1-lean" || lean1.Strategy.Float("atr_multiplier") != 1.0 {
+		t.Fatalf("atr-1-lean: id=%q atr=%f", lean1.ID, lean1.Strategy.Float("atr_multiplier"))
 	}
 }
 

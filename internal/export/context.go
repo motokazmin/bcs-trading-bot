@@ -26,9 +26,9 @@ func StrategyContextFromConfig(cfg *config.Config) models.StrategyContext {
 		RiskReward:     fmt.Sprintf("ATR/range стоп; reward_ratio=%.2f (эффективный R:R).", s.EffectiveRewardRatio()),
 		RiskPerTrade:   fmt.Sprintf("%.2f%% депозита %d ₽ на сделку.", cfg.Risk.RiskPerTradePercent, int(cfg.Risk.Deposit)),
 		TrailingStop:   fmt.Sprintf("trail_activation_r=%.2f, trail_stage_max=%d.", s.TrailActivationR, s.TrailStageMax),
-		CircuitBreaker: fmt.Sprintf("%.1f%% дневного убытка.", cfg.Risk.MaxDailyLossPercent),
+		CircuitBreaker: fmt.Sprintf("%.1f%% дневного убытка на счёт.", cfg.Risk.MaxDailyLossPercent),
 		PnLNote:        fmt.Sprintf("Главная метрика прибыльности — expectancy_r (средний PnL в R на сделку): >0 edge, <0 убыток. PnL в ₽ net (комиссия: %s). avg_pnl_r = expectancy_r.", commission),
-		ExperimentNote: "Optimizer backtest на CSV-истории MOEX; best-config из walk-forward random search.",
+		ExperimentNote: "Параллельные experiment_id — слоты стратегий на одном virtual-счёте.",
 	}
 }
 
@@ -41,7 +41,7 @@ func DefaultLiveStrategyContext() models.StrategyContext {
 		RiskReward:     "Stop-Loss и Take-Profit в соотношении 1:3 (1R риск, 3R цель).",
 		RiskPerTrade:   "Размер лота из 0.5% депозита на тикер при срабатывании начального SL.",
 		TrailingStop:   "+1R → безубыток; +2R → фиксация +1R; далее SL = MFE − 1R на каждом тике; выход по SL/TP/EOD.",
-		CircuitBreaker: "2% дневного убытка на эксперимент → блокировка новых входов до следующего дня.",
+		CircuitBreaker: "2% дневного убытка на счёт → блокировка новых входов до следующего дня.",
 		PnLNote:        "gross_pnl в рублях, комиссия брокера не вычтена. Главная метрика — expectancy_r (средний pnl_r на сделку). mfe_in_r / mae_in_r — экскурсии внутри позиции в R.",
 		ExperimentNote: "Параллельные experiment_id — слоты стратегий на одном virtual-счёте (разные params / тикеры / сессии).",
 	}

@@ -59,7 +59,6 @@ type ExperimentConfig struct {
 	WeekendOnly       *bool          `yaml:"weekend_only"`
 	Strategy          StrategyConfig `yaml:"strategy"`
 	Risk              RiskConfig     `yaml:"risk"`
-	Virtual           VirtualConfig  `yaml:"virtual"`
 }
 
 // ResolvedExperiment — нормализованный эксперимент, готовый к запуску воркеров.
@@ -74,7 +73,6 @@ type ResolvedExperiment struct {
 	WeekendOnly       *bool
 	Strategy          StrategyConfig
 	Risk              RiskConfig
-	Virtual           VirtualConfig
 }
 
 type StorageConfig struct {
@@ -159,7 +157,6 @@ func (c *Config) ResolvedExperiments() []ResolvedExperiment {
 			Name:     defaultExperimentID,
 			Strategy: c.Strategy,
 			Risk:     c.Risk,
-			Virtual:  c.Virtual,
 		}}
 	}
 
@@ -176,7 +173,6 @@ func (c *Config) ResolvedExperiments() []ResolvedExperiment {
 			WeekendOnly:       exp.WeekendOnly,
 			Strategy:          exp.Strategy,
 			Risk:              exp.Risk,
-			Virtual:           exp.Virtual,
 		}
 	}
 	return out
@@ -318,7 +314,7 @@ func (c *Config) applyDefaults() {
 	} else {
 		c.applyRiskDefaults(&c.Risk, c.Risk.Deposit)
 	}
-	c.applyStrategyDefaults(&c.Strategy)
+	c.Strategy.applyDefaults()
 	if c.Virtual.Balance <= 0 && c.Risk.Deposit > 0 {
 		c.Virtual.Balance = c.Risk.Deposit
 	}
@@ -350,10 +346,7 @@ func (c *Config) applyDefaults() {
 			exp.Name = exp.ID
 		}
 		c.applyRiskDefaults(&exp.Risk, exp.Risk.Deposit)
-		c.applyStrategyDefaults(&exp.Strategy)
-		if exp.Virtual.Balance <= 0 {
-			exp.Virtual.Balance = exp.Risk.Deposit
-		}
+		exp.Strategy.applyDefaults()
 		for j := range exp.Tickers {
 			if exp.Tickers[j].StepPriceValue <= 0 {
 				exp.Tickers[j].StepPriceValue = defaultStepPriceValue
@@ -383,10 +376,6 @@ func (c *Config) applyRiskDefaults(risk *RiskConfig, depositHint float64) {
 	if risk.MaxParallelTrades <= 0 {
 		risk.MaxParallelTrades = 2
 	}
-}
-
-func (c *Config) applyStrategyDefaults(s *StrategyConfig) {
-	s.applyDefaults()
 }
 
 func (c *Config) validate() error {
