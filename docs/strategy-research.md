@@ -4,7 +4,7 @@
 
 Фокус: **walk-forward backtest** акций **TQBR** в `cmd/optimizer`. Бот и live — не приоритет, только для валидации гипотез.
 
-Депозит: **200 000 ₽**, риск **0.5%** на сделку, сессия MOEX **10:00–18:40** MSK, M5, класс **TQBR** (акции).
+Депозит: **200 000 ₽**, риск **0.5%** на сделку, M5, класс **TQBR**. Сессии: утро **07:00–09:50**, main **10:00–18:40**, вечер **19:05–23:50** MSK.
 
 ## Навигация
 
@@ -22,7 +22,9 @@
 
 ---
 
-## Найденные стратегии (3) — portfolio FROZEN
+## Найденные стратегии (5) — portfolio FROZEN
+
+Пять champions в paper (`configs/runs/portfolio-paper.yaml`). Frequency 2026-07-16 и extended-sessions rejects — в [`legacy/`](legacy/README.md).
 
 ### 1. ORC — Opening Range Continuation ✅ CHAMPION (FROZEN)
 
@@ -115,18 +117,91 @@ strategyEntryDelay≈24, atr≈2.73, volume_filter=true, long_only=true
 
 ---
 
+### 4. Morning Session ORC ✅ CHAMPION (FROZEN)
+
+| | |
+|---|---|
+| ID | `session_orc` |
+| Статус | **FROZEN** — не оптимизировать без явного запроса |
+| Принцип | ORC на **утренней** сессии MOEX → лимит на ретесте |
+| Слот | **07:00–09:50** (`weekdays_only`) |
+| Champion run | **`wave2-morning-orc-wl`** (seed 1; seed2 OK) |
+| Expectancy | **+0.47R** |
+| PF | 1.91 |
+| PnL | +44 710 ₽ / ~2 года |
+| WF | **16/23** |
+| Сделок | 95 |
+| Тикеры | **ROSN, NVTK, MOEX, CHMF, TATN, SBER** |
+| Комиссия | 0,008% за leg |
+
+```
+orb=14, atr≈0.89, RR≈1.67, breakout≈0.38%
+trail_act≈1.07, max_entries=1
+```
+
+- Best config: `configs/champions/session-orc-morning-wave2.yaml`
+- Tickers: `configs/shared/tickers-session-orc-morning.yaml`
+- Подробнее: [`champion-session-orc-morning.md`](champion-session-orc-morning.md)
+
+---
+
+### 5. Evening Session ORC ✅ CHAMPION (FROZEN)
+
+| | |
+|---|---|
+| ID | `session_orc` |
+| Статус | **FROZEN** — не оптимизировать без явного запроса |
+| Принцип | ORC на **вечерней** сессии MOEX → лимит на ретесте |
+| Слот | **19:05–23:50** (`weekdays_only`) |
+| Champion run | **`wave2-evening-orc-wl`** (seed 1; seed2 WF 9/23 — жёлтый флаг) |
+| Expectancy | **+0.90R** |
+| PF | 2.53 |
+| PnL | +74 244 ₽ / ~2 года |
+| WF | **16/23** |
+| Сделок | 83 |
+| Тикеры | **NVTK, GAZP, ROSN, CHMF, MOEX, TATN, MGNT** |
+| Комиссия | 0,008% за leg |
+
+```
+orb=11, atr≈1.21, RR≈1.58, breakout≈0.55%
+trail_act≈2.05, max_entries=2
+```
+
+- Best config: `configs/champions/session-orc-evening-wave2.yaml`
+- Tickers: `configs/shared/tickers-session-orc-evening.yaml`
+- Подробнее: [`champion-session-orc-evening.md`](champion-session-orc-evening.md)
+
+---
+
 ## Портфель (целевая картина)
 
 ```
-10:00 ─── 10:30 ─── 12:30 ─── 18:40
-  │  ORC ✅   │ OR Fade ✅ │ MF Afternoon ✅ │
-  │ MGNT/ROSN/ │ LKOH/CHMF/ │ MGNT/TATN      │
-  │ TATN       │ MOEX       │                 │
+07:00 ─── 09:50 ─── 10:30 ─── 12:30 ─── 18:40 ─── 23:50
+  Morning ORC ✅ │ ORC ✅ │ OR Fade ✅ │ MF ✅ │ Evening ORC ✅
 ```
 
-**Portfolio FROZEN** — три champion-конфига, optimizer по ним не запускать без явного запроса.
+**Portfolio FROZEN** — пять champion-конфигов, optimizer по ним не запускать без явного запроса.
 
-**Baseline (оценка на 200k, ~2 года):** +76 669 ₽ (~19%/год), +0,37R/сделку, ~9 сделок/мес — детали в [`champion-baseline.md`](champion-baseline.md).
+### Матрица ticker×slot (канон)
+
+| Тикер | Утро sess. | Main ORC | Main Fade | MF | Вечер sess. |
+|-------|:----------:|:--------:|:---------:|:--:|:-----------:|
+| MGNT | — | ✅ | — | ✅ | ✅ |
+| ROSN | ✅ | ✅ | — | — | ✅ |
+| TATN | ✅ | ✅ | — | ✅ | ✅ |
+| LKOH | — | — | ✅ | — | — |
+| CHMF | ✅ | — | ✅ | — | ✅ |
+| MOEX | ✅ | — | ✅ | — | ✅ |
+| AFKS | — | — | ✅ | — | — |
+| NVTK | ✅ | — | — | — | ✅ |
+| GAZP | — | — | — | — | ✅ |
+| SBER | ✅ | — | — | — | — |
+
+**Правило routing:** одна открытая позиция на тикер на весь портфель (`[SKIP] ticker busy`). Morning EOD 09:50 до main ORC.
+
+**Проверка модели счёта:** `optimizer portfolio-backtest` на `portfolio-paper.yaml` → go/no-go vs baseline § C.
+
+**Baseline shared (5 champions, GO 2026-07-17):** +276k ₽, +0,59R, PF 1,98, 473 сделки — [`champion-baseline.md`](champion-baseline.md) § C.
 
 ---
 
@@ -202,6 +277,8 @@ AFT_STRATEGY=momentum_filtered AFT_RUN_ID=mf-wave1 make optimizer-afternoon
 
 Универсальный recorder: `scripts/record-strategy-run.py`
 
+Закрытые frequency/whitelist прогоны (2026-07-16) и их реестры — в [`legacy/frequency-hypotheses-2026-07-16.md`](legacy/frequency-hypotheses-2026-07-16.md); конфиги в `configs/legacy/frequency-hypotheses/`.
+
 ---
 
 ## Что пробовали и отклонили
@@ -221,8 +298,12 @@ AFT_STRATEGY=momentum_filtered AFT_RUN_ID=mf-wave1 make optimizer-afternoon
 | ORC на 9 тикеров | −280k | whitelist критичен |
 | ORC + SBER | −4.6k…−10k | SBER исключён |
 | ORC seed2 | exp +0.14R | overfit score, не champion |
+| OR Fade maxEntries ablation 1/2/3 | ~89 сделок при любом max | **отклонено** 2026-07-16 — нет прироста частоты |
+| Frequency/whitelist wave 2026-07-16 (VWAP, Midday, Late, SBER daytrend, MF solo, ORC LKOH, PrevDay, Afternoon fade; candidates OR Fade+TATN / VWAP MGNT+ROSN не влиты) | см. legacy | **закрыто** — остаёмся с 3 FROZEN |
+| Session evening OR Fade / Gap; morning Fade / Gap; weekend ORC/Fade/Gap | см. [`legacy/extended-sessions-2026-07-17.md`](legacy/extended-sessions-2026-07-17.md) | **отклонено** 2026-07-17 |
+| Session morning ORC + evening ORC | shared +276k / +0.59R / 473 trades | ✅ **FROZEN** → paper |
 
-Подробнее по momentum (архив): [`legacy/momentum-optimizer.md`](legacy/momentum-optimizer.md)
+Подробнее: [`legacy/frequency-hypotheses-2026-07-16.md`](legacy/frequency-hypotheses-2026-07-16.md), [`legacy/momentum-optimizer.md`](legacy/momentum-optimizer.md)
 
 ---
 
@@ -235,8 +316,11 @@ AFT_STRATEGY=momentum_filtered AFT_RUN_ID=mf-wave1 make optimizer-afternoon
 | `tickers-mf-afternoon-mgnt-tatn.yaml` | MGNT, TATN | **MF Afternoon** champion |
 | `tickers-or-fade-expanded.yaml` | LKOH, CHMF, TATN, GAZP, MOEX | архив matrix OR Fade |
 | `tickers-mf-afternoon-expanded.yaml` | MGNT, SBER, NVTK, ROSN, TATN, GAZP | архив matrix MF |
-| `tickers-orc.yaml` | + SBER | архив / сравнение |
-| `tickers-momentum.yaml` | 9 тикеров | legacy momentum discovery |
+| `tickers-session-orc-morning.yaml` | ROSN, NVTK, MOEX, CHMF, TATN, SBER | **Morning Session ORC** |
+| `tickers-session-orc-evening.yaml` | NVTK, GAZP, ROSN, CHMF, MOEX, TATN, MGNT | **Evening Session ORC** |
+| `tickers-session-liquid.yaml` | 9 тикеров | discovery extended sessions |
+
+Research tickers 2026-07-16 (VWAP, solo MF, LKOH ORC, …): `configs/legacy/frequency-hypotheses/tickers/`.
 
 **MGNT** — сильнейший тикер в ORC и OR Fade.
 
@@ -299,7 +383,7 @@ Solo-run 100 trials на каждой акции. Артефакты: `results/t
 **Когда применять:** после paper/live-валидации portfolio (`configs/runs/portfolio-paper.yaml`), не раньше.  
 **До этого** — только сверка с [`champion-baseline.md`](champion-baseline.md) (exp_R, PF, ₽/мес), без optimizer по FROZEN champions.
 
-Baseline portfolio: **~19%/год**, **+0,37R**/сделку, **~9** сделок/мес на 200k. ORC даёт **~70%** PnL; OR Fade и MF — хороший exp_R, но мало сделок.
+Baseline portfolio (§ C): **~+276k / ~2 года**, **+0,59R**/сделку, **~20** сделок/мес на 200k. Evening ORC даёт основную долю прироста ₽ к 3-champion baseline.
 
 ### Развилка после live
 
@@ -343,9 +427,29 @@ Baseline portfolio: **~19%/год**, **+0,37R**/сделку, **~9** сдело�
 - [x] Per-ticker matrix, per-strategy whitelist
 - [x] Комиссия BCS «Трейдер» + commission-rerun champions
 - [x] Baseline доходности — [`champion-baseline.md`](champion-baseline.md)
+- [x] Frequency/whitelist research 2026-07-16 — **закрыто**, архив [`legacy/frequency-hypotheses-2026-07-16.md`](legacy/frequency-hypotheses-2026-07-16.md); portfolio = 3 FROZEN
+- [x] Portfolio shared-account backtest (`optimizer portfolio-backtest`) — **GO** 2026-07-17
+- [x] Extended sessions → **FROZEN** morning+evening Session ORC; rejects → legacy — 2026-07-17
+- [ ] Paper-валидация portfolio vs baseline § C (shared, 5 champions)
 - [ ] Опционально: optimizer ранжирует по `expectancy_r`, а не Calmar score
 
 Paper/live, portfolio-real, slippage, ГО — [`Roadmap.md`](../Roadmap.md).
+
+---
+
+## Extended sessions research (2026-07-17) — закрыто
+
+Влиты в paper как FROZEN: Morning + Evening Session ORC.  
+Отклонённые линии и YAML: [`legacy/extended-sessions-2026-07-17.md`](legacy/extended-sessions-2026-07-17.md).
+
+| Слот | Гипотеза | Вердикт |
+|------|----------|---------|
+| Вечер 19:05–23:50 | Session ORC wave2-wl | ✅ FROZEN |
+| Утро 07:00–09:50 | Session ORC wave2-wl | ✅ FROZEN |
+| Вечер/утро | OR Fade, Gap drive | отклонено |
+| ДСВД | ORC / Fade / Gap | отклонено |
+
+Shared portfolio-backtest (5 champions): см. [`champion-baseline.md`](champion-baseline.md) § C.
 
 ---
 
@@ -355,10 +459,13 @@ Paper/live, portfolio-real, slippage, ГО — [`Roadmap.md`](../Roadmap.md).
 # История (при смене тикеров)
 make sync-history
 
-# Paper portfolio (3 FROZEN champions)
+# Paper portfolio (5 FROZEN champions)
 go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
 
-# ORC (frozen, только по запросу)
+# Shared portfolio-backtest
+go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
+
+# ORC main (frozen, только по запросу)
 make optimizer-orc
 
 # OR Fade (FROZEN — только по явному запросу)
@@ -380,12 +487,14 @@ make optimizer-orc
 | [`champion-orc.md`](champion-orc.md) | ORC champion |
 | [`champion-or-fade.md`](champion-or-fade.md) | OR Fade champion |
 | [`champion-mf-afternoon.md`](champion-mf-afternoon.md) | MF Afternoon champion |
+| [`champion-session-orc-morning.md`](champion-session-orc-morning.md) | Morning Session ORC |
+| [`champion-session-orc-evening.md`](champion-session-orc-evening.md) | Evening Session ORC |
 | [`champion-baseline.md`](champion-baseline.md) | Baseline доходности для сравнения с live |
 | [`system.md`](system.md) | Риск, lifecycle, paper trading |
 | [`../Roadmap.md`](../Roadmap.md) | План работ |
 | [`strategies.md`](strategies.md) | Код стратегий, подключение в боте/optimizer |
-| [`legacy/README.md`](legacy/README.md) | Архив optimizer-доков (закрытые линии) |
+| [`legacy/README.md`](legacy/README.md) | Архив закрытых линий (в т.ч. frequency 2026-07-16) |
 
 ---
 
-*Последнее обновление: 2026-07-11 (portfolio FROZEN, baseline docs, post-validation procedure)*
+*Последнее обновление: 2026-07-17 (5 FROZEN: + morning/evening Session ORC; paper portfolio обновлён)*

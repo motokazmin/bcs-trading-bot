@@ -1,0 +1,85 @@
+# Late Session Imbalance — объёмный дисбаланс 18:00–18:35 (MOEX/LKOH).
+trading_mode: virtual
+
+tickers:
+  - ticker: MOEX
+    step_price_value: 1.0
+  - ticker: LKOH
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: late_session_imbalance
+  stop_mode: atr
+  atr_period: 14
+  atr_multiplier: 0.8
+  entry_start_minutes: 480
+  entry_end_minutes: 515
+  strategy_entry_delay_minutes: 480
+  reward_ratio: 1.75
+  volume_filter: true
+  volume_min_ratio: 2.0
+  max_trades_per_ticker_per_day: 1
+
+search_space:
+  strategy: late_session_imbalance
+  parameters:
+    volumeFilterMultiplier:
+      type: float
+      min: 1.5
+      max: 3.0
+    rewardRatio:
+      type: float
+      min: 1.5
+      max: 2.0
+    atrMultiplier:
+      type: float
+      min: 0.5
+      max: 1.5
+    trailActivationR:
+      type: float
+      min: 0.8
+      max: 2.0
+    trailStageMax:
+      type: int
+      min: 1
+      max: 2
+    maxEntriesPerTickerPerDay:
+      type: int
+      min: 1
+      max: 1
+    entryStartMinutes:
+      type: int
+      min: 480
+      max: 480
+    entryEndMinutes:
+      type: int
+      min: 515
+      max: 515
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-late-session.db

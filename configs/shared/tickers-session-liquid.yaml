@@ -1,0 +1,18 @@
+class_code: TQBR
+candle_timeframe: M5
+initial_history_years: 2
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+# Universe для discovery extended sessions (утро/вечер/ДСВД).
+tickers:
+  - SBER
+  - LKOH
+  - MGNT
+  - ROSN
+  - TATN
+  - GAZP
+  - NVTK
+  - CHMF
+  - MOEX

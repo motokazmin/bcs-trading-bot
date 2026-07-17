@@ -1,0 +1,49 @@
+# FROZEN champion: Morning Session ORC (07:00–09:50 MSK)
+# Run: wave2-morning-orc-wl (seed 1); seed2 OK (+0.41R, 13/23)
+# Solo: +0.47R, PF 1.91, 95 trades, 16/23 WF
+# Не оптимизировать без явного запроса.
+
+trading_mode: virtual
+
+tickers:
+  - ROSN
+  - NVTK
+  - MOEX
+  - CHMF
+  - TATN
+  - SBER
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "07:00"
+  eod_close_time: "09:50"
+  entry_delay_minutes: 0
+  weekdays_only: true
+
+strategy:
+  type: session_orc
+  stop_mode: atr
+  atr_period: 14
+  atr_multiplier: 0.8930746929599627
+  breakout_threshold: 0.0037667883833940297
+  orb_minutes: 14
+  reward_ratio: 1.6671892216849793
+  trail_activation_r: 1.0664818788974488
+  trail_breakeven_r: 0.04905400993316018
+  trail_stage_max: 3
+  max_trades_per_ticker_per_day: 1
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 5
+
+virtual:
+  balance: 200000

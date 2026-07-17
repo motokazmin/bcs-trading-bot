@@ -1,0 +1,105 @@
+# VWAP Pullback Continuation — OR breakout direction + VWAP pullback (MGNT/ROSN/TATN).
+trading_mode: virtual
+
+tickers:
+  - ticker: MGNT
+    step_price_value: 1.0
+  - ticker: ROSN
+    step_price_value: 1.0
+  - ticker: TATN
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: vwap_pullback_continuation
+  stop_mode: atr
+  atr_period: 14
+  atr_multiplier: 1.5
+  orb_minutes: 30
+  breakout_threshold: 0.005
+  min_minutes_above_vwap: 30
+  strategy_entry_delay_minutes: 35
+  reward_ratio: 2.0
+  volume_filter: true
+  volume_min_ratio: 1.5
+  max_trades_per_ticker_per_day: 2
+
+search_space:
+  strategy: vwap_pullback_continuation
+  parameters:
+    orbMinutes:
+      type: int
+      min: 15
+      max: 45
+    breakoutThreshold:
+      type: float
+      min: 0.0
+      max: 0.015
+    minMinutesAboveVWAP:
+      type: int
+      min: 20
+      max: 60
+    strategyEntryDelayMinutes:
+      type: int
+      min: 30
+      max: 45
+    rewardRatio:
+      type: float
+      min: 1.5
+      max: 2.5
+    atrMultiplier:
+      type: float
+      min: 0.8
+      max: 2.0
+    volumeFilter:
+      type: int
+      min: 1
+      max: 1
+    volumeFilterMultiplier:
+      type: float
+      min: 1.2
+      max: 2.5
+    maxEntriesPerTickerPerDay:
+      type: int
+      min: 1
+      max: 4
+    trailActivationR:
+      type: float
+      min: 1.0
+      max: 2.5
+    trailStageMax:
+      type: int
+      min: 1
+      max: 3
+    trailBreakevenR:
+      type: float
+      min: 0.0
+      max: 0.15
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+    maxParallelTrades: 2
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-vwap-pullback.db

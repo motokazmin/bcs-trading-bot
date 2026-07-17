@@ -60,11 +60,13 @@ func NewRunner(cfg RunnerConfig, store interfaces.TradeStore) (*Runner, error) {
 		store = interfaces.NoopTradeStore{}
 	}
 
-	clock, err := engine.NewSessionClock(
+	clock, err := engine.NewSessionClockExt(
 		cfg.SessionCfg.Timezone,
 		cfg.SessionCfg.EODCloseTime,
 		cfg.SessionCfg.SessionOpenTime,
 		cfg.SessionCfg.EntryDelayMinutes,
+		cfg.SessionCfg.WeekdaysOnly,
+		cfg.SessionCfg.WeekendOnly,
 	)
 	if err != nil {
 		return nil, err

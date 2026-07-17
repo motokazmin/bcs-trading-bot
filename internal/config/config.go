@@ -40,6 +40,7 @@ type Config struct {
 	ClassCode       string             `yaml:"class_code"`
 	CandleTimeFrame string             `yaml:"candle_timeframe"`
 	Costs           costs.Config       `yaml:"costs"`
+	Portfolio       PortfolioConfig    `yaml:"portfolio"`
 	Risk            RiskConfig         `yaml:"risk"`
 	Strategy        StrategyConfig     `yaml:"strategy"`
 	Virtual         VirtualConfig      `yaml:"virtual"`
@@ -48,12 +49,22 @@ type Config struct {
 	Experiments     []ExperimentConfig `yaml:"experiments"`
 }
 
+// PortfolioConfig — режим единого счёта для нескольких experiments.
+type PortfolioConfig struct {
+	// SharedAccount: один VirtualExecutor + один GlobalRisk на все experiments.
+	SharedAccount bool `yaml:"shared_account"`
+}
+
 // ExperimentConfig — изолированный виртуальный счёт с собственными параметрами стратегии и риска.
 type ExperimentConfig struct {
 	ID                string         `yaml:"id"`
 	Name              string         `yaml:"name"`
 	Tickers           []TickerConfig `yaml:"tickers"`
 	EntryDelayMinutes *int           `yaml:"entry_delay_minutes"`
+	SessionOpenTime   string         `yaml:"session_open_time"`
+	EODCloseTime      string         `yaml:"eod_close_time"`
+	WeekdaysOnly      *bool          `yaml:"weekdays_only"`
+	WeekendOnly       *bool          `yaml:"weekend_only"`
 	Strategy          StrategyConfig `yaml:"strategy"`
 	Risk              RiskConfig     `yaml:"risk"`
 	Virtual           VirtualConfig  `yaml:"virtual"`
@@ -65,6 +76,10 @@ type ResolvedExperiment struct {
 	Name              string
 	Tickers           []TickerConfig
 	EntryDelayMinutes *int
+	SessionOpenTime   string
+	EODCloseTime      string
+	WeekdaysOnly      *bool
+	WeekendOnly       *bool
 	Strategy          StrategyConfig
 	Risk              RiskConfig
 	Virtual           VirtualConfig
@@ -141,6 +156,14 @@ type StrategyConfig struct {
 	FadeWindowMinutes         int     `yaml:"fade_window_minutes"`
 	FadeTradeEndMinutes       int     `yaml:"fade_trade_end_minutes"`
 	RequireInsideRange        *bool   `yaml:"require_inside_range"`
+	MinMinutesAboveVWAP       int     `yaml:"min_minutes_above_vwap"`
+	CompressionPercentile     float64 `yaml:"compression_percentile"`
+	ATRBars                   int     `yaml:"atr_bars"`
+	EntryStartMinutes         int     `yaml:"entry_start_minutes"`
+	EntryEndMinutes           int     `yaml:"entry_end_minutes"`
+	GapThreshold              float64 `yaml:"gap_threshold"`
+	RangeStartMinutes         int     `yaml:"range_start_minutes"`
+	RangeEndMinutes           int     `yaml:"range_end_minutes"`
 }
 
 type VirtualConfig struct {
@@ -152,6 +175,8 @@ type SessionConfig struct {
 	EODCloseTime      string `yaml:"eod_close_time"`
 	SessionOpenTime   string `yaml:"session_open_time"`
 	EntryDelayMinutes int    `yaml:"entry_delay_minutes"`
+	WeekdaysOnly      bool   `yaml:"weekdays_only"`
+	WeekendOnly       bool   `yaml:"weekend_only"`
 }
 
 // TickerSymbols возвращает список символов тикеров для логирования.
@@ -187,6 +212,10 @@ func (c *Config) ResolvedExperiments() []ResolvedExperiment {
 			Name:              exp.Name,
 			Tickers:           exp.Tickers,
 			EntryDelayMinutes: exp.EntryDelayMinutes,
+			SessionOpenTime:   exp.SessionOpenTime,
+			EODCloseTime:      exp.EODCloseTime,
+			WeekdaysOnly:      exp.WeekdaysOnly,
+			WeekendOnly:       exp.WeekendOnly,
 			Strategy:          exp.Strategy,
 			Risk:              exp.Risk,
 			Virtual:           exp.Virtual,
@@ -223,6 +252,18 @@ func (c *Config) SessionForExperiment(exp ResolvedExperiment) SessionConfig {
 	s := c.Session
 	if exp.EntryDelayMinutes != nil {
 		s.EntryDelayMinutes = *exp.EntryDelayMinutes
+	}
+	if strings.TrimSpace(exp.SessionOpenTime) != "" {
+		s.SessionOpenTime = strings.TrimSpace(exp.SessionOpenTime)
+	}
+	if strings.TrimSpace(exp.EODCloseTime) != "" {
+		s.EODCloseTime = strings.TrimSpace(exp.EODCloseTime)
+	}
+	if exp.WeekdaysOnly != nil {
+		s.WeekdaysOnly = *exp.WeekdaysOnly
+	}
+	if exp.WeekendOnly != nil {
+		s.WeekendOnly = *exp.WeekendOnly
 	}
 	return s
 }
@@ -267,6 +308,31 @@ func (e ResolvedExperiment) PerTickerMaxDailyLoss(tickerCount int) float64 {
 		return 0
 	}
 	return e.Risk.MaxDailyLoss / float64(tickerCount)
+}
+
+// SharedAccountEnabled — единый virtual-счёт и GlobalRisk на все experiments.
+func (c *Config) SharedAccountEnabled() bool {
+	return c.Portfolio.SharedAccount
+}
+
+// SharedRisk возвращает корневой risk для shared account (fallback — первый experiment).
+func (c *Config) SharedRisk() RiskConfig {
+	if c.Risk.Deposit > 0 {
+		return c.Risk
+	}
+	exps := c.ResolvedExperiments()
+	if len(exps) > 0 {
+		return exps[0].Risk
+	}
+	return c.Risk
+}
+
+// SharedVirtualBalance — баланс единого VirtualExecutor.
+func (c *Config) SharedVirtualBalance() float64 {
+	if c.Virtual.Balance > 0 {
+		return c.Virtual.Balance
+	}
+	return c.SharedRisk().Deposit
 }
 
 // TypeOrDefault возвращает type стратегии (default momentum_breakout).
@@ -352,6 +418,30 @@ func StrategyConfigFromMap(fields map[string]interface{}, stopMode string) Strat
 	if v, ok := fields["require_inside_range"].(bool); ok {
 		b := v
 		cfg.RequireInsideRange = &b
+	}
+	if v, ok := fields["min_minutes_above_vwap"].(int); ok {
+		cfg.MinMinutesAboveVWAP = v
+	}
+	if v, ok := fields["compression_percentile"].(float64); ok {
+		cfg.CompressionPercentile = v
+	}
+	if v, ok := fields["atr_bars"].(int); ok {
+		cfg.ATRBars = v
+	}
+	if v, ok := fields["entry_start_minutes"].(int); ok {
+		cfg.EntryStartMinutes = v
+	}
+	if v, ok := fields["entry_end_minutes"].(int); ok {
+		cfg.EntryEndMinutes = v
+	}
+	if v, ok := fields["gap_threshold"].(float64); ok {
+		cfg.GapThreshold = v
+	}
+	if v, ok := fields["range_start_minutes"].(int); ok {
+		cfg.RangeStartMinutes = v
+	}
+	if v, ok := fields["range_end_minutes"].(int); ok {
+		cfg.RangeEndMinutes = v
 	}
 	if v, ok := fields["trail_activation_r"].(float64); ok {
 		cfg.TrailActivationR = v
@@ -584,16 +674,26 @@ func (c *Config) validate() error {
 			if err := validateStrategyConfig(exp.Strategy); err != nil {
 				return fmt.Errorf("experiments.%s: %w", exp.ID, err)
 			}
-			if exp.Risk.Deposit <= 0 {
-				return fmt.Errorf("experiments.%s: risk.deposit должен быть > 0", exp.ID)
-			}
-			if exp.Risk.MaxDailyLoss <= 0 {
-				return fmt.Errorf("experiments.%s: risk.max_daily_loss должен быть > 0", exp.ID)
+			if !c.Portfolio.SharedAccount {
+				if exp.Risk.Deposit <= 0 {
+					return fmt.Errorf("experiments.%s: risk.deposit должен быть > 0", exp.ID)
+				}
+				if exp.Risk.MaxDailyLoss <= 0 {
+					return fmt.Errorf("experiments.%s: risk.max_daily_loss должен быть > 0", exp.ID)
+				}
 			}
 			for _, t := range exp.Tickers {
 				if t.Symbol == "" {
 					return fmt.Errorf("experiments.%s: пустой тикер", exp.ID)
 				}
+			}
+		}
+		if c.Portfolio.SharedAccount {
+			if c.Risk.Deposit <= 0 {
+				return fmt.Errorf("portfolio.shared_account: корневой risk.deposit должен быть > 0")
+			}
+			if c.Risk.MaxDailyLoss <= 0 {
+				return fmt.Errorf("portfolio.shared_account: корневой risk.max_daily_loss должен быть > 0")
 			}
 		}
 		return nil

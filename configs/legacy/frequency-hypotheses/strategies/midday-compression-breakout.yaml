@@ -1,0 +1,111 @@
+# Midday Compression Breakout — сжатие ATR ~12:00–12:30, пробой до ~13:30 (LKOH/MOEX).
+trading_mode: virtual
+
+tickers:
+  - ticker: LKOH
+    step_price_value: 1.0
+  - ticker: MOEX
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: midday_compression_breakout
+  stop_mode: atr
+  lookback: 6
+  atr_period: 14
+  atr_bars: 6
+  compression_percentile: 40
+  entry_end_minutes: 210
+  atr_multiplier: 1.5
+  reward_ratio: 2.25
+  volume_filter: true
+  volume_min_ratio: 1.5
+  breakout_threshold: 0.0
+  max_trades_per_ticker_per_day: 2
+
+search_space:
+  strategy: midday_compression_breakout
+  parameters:
+    lookback:
+      type: int
+      min: 4
+      max: 12
+    atrBars:
+      type: int
+      min: 4
+      max: 10
+    compressionPercentile:
+      type: float
+      min: 25
+      max: 50
+    rewardRatio:
+      type: float
+      min: 2.0
+      max: 2.5
+    atrMultiplier:
+      type: float
+      min: 1.0
+      max: 2.5
+    volumeFilter:
+      type: int
+      min: 1
+      max: 1
+    volumeFilterMultiplier:
+      type: float
+      min: 1.2
+      max: 2.5
+    breakoutThreshold:
+      type: float
+      min: 0.0
+      max: 0.01
+    maxEntriesPerTickerPerDay:
+      type: int
+      min: 1
+      max: 3
+    trailActivationR:
+      type: float
+      min: 1.0
+      max: 2.5
+    trailStageMax:
+      type: int
+      min: 1
+      max: 3
+    entryEndMinutes:
+      type: int
+      min: 210
+      max: 210
+    compressionStartMinutes:
+      type: int
+      min: 120
+      max: 120
+    compressionEndMinutes:
+      type: int
+      min: 150
+      max: 150
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-midday-compression.db

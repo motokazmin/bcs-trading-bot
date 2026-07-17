@@ -50,3 +50,35 @@ func TestSessionClockEntryDelay(t *testing.T) {
 		t.Fatal("entries should be allowed at 10:30 with 30 min delay")
 	}
 }
+
+func TestSessionClockWeekendOnly(t *testing.T) {
+	clock, err := engine.NewSessionClockExt("Europe/Moscow", "19:00", "10:00", 0, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := time.LoadLocation("Europe/Moscow")
+	fri := time.Date(2026, 7, 17, 12, 0, 0, 0, loc)
+	if clock.EntriesAllowed(fri) {
+		t.Fatal("Friday should be blocked for weekend_only")
+	}
+	sat := time.Date(2026, 7, 18, 12, 0, 0, 0, loc)
+	if !clock.EntriesAllowed(sat) {
+		t.Fatal("Saturday should be allowed for weekend_only")
+	}
+}
+
+func TestSessionClockWeekdaysOnly(t *testing.T) {
+	clock, err := engine.NewSessionClockExt("Europe/Moscow", "23:50", "19:05", 0, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := time.LoadLocation("Europe/Moscow")
+	friEve := time.Date(2026, 7, 17, 20, 0, 0, 0, loc)
+	if !clock.EntriesAllowed(friEve) {
+		t.Fatal("Friday evening should be allowed")
+	}
+	satEve := time.Date(2026, 7, 18, 20, 0, 0, 0, loc)
+	if clock.EntriesAllowed(satEve) {
+		t.Fatal("Saturday should be blocked for weekdays_only")
+	}
+}

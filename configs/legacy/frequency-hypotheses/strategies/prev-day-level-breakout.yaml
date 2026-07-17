@@ -1,0 +1,100 @@
+# Prev-Day Level Breakout — пробой high/low предыдущего дня (MGNT/ROSN/LKOH).
+trading_mode: virtual
+
+tickers:
+  - ticker: MGNT
+    step_price_value: 1.0
+  - ticker: ROSN
+    step_price_value: 1.0
+  - ticker: LKOH
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: prev_day_level_breakout
+  stop_mode: atr
+  atr_period: 14
+  atr_multiplier: 1.5
+  breakout_threshold: 0.005
+  strategy_entry_delay_minutes: 60
+  entry_end_minutes: 360
+  reward_ratio: 2.0
+  volume_filter: true
+  volume_min_ratio: 1.5
+  max_trades_per_ticker_per_day: 1
+
+search_space:
+  strategy: prev_day_level_breakout
+  parameters:
+    strategyEntryDelayMinutes:
+      type: int
+      min: 60
+      max: 120
+    entryEndMinutes:
+      type: int
+      min: 300
+      max: 360
+    breakoutThreshold:
+      type: float
+      min: 0.0
+      max: 0.015
+    rewardRatio:
+      type: float
+      min: 1.5
+      max: 2.5
+    atrMultiplier:
+      type: float
+      min: 0.8
+      max: 2.0
+    volumeFilter:
+      type: int
+      min: 1
+      max: 1
+    volumeFilterMultiplier:
+      type: float
+      min: 1.2
+      max: 2.5
+    maxEntriesPerTickerPerDay:
+      type: int
+      min: 1
+      max: 2
+    trailActivationR:
+      type: float
+      min: 1.0
+      max: 2.5
+    trailStageMax:
+      type: int
+      min: 1
+      max: 3
+    trailBreakevenR:
+      type: float
+      min: 0.0
+      max: 0.15
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+    maxParallelTrades: 2
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-prev-day-level.db

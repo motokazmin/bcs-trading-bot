@@ -61,7 +61,14 @@ func NewTickerWorker(
 	store interfaces.TradeStore,
 	globalRisk *risk.GlobalRiskController,
 ) (*TickerWorker, error) {
-	clock, err := NewSessionClock(sessionCfg.Timezone, sessionCfg.EODCloseTime, sessionCfg.SessionOpenTime, sessionCfg.EntryDelayMinutes)
+	clock, err := NewSessionClockExt(
+		sessionCfg.Timezone,
+		sessionCfg.EODCloseTime,
+		sessionCfg.SessionOpenTime,
+		sessionCfg.EntryDelayMinutes,
+		sessionCfg.WeekdaysOnly,
+		sessionCfg.WeekendOnly,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +199,10 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 
 	if w.globalRisk != nil {
 		if err := w.globalRisk.CanOpenPosition(); err != nil {
+			logx.SignalRejected(w.label, signal.Direction, err.Error())
+			return
+		}
+		if err := w.globalRisk.CanOpenTicker(w.ticker); err != nil {
 			logx.SignalRejected(w.label, signal.Direction, err.Error())
 			return
 		}

@@ -1,13 +1,19 @@
-# Paper trading: три FROZEN champion-стратегии в одном процессе.
-# Слоты не пересекаются по времени; MGNT/TATN в ORC (утро) и MF (день).
+# Paper trading: пять FROZEN champions на ОДНОМ virtual-счёте 200k.
+# portfolio.shared_account: общий депозит, общий CB, one-position-per-ticker.
 #
-# Baseline доходности (сверка с live): docs/champion-baseline.md
+# Слоты: morning ORC 07:00–09:50 | main ORC/Fade/MF 10:00–18:40 | evening ORC 19:05–23:50
+# Baseline (shared): docs/champion-baseline.md § C
+# Проверка: go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
 #
 # Запуск: go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
 #
-# Champion snapshots: configs/champions/*.yaml (обновлены после commission-rerun 2026-07-11)
+# Champions: configs/champions/{orc-wave2,or-fade-wave3-afks,mf-afternoon-wave2-narrow,
+#   session-orc-morning-wave2,session-orc-evening-wave2}.yaml
 
 trading_mode: virtual
+
+portfolio:
+  shared_account: true
 
 tickers:
   - MGNT
@@ -17,6 +23,9 @@ tickers:
   - CHMF
   - MOEX
   - AFKS
+  - NVTK
+  - GAZP
+  - SBER
 
 class_code: TQBR
 candle_timeframe: M5
@@ -24,6 +33,16 @@ candle_timeframe: M5
 costs:
   commission_rate_per_leg: 0.00008
 
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 5
+
+virtual:
+  balance: 200000
+
+# Корневая сессия — fallback для main-слотов; morning/evening override в experiment.
 session:
   timezone: Europe/Moscow
   eod_close_time: "18:40"
@@ -33,6 +52,31 @@ storage:
   path: data/trades.db
 
 experiments:
+  - id: session-orc-morning
+    name: "Morning Session ORC (07:00–09:50)"
+    session_open_time: "07:00"
+    eod_close_time: "09:50"
+    weekdays_only: true
+    tickers:
+      - ROSN
+      - NVTK
+      - MOEX
+      - CHMF
+      - TATN
+      - SBER
+    strategy:
+      type: session_orc
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 0.8930746929599627
+      breakout_threshold: 0.0037667883833940297
+      orb_minutes: 14
+      reward_ratio: 1.6671892216849793
+      trail_activation_r: 1.0664818788974488
+      trail_breakeven_r: 0.04905400993316018
+      trail_stage_max: 3
+      max_trades_per_ticker_per_day: 1
+
   - id: orc-wave2
     name: "ORC Champion (10:00–10:30)"
     tickers:
@@ -51,13 +95,6 @@ experiments:
       trail_breakeven_r: 0.01394552332498874
       trail_stage_max: 1
       max_trades_per_ticker_per_day: 1
-    risk:
-      deposit: 200000
-      max_daily_loss_percent: 2.0
-      risk_per_trade_percent: 0.5
-      max_parallel_trades: 2
-    virtual:
-      balance: 200000
 
   - id: or-fade-conservative
     name: "OR Fade Champion (10:15–12:30)"
@@ -81,13 +118,6 @@ experiments:
       trail_breakeven_r: 0.017723090353826982
       trail_stage_max: 3
       max_trades_per_ticker_per_day: 2
-    risk:
-      deposit: 200000
-      max_daily_loss_percent: 2.0
-      risk_per_trade_percent: 0.5
-      max_parallel_trades: 2
-    virtual:
-      balance: 200000
 
   - id: mf-afternoon
     name: "MF Afternoon Champion (12:30–18:40)"
@@ -112,10 +142,28 @@ experiments:
       trail_discrete_step_r: 0.6639651274158297
       trail_stage_max: 3
       max_trades_per_ticker_per_day: 1
-    risk:
-      deposit: 200000
-      max_daily_loss_percent: 2.0
-      risk_per_trade_percent: 0.5
-      max_parallel_trades: 2
-    virtual:
-      balance: 200000
+
+  - id: session-orc-evening
+    name: "Evening Session ORC (19:05–23:50)"
+    session_open_time: "19:05"
+    eod_close_time: "23:50"
+    weekdays_only: true
+    tickers:
+      - NVTK
+      - GAZP
+      - ROSN
+      - CHMF
+      - MOEX
+      - TATN
+      - MGNT
+    strategy:
+      type: session_orc
+      stop_mode: atr
+      atr_period: 14
+      atr_multiplier: 1.2098351152997484
+      reward_ratio: 1.5760207551002399
+      breakout_threshold: 0.005458948431509248
+      max_trades_per_ticker_per_day: 2
+      trail_activation_r: 2.051353601580733
+      trail_stage_max: 1
+      orb_minutes: 11

@@ -154,6 +154,16 @@ type strategyYAML struct {
 	StrategyEntryDelayMinutes int     `yaml:"strategy_entry_delay_minutes,omitempty"`
 	ORBMinutes                int     `yaml:"orb_minutes,omitempty"`
 	FadeThreshold             float64 `yaml:"fade_threshold,omitempty"`
+	MinMinutesAboveVWAP       int     `yaml:"min_minutes_above_vwap,omitempty"`
+	CompressionPercentile     float64 `yaml:"compression_percentile,omitempty"`
+	ATRBars                   int     `yaml:"atr_bars,omitempty"`
+	EntryStartMinutes         int     `yaml:"entry_start_minutes,omitempty"`
+	EntryEndMinutes           int     `yaml:"entry_end_minutes,omitempty"`
+	RangeStartMinutes         int     `yaml:"range_start_minutes,omitempty"`
+	RangeEndMinutes           int     `yaml:"range_end_minutes,omitempty"`
+	FadeWindowMinutes         int     `yaml:"fade_window_minutes,omitempty"`
+	FadeTradeEndMinutes       int     `yaml:"fade_trade_end_minutes,omitempty"`
+	RequireInsideRange        bool    `yaml:"require_inside_range,omitempty"`
 }
 
 type riskYAML struct {
@@ -232,6 +242,16 @@ func strategyYAMLFromConfig(cfg config.StrategyConfig, params core.ParameterSet)
 		StrategyEntryDelayMinutes: cfg.StrategyEntryDelayMinutes,
 		ORBMinutes:                cfg.ORBMinutes,
 		FadeThreshold:             cfg.FadeThreshold,
+		MinMinutesAboveVWAP:       cfg.MinMinutesAboveVWAP,
+		CompressionPercentile:     cfg.CompressionPercentile,
+		ATRBars:                   cfg.ATRBars,
+		EntryStartMinutes:         cfg.EntryStartMinutes,
+		EntryEndMinutes:           cfg.EntryEndMinutes,
+		RangeStartMinutes:         cfg.RangeStartMinutes,
+		RangeEndMinutes:           cfg.RangeEndMinutes,
+		FadeWindowMinutes:         cfg.FadeWindowMinutes,
+		FadeTradeEndMinutes:       cfg.FadeTradeEndMinutes,
+		RequireInsideRange:        cfg.RequireInsideRange != nil && *cfg.RequireInsideRange,
 		TrailActivationR:          params.FloatParam("trailActivationR"),
 		TrailDiscreteStepR:        params.FloatParam("trailDiscreteStepR"),
 		TrailStageMax:             params.IntParam("trailStageMax"),

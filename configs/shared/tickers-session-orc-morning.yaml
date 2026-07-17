@@ -1,0 +1,15 @@
+class_code: TQBR
+candle_timeframe: M5
+initial_history_years: 2
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+# Morning ORC whitelist after wave1 (drop MGNT/GAZP/LKOH).
+tickers:
+  - ROSN
+  - NVTK
+  - MOEX
+  - CHMF
+  - TATN
+  - SBER

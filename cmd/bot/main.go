@@ -99,11 +99,40 @@ func main() {
 	runID := fmt.Sprintf("%s-%s", filepath.Base(*configPath), time.Now().Format("20060102-150405"))
 
 	executors := make(map[string]interfaces.OrderExecutor, len(experiments))
+	sharedAccount := cfg.SharedAccountEnabled()
+	var sharedExecutor interfaces.OrderExecutor
+	var sharedGlobalRisk *risk.GlobalRiskController
+
+	if sharedAccount {
+		sharedRisk := cfg.SharedRisk()
+		maxParallel := sharedRisk.MaxParallelTrades
+		if maxParallel <= 0 {
+			maxParallel = 5
+		}
+		pct := sharedRisk.MaxDailyLossPercent
+		if pct <= 0 {
+			pct = 2.0
+		}
+		sharedGlobalRisk = risk.NewGlobalRiskController(sharedRisk.Deposit, pct, maxParallel)
+		logx.Info(
+			"Portfolio shared_account: депозит %.0f | CB %.1f%% | max_parallel=%d | one-position-per-ticker",
+			sharedRisk.Deposit, pct, maxParallel,
+		)
+	}
+
 	switch cfg.TradingMode {
 	case config.TradingModeVirtual:
-		for _, exp := range experiments {
-			executors[exp.ID] = bcs.NewVirtualExecutor(exp.Virtual.Balance)
-			logx.Mode(true, fmt.Sprintf("[%s] баланс %.0f руб.", exp.ID, exp.Virtual.Balance))
+		if sharedAccount {
+			sharedExecutor = bcs.NewVirtualExecutor(cfg.SharedVirtualBalance())
+			logx.Mode(true, fmt.Sprintf("shared баланс %.0f руб.", cfg.SharedVirtualBalance()))
+			for _, exp := range experiments {
+				executors[exp.ID] = sharedExecutor
+			}
+		} else {
+			for _, exp := range experiments {
+				executors[exp.ID] = bcs.NewVirtualExecutor(exp.Virtual.Balance)
+				logx.Mode(true, fmt.Sprintf("[%s] баланс %.0f руб.", exp.ID, exp.Virtual.Balance))
+			}
 		}
 
 	case config.TradingModeReal:
@@ -132,16 +161,22 @@ func main() {
 	workerCount := 0
 
 	globalRiskByExp := make(map[string]*risk.GlobalRiskController, len(experiments))
-	for _, exp := range experiments {
-		maxParallel := exp.Risk.MaxParallelTrades
-		if maxParallel <= 0 {
-			maxParallel = 2
+	if sharedAccount {
+		for _, exp := range experiments {
+			globalRiskByExp[exp.ID] = sharedGlobalRisk
 		}
-		pct := exp.Risk.MaxDailyLossPercent
-		if pct <= 0 {
-			pct = 2.0
+	} else {
+		for _, exp := range experiments {
+			maxParallel := exp.Risk.MaxParallelTrades
+			if maxParallel <= 0 {
+				maxParallel = 2
+			}
+			pct := exp.Risk.MaxDailyLossPercent
+			if pct <= 0 {
+				pct = 2.0
+			}
+			globalRiskByExp[exp.ID] = risk.NewGlobalRiskController(exp.Risk.Deposit, pct, maxParallel)
 		}
-		globalRiskByExp[exp.ID] = risk.NewGlobalRiskController(exp.Risk.Deposit, pct, maxParallel)
 	}
 
 	for _, exp := range experiments {
@@ -151,10 +186,17 @@ func main() {
 		tickerCount := len(expTickers)
 		globalRisk := globalRiskByExp[exp.ID]
 
+		workerExp := exp
+		if sharedAccount {
+			// Sizing как в solo/portfolio-backtest: полный депозит на сделку, не deposit/N.
+			workerExp.Risk = cfg.SharedRisk()
+			tickerCount = 1
+		}
+
 		for _, tc := range expTickers {
 			worker, err := engine.NewTickerWorker(
 				tc.Symbol,
-				exp,
+				workerExp,
 				tickerCount,
 				tc.StepPriceValue,
 				cfg.CostsConfig(),
@@ -209,7 +251,9 @@ func runSmokeTest(ctx context.Context, cfg *config.Config, client *bcs.BCSClient
 	ticker := tickers[0]
 
 	executor := bcs.NewVirtualExecutor(cfg.Risk.Deposit)
-	if cfg.HasExperiments() {
+	if cfg.SharedAccountEnabled() {
+		executor = bcs.NewVirtualExecutor(cfg.SharedVirtualBalance())
+	} else if cfg.HasExperiments() {
 		exp := cfg.ResolvedExperiments()[0]
 		executor = bcs.NewVirtualExecutor(exp.Virtual.Balance)
 	}

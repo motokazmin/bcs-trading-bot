@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -36,6 +37,8 @@ func main() {
 		runCmd(os.Args[2:])
 	case "backtest":
 		backtestCmd(os.Args[2:])
+	case "portfolio-backtest":
+		portfolioBacktestCmd(os.Args[2:])
 	case "charts":
 		chartsCmd(os.Args[2:])
 	case "sync-history":
@@ -59,6 +62,7 @@ Usage:
   optimizer sync-history [flags]   инкрементальная догрузка до текущего момента
   optimizer run [flags]          walk-forward оптимизация
   optimizer backtest [flags]     один прогон стратегии на истории
+  optimizer portfolio-backtest   единый счёт: все experiments из bot YAML
   optimizer charts [flags]     графики сделок по эксперименту и тикеру
   optimizer fetch-history [flags] полная перезагрузка диапазона (legacy)
 
@@ -144,6 +148,11 @@ func runCmd(args []string) {
 		Costs:              u.ResolvedCosts(*commission, *commissionRate),
 		MinTrades:          *minTrades,
 		Session:            optimizer.DefaultSession(),
+	}
+	if sess, err := optimizer.LoadSessionFromStrategyFile(spacePath); err == nil {
+		settings.Session = sess
+		logx.Info("session: open=%s eod=%s delay=%d weekdays_only=%v weekend_only=%v",
+			sess.SessionOpenTime, sess.EODCloseTime, sess.EntryDelayMinutes, sess.WeekdaysOnly, sess.WeekendOnly)
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -263,6 +272,9 @@ func backtestCmd(args []string) {
 		MinTrades:          1,
 		Session:            optimizer.DefaultSession(),
 	}
+	if sess, err := optimizer.LoadSessionFromStrategyFile(spacePath); err == nil {
+		settings.Session = sess
+	}
 	evaluator := eval.NewEvaluator(settings, space, candleData)
 	params := eval.DefaultParamsFromSpace(space)
 
@@ -273,6 +285,67 @@ func backtestCmd(args []string) {
 	fmt.Printf("trades=%d total_pnl=%.2f sharpe=%.4f max_dd=%.2f win_rate=%.2f\n",
 		result.NumTrades, result.Metrics.TotalPnL, result.Metrics.Sharpe,
 		result.Metrics.MaxDrawdown, result.Metrics.WinRate)
+}
+
+func portfolioBacktestCmd(args []string) {
+	fs := flag.NewFlagSet("portfolio-backtest", flag.ExitOnError)
+	configPath := fs.String("config", "configs/runs/portfolio-paper.yaml", "bot YAML с experiments (FROZEN champions)")
+	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
+	dateFrom := fs.String("date-from", "", "начало периода YYYY-MM-DD (default: из CSV)")
+	dateTo := fs.String("date-to", "", "конец периода YYYY-MM-DD (default: из CSV)")
+	deposit := fs.Float64("deposit", 200000, "единый депозит")
+	maxParallel := fs.Int("max-parallel", 5, "лимит одновременных позиций")
+	_ = fs.Parse(args)
+
+	opts := eval.PortfolioBacktestOptions{
+		ConfigPath:  *configPath,
+		HistoryDir:  *historyDir,
+		Deposit:     *deposit,
+		MaxParallel: *maxParallel,
+	}
+	if *dateFrom != "" {
+		from, err := report.ParseDate(*dateFrom)
+		if err != nil {
+			logx.Fatalf("date-from: %v", err)
+		}
+		opts.From = from
+	}
+	if *dateTo != "" {
+		to, err := report.ParseDate(*dateTo)
+		if err != nil {
+			logx.Fatalf("date-to: %v", err)
+		}
+		opts.To = to
+	}
+
+	ctx := context.Background()
+	result, err := eval.RunPortfolioBacktest(ctx, opts)
+	if err != nil {
+		logx.Fatalf("portfolio-backtest: %v", err)
+	}
+
+	fmt.Printf("portfolio-backtest shared_deposit=%.0f period=%s → %s\n",
+		result.Deposit, result.From.Format("2006-01-02"), result.To.Format("2006-01-02"))
+	fmt.Printf("trades=%d net_pnl=%.2f exp_R=%+.3f exp_rub=%+.0f PF=%.2f win_rate=%.1f%% max_dd=%.0f ticker_busy_skips=%d\n",
+		result.Metrics.NumTrades,
+		result.Metrics.TotalPnL,
+		result.ExpectancyR,
+		result.ExpectancyRub,
+		result.ProfitFactor,
+		result.Metrics.WinRate*100,
+		result.Metrics.MaxDrawdown,
+		result.TickerBusySkips,
+	)
+	ids := make([]string, 0, len(result.ByExperiment))
+	for id := range result.ByExperiment {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		s := result.ByExperiment[id]
+		fmt.Printf("  [%s] trades=%d net_pnl=%.2f exp_R=%+.3f win_rate=%.1f%%\n",
+			id, s.Trades, s.NetPnL, s.ExpectancyR, s.WinRate*100)
+	}
 }
 
 func chartsCmd(args []string) {

@@ -4,9 +4,15 @@
 
 | Файл | Содержание |
 |---|---|
+| [`frequency-hypotheses-2026-07-16.md`](frequency-hypotheses-2026-07-16.md) | **Закрыто:** frequency/whitelist research |
+| [`extended-sessions-2026-07-17.md`](extended-sessions-2026-07-17.md) | **Закрыто:** утро/вечер/ДСВД; FROZEN morning+evening ORC, остальное отклонено |
+| [`llm-strategy-research-brief.md`](llm-strategy-research-brief.md) | Самодостаточный бриф (идеи + params + метрики) для LLM |
+| [`champion-vwap-pullback.md`](champion-vwap-pullback.md) | VWAP MGNT+ROSN candidate (не в portfolio) |
 | [`orc-optimizer.md`](orc-optimizer.md) | ORC: search space, env, wave1 baseline (до FROZEN wave2) |
 | [`or-fade-optimizer.md`](or-fade-optimizer.md) | OR Fade: команды re-run, старый universe |
 | [`momentum-optimizer.md`](momentum-optimizer.md) | Momentum breakout: отклонённая линия (−0.07R) |
 | [`experiment-summary-prompt.md`](experiment-summary-prompt.md) | Архив strategy-matrix 2026-07-06 |
 
-Champion-параметры и paper trading — в корне `docs/champion-*.md` и `configs/champions/`.
+Конфиги закрытых прогонов: `configs/legacy/frequency-hypotheses/`, `configs/legacy/extended-sessions/`, snapshots candidates: `configs/champions/legacy/`, скрипты: `scripts/legacy/`.
+
+Champion-параметры FROZEN и paper trading — в корне `docs/champion-*.md` и `configs/champions/` (без `legacy/`).
