@@ -43,6 +43,6 @@ func DefaultLiveStrategyContext() models.StrategyContext {
 		TrailingStop:   "+1R → безубыток; +2R → фиксация +1R; далее SL = MFE − 1R на каждом тике; выход по SL/TP/EOD.",
 		CircuitBreaker: "2% дневного убытка на эксперимент → блокировка новых входов до следующего дня.",
 		PnLNote:        "gross_pnl в рублях, комиссия брокера не вычтена. Главная метрика — expectancy_r (средний pnl_r на сделку). mfe_in_r / mae_in_r — экскурсии внутри позиции в R.",
-		ExperimentNote: "Параллельные experiment_id — разные virtual-счета на одних рыночных данных (stop_mode: range | atr).",
+		ExperimentNote: "Параллельные experiment_id — слоты стратегий на одном virtual-счёте (разные params / тикеры / сессии).",
 	}
 }

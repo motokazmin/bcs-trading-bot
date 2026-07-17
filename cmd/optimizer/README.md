@@ -65,7 +65,7 @@ Optimizer отвечает не на «максимальный PnL на все�
 
 `best-config.yaml` — **черновик**. Проверить: `expectancy_r`, PF, profitable windows, by_ticker, seed2. Затем snapshot → paper → (осторожно) real.
 
-Текущие FROZEN champions (commission-rerun, seed 1): ORC +0,49R, OR Fade +0,33R, MF +0,18R — [`champion-baseline.md`](../../docs/champion-baseline.md).
+Текущие FROZEN champions (paper = 5 слотов): main ORC/Fade/MF + morning/evening Session ORC — метрики и shared baseline § C в [`champion-baseline.md`](../../docs/champion-baseline.md).
 
 ---
 

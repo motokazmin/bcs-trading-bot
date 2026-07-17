@@ -53,7 +53,6 @@ type TickerWorker struct {
 func NewTickerWorker(
 	ticker string,
 	exp config.ResolvedExperiment,
-	tickerCount int,
 	stepPriceValue float64,
 	costsCfg costs.Config,
 	sessionCfg config.SessionConfig,
@@ -80,8 +79,8 @@ func NewTickerWorker(
 		store = interfaces.NoopTradeStore{}
 	}
 
-	deposit := exp.PerTickerDeposit(tickerCount)
-	maxLoss := exp.PerTickerMaxDailyLoss(tickerCount)
+	deposit := exp.Risk.Deposit
+	maxLoss := exp.Risk.MaxDailyLoss
 	label := ticker
 	if exp.ID != "" && exp.ID != "default" {
 		label = fmt.Sprintf("%s/%s", exp.ID, ticker)

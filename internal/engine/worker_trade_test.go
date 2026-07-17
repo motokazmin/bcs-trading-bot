@@ -47,7 +47,6 @@ func TestClosePositionSavesTrade(t *testing.T) {
 	worker, err := NewTickerWorker(
 		"SBER",
 		exp,
-		1,
 		1.0,
 		costs.Config{CommissionPerLot: 0.10},
 		config.SessionConfig{Timezone: "Europe/Moscow", EODCloseTime: "23:40", SessionOpenTime: "10:00"},
@@ -139,7 +138,7 @@ func TestClosePositionIgnoresSecondCall(t *testing.T) {
 		Risk:     config.RiskConfig{Deposit: 100_000, MaxDailyLoss: 2_000, RiskPerTradePercent: 0.5},
 	}
 	worker, err := NewTickerWorker(
-		"SBER", exp, 1, 1.0, costs.Config{CommissionPerLot: 0.10},
+		"SBER", exp, 1.0, costs.Config{CommissionPerLot: 0.10},
 		config.SessionConfig{Timezone: "Europe/Moscow", EODCloseTime: "23:40", SessionOpenTime: "10:00"},
 		config.TradingModeVirtual, "test-run", "TQBR", "M5", store,
 		nil,

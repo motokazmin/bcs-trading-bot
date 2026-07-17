@@ -117,7 +117,7 @@ type bestConfigYAML struct {
 	CandleTimeframe string             `yaml:"candle_timeframe"`
 	Costs           costsYAML          `yaml:"costs"`
 	Session         sessionYAML        `yaml:"session"`
-	Strategy        strategyYAML       `yaml:"strategy"`
+	Strategy        map[string]interface{} `yaml:"strategy"`
 	Risk            riskYAML           `yaml:"risk"`
 	Virtual         map[string]float64 `yaml:"virtual"`
 	OptimizerNote   string             `yaml:"optimizer_note,omitempty"`
@@ -133,37 +133,6 @@ type sessionYAML struct {
 	EODCloseTime      string `yaml:"eod_close_time"`
 	SessionOpenTime   string `yaml:"session_open_time"`
 	EntryDelayMinutes int    `yaml:"entry_delay_minutes,omitempty"`
-}
-
-type strategyYAML struct {
-	Type                      string  `yaml:"type"`
-	Lookback                  int     `yaml:"lookback,omitempty"`
-	StopMode                  string  `yaml:"stop_mode"`
-	ATRPeriod                 int     `yaml:"atr_period,omitempty"`
-	ATRMultiplier             float64 `yaml:"atr_multiplier,omitempty"`
-	RewardRatio               float64 `yaml:"reward_ratio,omitempty"`
-	VolumeFilter              bool    `yaml:"volume_filter,omitempty"`
-	VolumeMinRatio            float64 `yaml:"volume_min_ratio,omitempty"`
-	BreakoutThreshold         float64 `yaml:"breakout_threshold,omitempty"`
-	MaxTradesPerTickerPerDay  int     `yaml:"max_trades_per_ticker_per_day,omitempty"`
-	TrailActivationR          float64 `yaml:"trail_activation_r,omitempty"`
-	TrailDiscreteStepR        float64 `yaml:"trail_discrete_step_r,omitempty"`
-	TrailStageMax             int     `yaml:"trail_stage_max,omitempty"`
-	LongOnly                  bool    `yaml:"long_only,omitempty"`
-	TrendSMAPeriod            int     `yaml:"trend_sma_period,omitempty"`
-	StrategyEntryDelayMinutes int     `yaml:"strategy_entry_delay_minutes,omitempty"`
-	ORBMinutes                int     `yaml:"orb_minutes,omitempty"`
-	FadeThreshold             float64 `yaml:"fade_threshold,omitempty"`
-	MinMinutesAboveVWAP       int     `yaml:"min_minutes_above_vwap,omitempty"`
-	CompressionPercentile     float64 `yaml:"compression_percentile,omitempty"`
-	ATRBars                   int     `yaml:"atr_bars,omitempty"`
-	EntryStartMinutes         int     `yaml:"entry_start_minutes,omitempty"`
-	EntryEndMinutes           int     `yaml:"entry_end_minutes,omitempty"`
-	RangeStartMinutes         int     `yaml:"range_start_minutes,omitempty"`
-	RangeEndMinutes           int     `yaml:"range_end_minutes,omitempty"`
-	FadeWindowMinutes         int     `yaml:"fade_window_minutes,omitempty"`
-	FadeTradeEndMinutes       int     `yaml:"fade_trade_end_minutes,omitempty"`
-	RequireInsideRange        bool    `yaml:"require_inside_range,omitempty"`
 }
 
 type riskYAML struct {
@@ -209,7 +178,7 @@ func buildBestConfig(params core.ParameterSet, settings eval.RunSettings, space 
 			SessionOpenTime:   settings.Session.SessionOpenTime,
 			EntryDelayMinutes: settings.Session.EntryDelayMinutes,
 		},
-		Strategy: strategyYAMLFromConfig(stratCfg, params),
+		Strategy: stratCfg.YAMLMap(),
 		Risk: riskYAML{
 			Deposit:             settings.Deposit,
 			MaxDailyLossPercent: dailyLossPct,
@@ -223,52 +192,6 @@ func buildBestConfig(params core.ParameterSet, settings eval.RunSettings, space 
 			stratID, formatOptimizerScore(best.Score),
 		),
 	}
-}
-
-func strategyYAMLFromConfig(cfg config.StrategyConfig, params core.ParameterSet) strategyYAML {
-	y := strategyYAML{
-		Type:                      cfg.TypeOrDefault(),
-		Lookback:                  cfg.Lookback,
-		StopMode:                  cfg.StopMode,
-		ATRPeriod:                 cfg.ATRPeriod,
-		ATRMultiplier:             cfg.ATRMultiplier,
-		RewardRatio:               cfg.RewardRatio,
-		VolumeFilter:              cfg.VolumeFilterEnabled(),
-		VolumeMinRatio:            cfg.VolumeMinRatio,
-		BreakoutThreshold:         cfg.BreakoutThreshold,
-		MaxTradesPerTickerPerDay:  cfg.MaxTradesPerTickerPerDay,
-		LongOnly:                  cfg.LongOnlyEnabled(),
-		TrendSMAPeriod:            cfg.TrendSMAPeriod,
-		StrategyEntryDelayMinutes: cfg.StrategyEntryDelayMinutes,
-		ORBMinutes:                cfg.ORBMinutes,
-		FadeThreshold:             cfg.FadeThreshold,
-		MinMinutesAboveVWAP:       cfg.MinMinutesAboveVWAP,
-		CompressionPercentile:     cfg.CompressionPercentile,
-		ATRBars:                   cfg.ATRBars,
-		EntryStartMinutes:         cfg.EntryStartMinutes,
-		EntryEndMinutes:           cfg.EntryEndMinutes,
-		RangeStartMinutes:         cfg.RangeStartMinutes,
-		RangeEndMinutes:           cfg.RangeEndMinutes,
-		FadeWindowMinutes:         cfg.FadeWindowMinutes,
-		FadeTradeEndMinutes:       cfg.FadeTradeEndMinutes,
-		RequireInsideRange:        cfg.RequireInsideRange != nil && *cfg.RequireInsideRange,
-		TrailActivationR:          params.FloatParam("trailActivationR"),
-		TrailDiscreteStepR:        params.FloatParam("trailDiscreteStepR"),
-		TrailStageMax:             params.IntParam("trailStageMax"),
-	}
-	if y.ATRPeriod == 0 {
-		y.ATRPeriod = 14
-	}
-	if y.VolumeMinRatio == 0 {
-		y.VolumeMinRatio = params.FloatParam("volumeFilterMultiplier")
-	}
-	if y.RewardRatio == 0 {
-		y.RewardRatio = params.FloatParam("rewardRatio")
-	}
-	if y.RewardRatio == 0 {
-		y.RewardRatio = strategy.DefaultRewardRatio(cfg.TypeOrDefault())
-	}
-	return y
 }
 
 // ParseDate парсит дату YYYY-MM-DD.

@@ -42,7 +42,7 @@ help:
 	@echo "  make optimizer-focus      — alias для optimizer-orc"
 	@echo "  make charts-all         — HTML-графики по всем экспериментам в results/"
 	@echo ""
-	@echo "  make bot                — paper, portfolio (3 FROZEN champions)"
+	@echo "  make bot                — paper, portfolio (5 FROZEN champions)"
 	@echo "  make bot-futures        — paper, фьючерсы SPBFUT"
 	@echo "  make bot-real           — реальная торговля"
 	@echo "  make bot-smoke          — smoke test OAuth+WS"

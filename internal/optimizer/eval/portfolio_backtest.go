@@ -62,7 +62,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 
 	deposit := opts.Deposit
 	if deposit <= 0 {
-		deposit = experiments[0].Risk.Deposit
+		deposit = cfg.AccountRisk().Deposit
 	}
 	if deposit <= 0 {
 		deposit = 200_000
@@ -71,7 +71,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 	if maxParallel <= 0 {
 		maxParallel = 5
 	}
-	dailyLossPct := experiments[0].Risk.MaxDailyLossPercent
+	dailyLossPct := cfg.AccountRisk().MaxDailyLossPercent
 	if dailyLossPct <= 0 {
 		dailyLossPct = 2.0
 	}

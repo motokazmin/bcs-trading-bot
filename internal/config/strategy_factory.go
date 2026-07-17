@@ -11,68 +11,52 @@ func (s StrategyConfig) BuildStrategy(session SessionConfig) (strategy.CandleStr
 }
 
 func (s StrategyConfig) toStrategyParams(session SessionConfig) (strategy.Params, strategy.BuildContext) {
-	p := strategy.Params{
-		"lookback":                  float64(s.Lookback),
-		"atrPeriod":                 float64(s.ATRPeriod),
-		"atrMultiplier":             s.ATRMultiplier,
-		"rewardRatio":               s.RewardRatio,
-		"breakoutThreshold":         s.BreakoutThreshold,
-		"volumeMinRatio":            s.VolumeMinRatio,
-		"maxEntriesPerTickerPerDay": float64(s.MaxTradesPerTickerPerDay),
-		"orbMinutes":                float64(s.ORBMinutes),
-		"fadeThreshold":             s.FadeThreshold,
-		"gapThreshold":              s.GapThreshold,
-		"trendSMAPeriod":            float64(s.TrendSMAPeriod),
-		"strategyEntryDelayMinutes": float64(s.StrategyEntryDelayMinutes),
+	p := strategy.Params{}
+
+	// Typed / composite-literal поля (тесты, ручная сборка).
+	if s.Lookback > 0 {
+		p["lookback"] = float64(s.Lookback)
 	}
-	if s.VolumeFilterEnabled() {
-		p["volumeFilter"] = 1
+	if s.MaxTradesPerTickerPerDay > 0 {
+		p["maxEntriesPerTickerPerDay"] = float64(s.MaxTradesPerTickerPerDay)
 	}
-	if s.LongOnlyEnabled() {
-		p["longOnly"] = 1
-	}
-	if s.FadeWindowMinutes > 0 {
-		p["fadeWindowMinutes"] = float64(s.FadeWindowMinutes)
-	}
-	if s.FadeTradeEndMinutes > 0 {
-		p["fadeTradeEndMinutes"] = float64(s.FadeTradeEndMinutes)
-	}
-	if s.RequireInsideRange != nil {
-		if *s.RequireInsideRange {
-			p["requireInsideRange"] = 1
-		} else {
-			p["requireInsideRange"] = 0
+
+	for key, val := range s.YAMLMap() {
+		switch key {
+		case "type", "stop_mode",
+			"trail_activation_r", "trail_discrete_step_r", "trail_stage_max", "trail_breakeven_r":
+			continue // stop_mode → BuildContext; trail читает engine
+		}
+		pk := paramKeyForYAML(key)
+		switch key {
+		case "volume_filter", "long_only", "require_inside_range":
+			if b, ok := toBool(val); ok {
+				if b {
+					p[pk] = 1
+				} else {
+					p[pk] = 0
+				}
+			}
+		case "range_use_cap":
+			if b, ok := toBool(val); ok && !b {
+				p[pk] = 0
+			} else {
+				p[pk] = 1
+			}
+		default:
+			if f, ok := toFloat64(val); ok {
+				p[pk] = f
+			}
 		}
 	}
-	if s.MinMinutesAboveVWAP > 0 {
-		p["minMinutesAboveVWAP"] = float64(s.MinMinutesAboveVWAP)
-	}
-	if s.CompressionPercentile > 0 {
-		p["compressionPercentile"] = s.CompressionPercentile
-	}
-	if s.ATRBars > 0 {
-		p["atrBars"] = float64(s.ATRBars)
-	}
-	if s.EntryStartMinutes > 0 {
-		p["entryStartMinutes"] = float64(s.EntryStartMinutes)
-	}
-	if s.EntryEndMinutes > 0 {
-		p["entryEndMinutes"] = float64(s.EntryEndMinutes)
-	}
-	if s.RangeStartMinutes > 0 {
-		p["rangeStartMinutes"] = float64(s.RangeStartMinutes)
-	}
-	if s.RangeEndMinutes > 0 {
-		p["rangeEndMinutes"] = float64(s.RangeEndMinutes)
-	}
-	if s.RangeUseCap != nil && !*s.RangeUseCap {
-		p["rangeUseCap"] = 0
-	} else {
+
+	if _, ok := p["rangeUseCap"]; !ok {
 		p["rangeUseCap"] = 1
 	}
 	if p["volumeMinRatio"] == 0 && s.VolumeFilterEnabled() {
 		p["volumeFilterMultiplier"] = defaultVolumeMinRatio
 	}
+
 	ctx := strategy.BuildContext{
 		StopMode: s.StopMode,
 		Session: strategy.SessionTimes{
@@ -82,6 +66,24 @@ func (s StrategyConfig) toStrategyParams(session SessionConfig) (strategy.Params
 		},
 	}
 	return p, ctx
+}
+
+// ParamsForOptimizer — strategy.Params из YAML (для charts / offline tools).
+func (s StrategyConfig) ParamsForOptimizer(session SessionConfig) (strategy.Params, strategy.BuildContext) {
+	return s.toStrategyParams(session)
+}
+
+func toBool(v interface{}) (bool, bool) {
+	switch x := v.(type) {
+	case bool:
+		return x, true
+	case int:
+		return x != 0, true
+	case float64:
+		return x != 0, true
+	default:
+		return false, false
+	}
 }
 
 const defaultVolumeMinRatio = 1.5
@@ -107,7 +109,7 @@ func StrategyConfigFromOptimizer(strategyID string, params strategy.Params, stop
 			fields[k] = v
 		}
 	}
-	return StrategyConfigFromMap(fields, stopMode)
+	return StrategyConfigFromFields(fields, stopMode)
 }
 
 // ValidateStrategyType проверяет type через registry.

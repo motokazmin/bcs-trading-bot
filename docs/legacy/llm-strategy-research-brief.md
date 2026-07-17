@@ -2,7 +2,7 @@
 
 Документ самодостаточный: идеи стратегий, конкретные параметры, метрики walk-forward и вердикты. Внешние файлы не нужны.
 
-**Статус архива (после 2026-07-16):** frequency/whitelist research закрыт. В production/paper остаются **только 3 FROZEN champions** (ORC, OR Fade без TATN, MF Afternoon). Candidates (OR Fade+TATN, VWAP MGNT+ROSN) **не** влиты в portfolio — см. §10.
+**Статус архива (после 2026-07-16):** frequency/whitelist research закрыт. На ту дату в paper оставались **3 FROZEN champions** main-сессии (ORC, OR Fade без TATN, MF Afternoon). Candidates (OR Fade+TATN, VWAP MGNT+ROSN) **не** влиты. После 2026-07-17 paper = **5 champions** (+ Morning/Evening Session ORC) — см. [`strategy-research.md`](../strategy-research.md).
 
 **Дата среза:** 2026-07-16  
 **Рынок:** акции MOEX, класс TQBR, таймфрейм M5  

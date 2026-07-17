@@ -299,7 +299,7 @@ AFT_STRATEGY=momentum_filtered AFT_RUN_ID=mf-wave1 make optimizer-afternoon
 | ORC + SBER | −4.6k…−10k | SBER исключён |
 | ORC seed2 | exp +0.14R | overfit score, не champion |
 | OR Fade maxEntries ablation 1/2/3 | ~89 сделок при любом max | **отклонено** 2026-07-16 — нет прироста частоты |
-| Frequency/whitelist wave 2026-07-16 (VWAP, Midday, Late, SBER daytrend, MF solo, ORC LKOH, PrevDay, Afternoon fade; candidates OR Fade+TATN / VWAP MGNT+ROSN не влиты) | см. legacy | **закрыто** — остаёмся с 3 FROZEN |
+| Frequency/whitelist wave 2026-07-16 (VWAP, Midday, Late, SBER daytrend, MF solo, ORC LKOH, PrevDay, Afternoon fade; candidates OR Fade+TATN / VWAP MGNT+ROSN не влиты) | см. legacy | **закрыто** — на тот момент portfolio = 3 FROZEN (main session) |
 | Session evening OR Fade / Gap; morning Fade / Gap; weekend ORC/Fade/Gap | см. [`legacy/extended-sessions-2026-07-17.md`](legacy/extended-sessions-2026-07-17.md) | **отклонено** 2026-07-17 |
 | Session morning ORC + evening ORC | shared +276k / +0.59R / 473 trades | ✅ **FROZEN** → paper |
 
@@ -427,7 +427,7 @@ Baseline portfolio (§ C): **~+276k / ~2 года**, **+0,59R**/сделку, **
 - [x] Per-ticker matrix, per-strategy whitelist
 - [x] Комиссия BCS «Трейдер» + commission-rerun champions
 - [x] Baseline доходности — [`champion-baseline.md`](champion-baseline.md)
-- [x] Frequency/whitelist research 2026-07-16 — **закрыто**, архив [`legacy/frequency-hypotheses-2026-07-16.md`](legacy/frequency-hypotheses-2026-07-16.md); portfolio = 3 FROZEN
+- [x] Frequency/whitelist research 2026-07-16 — **закрыто**, архив [`legacy/frequency-hypotheses-2026-07-16.md`](legacy/frequency-hypotheses-2026-07-16.md); тогда portfolio = 3 FROZEN (main)
 - [x] Portfolio shared-account backtest (`optimizer portfolio-backtest`) — **GO** 2026-07-17
 - [x] Extended sessions → **FROZEN** morning+evening Session ORC; rejects → legacy — 2026-07-17
 - [ ] Paper-валидация portfolio vs baseline § C (shared, 5 champions)

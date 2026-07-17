@@ -602,37 +602,22 @@ func tradesToChartMarkers(trades []models.ClosedTrade, costsCfg costs.Config, cl
 
 func parameterSetFromConfig(cfg *config.Config) core.ParameterSet {
 	s := cfg.Strategy
-	p := core.ParameterSet{
-		"lookback":                  float64(s.Lookback),
-		"atrPeriod":                 float64(s.ATRPeriod),
-		"atrMultiplier":             s.ATRMultiplier,
-		"rewardRatio":               s.RewardRatio,
-		"breakoutThreshold":         s.BreakoutThreshold,
-		"volumeMinRatio":            s.VolumeMinRatio,
-		"maxEntriesPerTickerPerDay": float64(s.MaxTradesPerTickerPerDay),
-		"orbMinutes":                float64(s.ORBMinutes),
-		"fadeThreshold":             s.FadeThreshold,
-		"trendSMAPeriod":            float64(s.TrendSMAPeriod),
-		"strategyEntryDelayMinutes": float64(s.StrategyEntryDelayMinutes),
-		"trailActivationR":          s.TrailActivationR,
-		"trailDiscreteStepR":        s.TrailDiscreteStepR,
-		"trailStageMax":             float64(s.TrailStageMax),
+	p, _ := s.ParamsForOptimizer(cfg.Session)
+	out := make(core.ParameterSet, len(p))
+	for k, v := range p {
+		out[k] = v
 	}
-	if s.VolumeFilterEnabled() {
-		p["volumeFilter"] = 1
-		if p["volumeMinRatio"] == 0 {
-			p["volumeMinRatio"] = 1.5
-		}
+	// Trail — в ParameterSet для charts, даже если toStrategyParams их пропускает.
+	if s.TrailActivationR > 0 {
+		out["trailActivationR"] = s.TrailActivationR
 	}
-	if s.LongOnlyEnabled() {
-		p["longOnly"] = 1
+	if s.TrailDiscreteStepR > 0 {
+		out["trailDiscreteStepR"] = s.TrailDiscreteStepR
 	}
-	if s.RangeUseCap != nil && !*s.RangeUseCap {
-		p["rangeUseCap"] = 0
-	} else {
-		p["rangeUseCap"] = 1
+	if s.TrailStageMax > 0 {
+		out["trailStageMax"] = float64(s.TrailStageMax)
 	}
-	return p
+	return out
 }
 
 func candleRange(candles []models.Candle) (from, to time.Time, ok bool) {

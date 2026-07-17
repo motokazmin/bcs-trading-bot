@@ -7,6 +7,7 @@
 |---|---|---|
 | `bot-experiments-atr-ab.yaml` | 6 A/B: atr-1-lean, atr-2-lean, delayed, +volume | 2026-06-30 … 2026-07-08 |
 | `bot-experiments-stop-mode-ab.yaml` | baseline (range) / atr-2 / atr-3 | 2026-06-26 … 2026-06-27 |
+| `experiments-all.yaml` | Пакет стратегий (исторически отдельный счёт на experiment) | — |
 
 ## atr-1-lean (лучший momentum на live)
 
