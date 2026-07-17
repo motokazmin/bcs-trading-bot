@@ -195,6 +195,10 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 			logx.SignalRejected(w.label, signal.Direction, err.Error())
 			return
 		}
+		if err := w.globalRisk.CanOpenTicker(w.ticker); err != nil {
+			logx.SignalRejected(w.label, signal.Direction, err.Error())
+			return
+		}
 	}
 
 	quantity := w.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)

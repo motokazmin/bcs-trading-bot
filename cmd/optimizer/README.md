@@ -152,6 +152,9 @@ Champion snapshots: `configs/champions/*.yaml` · Paper: `configs/runs/portfolio
 ```bash
 optimizer sync-history [-tickers-config ...]
 optimizer backtest ...
+optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml \
+  -date-from 2024-07-04 -date-to 2026-07-03
+  # единый счёт 200k: все experiments, общий CB, one-position-per-ticker
 optimizer charts -experiment orc-wave2   # или -all -results-dir results/orc/wave2-rerun
 optimizer fetch-history ...              # legacy: полная перезагрузка
 optimizer run -h

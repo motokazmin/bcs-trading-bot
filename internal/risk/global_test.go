@@ -30,6 +30,23 @@ func TestGlobalRiskController_MaxParallelTrades(t *testing.T) {
 	}
 }
 
+func TestGlobalRiskController_CanOpenTicker(t *testing.T) {
+	g := NewGlobalRiskController(200_000, 2.0, 4)
+	if err := g.CanOpenTicker("MGNT"); err != nil {
+		t.Fatalf("expected free ticker, got %v", err)
+	}
+	g.RegisterOpen("MGNT", 1000)
+	if err := g.CanOpenTicker("MGNT"); err != ErrTickerBusy {
+		t.Fatalf("expected ticker busy, got %v", err)
+	}
+	if err := g.CanOpenTicker("TATN"); err != nil {
+		t.Fatalf("expected free TATN, got %v", err)
+	}
+	g.RegisterClose("MGNT", 100)
+	if err := g.CanOpenTicker("MGNT"); err != nil {
+		t.Fatalf("expected free after close, got %v", err)
+	}
+}
 func TestGlobalRiskController_ThreadSafe(t *testing.T) {
 	g := NewGlobalRiskController(200_000, 2.0, 2)
 	var wg sync.WaitGroup

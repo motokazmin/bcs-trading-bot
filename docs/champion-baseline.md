@@ -25,9 +25,11 @@ Backtest на депозите **200 000 ₽**, риск **0,5%** на сдел�
 
 ---
 
-## Портфель (3 champions, один счёт 200k)
+## Портфель (3 champions)
 
-Оценка при запуске всех слотов на **одном** депозите 200k (утро + полдень + afternoon, без одновременной конкуренции за капитал). Сумма трёх отдельных backtest'ов — см. ограничения модели в шапке.
+### A. Сумма solo (оценка, без единого счёта)
+
+Каждый слот — **отдельный** walk-forward backtest на полном депозите 200k. Слоты по времени почти не пересекаются; конкуренция за капитал/тикер **не** моделируется.
 
 | Метрика | Baseline |
 |---------|----------|
@@ -41,19 +43,46 @@ Backtest на депозите **200 000 ₽**, риск **0,5%** на сдел�
 
 Формула exp_R портфеля: `(0,49×110 + 0,50×89 + 0,18×67) / 266 ≈ +0,42R`.
 
+### B. Единый счёт 200k (portfolio-backtest, 2026-07-17)
+
+Непрерывный прогон трёх FROZEN на **одном** депозите: общий CB 2%, `max_parallel=5`, **one-position-per-ticker**.
+
+```text
+go run ./cmd/optimizer portfolio-backtest \
+  -config configs/runs/portfolio-paper.yaml \
+  -date-from 2024-07-04 -date-to 2026-07-03
+```
+
+| Метрика | Shared account |
+|---------|----------------|
+| Net PnL | **+135 337 ₽** |
+| Доходность / ~2 года | **~67,7%** (~34%/год простая) |
+| Сделок | **257** |
+| exp_R | **+0,53R** |
+| exp ₽/сделку | **+527 ₽** |
+| PF | **1,89** |
+| Win rate | **59,5%** |
+| Max DD | **~23 096 ₽** |
+| ticker_busy skips | **1** |
+
+По слотам (shared): ORC 109 / +49k / +0,45R; OR Fade 127 / +73k / +0,57R; MF 21 / +14k / +0,67R.
+
+**Go/no-go (2026-07-17): GO.** Модель единого счёта не ломает edge; конфликт MGNT/TATN редкий (1 skip). Числа слотов отличаются от solo WF (другая модель: continuous + общий CB) — для paper ориентир = **секция B**.
+
 ---
 
 ## Что сравнивать в paper / live
 
 | Метрика | Где смотреть | Baseline (ориентир) |
 |---------|--------------|---------------------|
-| `expectancy_r` | admin / export | +0,42R (portfolio), по слотам — см. таблицу |
-| Net PnL в ₽ | `data/trades.db`, admin | ~+4,6k ₽/мес на 200k (portfolio) |
-| Net PnL по слоту | admin / export | ORC ~2,2k ₽/мес, OR Fade ~1,9k, MF ~0,5k (на 200k) |
-| Win rate | admin | 50–59% (зависит от слота) |
-| Profit factor | admin / export | > 1,3 |
-| Сделок в месяц | admin | ~11 (266 / 24 мес) |
+| `expectancy_r` | admin / export | **+0,53R** (shared); solo-сумма +0,42R |
+| Net PnL в ₽ | `data/trades.db`, admin | ~+5,6k ₽/мес на 200k (shared +135k / 24) |
+| Net PnL по слоту | admin / export | см. таблицу B |
+| Win rate | admin | ~55–60% |
+| Profit factor | admin / export | > 1,3 (shared ~1,9) |
+| Сделок в месяц | admin | ~11 (257 / 24 мес) |
 | Просадка / серия стопов | логи, CB | CB 2% = −4 000 ₽/день max |
+| ticker busy | логи | редкий skip MGNT/TATN |
 
 **Красные флаги:** exp_R < 0 два месяца подряд; PF < 1,0 на 30+ сделках; просадка > 10% от депозита без восстановления.
 
@@ -61,6 +90,6 @@ Backtest на депозите **200 000 ₽**, риск **0,5%** на сдел�
 
 ## Обновление baseline
 
-После смены параметров champions, комиссии или модели fill — пересчитать из `runs-registry.json` и обновить этот файл. Slippage и portfolio-real — [`Roadmap.md`](../Roadmap.md).
+После смены параметров champions, комиссии или модели fill — пересчитать solo из `runs-registry.json` и shared через `optimizer portfolio-backtest`. Slippage и portfolio-real — [`Roadmap.md`](../Roadmap.md).
 
-*Зафиксировано: 2026-07-12 (OR Fade wave3-narrow-afks + AFKS, seed 1).*
+*Зафиксировано: 2026-07-12 (solo WF); shared account: 2026-07-17.*

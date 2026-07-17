@@ -123,12 +123,28 @@ strategyEntryDelay≈24, atr≈2.73, volume_filter=true, long_only=true
 10:00 ─── 10:30 ─── 12:30 ─── 18:40
   │  ORC ✅   │ OR Fade ✅ │ MF Afternoon ✅ │
   │ MGNT/ROSN/ │ LKOH/CHMF/ │ MGNT/TATN      │
-  │ TATN       │ MOEX       │                 │
+  │ TATN       │ MOEX/AFKS  │                 │
 ```
 
 **Portfolio FROZEN** — три champion-конфига, optimizer по ним не запускать без явного запроса.
 
-**Baseline (оценка на 200k, ~2 года):** +76 669 ₽ (~19%/год), +0,37R/сделку, ~9 сделок/мес — детали в [`champion-baseline.md`](champion-baseline.md).
+### Матрица ticker×slot (канон)
+
+| Тикер | Утро ORC | Утро/день OR Fade | День MF |
+|-------|:--------:|:-----------------:|:-------:|
+| MGNT | ✅ | — | ✅ |
+| ROSN | ✅ | — | — |
+| TATN | ✅ | — | ✅ |
+| LKOH | — | ✅ | — |
+| CHMF | — | ✅ | — |
+| MOEX | — | ✅ | — |
+| AFKS | — | ✅ | — |
+
+**Правило routing:** одна открытая позиция на тикер на весь портфель. Если ORC держит MGNT/TATN, MF не входит, пока позиция не закрыта (`[SKIP] ticker busy`). Это не новые стратегии — маршрутизация трёх FROZEN шаблонов.
+
+**Проверка модели счёта:** сначала `optimizer portfolio-backtest` (один депозит 200k, общий CB, ticker lock) → go/no-go vs сумма solo → только потом shared paper в `cmd/bot`. Params champions не перетюниваем.
+
+**Baseline (оценка на 200k, ~2 года):** сумма solo ≈ +110k ₽; **единый счёт (GO 2026-07-17):** +135k ₽, +0,53R, PF 1,89 — [`champion-baseline.md`](champion-baseline.md).
 
 ---
 
@@ -352,7 +368,8 @@ Baseline portfolio: **~19%/год**, **+0,37R**/сделку, **~9** сдело�
 - [x] Комиссия BCS «Трейдер» + commission-rerun champions
 - [x] Baseline доходности — [`champion-baseline.md`](champion-baseline.md)
 - [x] Frequency/whitelist research 2026-07-16 — **закрыто**, архив [`legacy/frequency-hypotheses-2026-07-16.md`](legacy/frequency-hypotheses-2026-07-16.md); portfolio = 3 FROZEN
-- [ ] Paper-валидация portfolio vs baseline
+- [x] Portfolio shared-account backtest (`optimizer portfolio-backtest`) — **GO** 2026-07-17
+- [ ] Paper-валидация portfolio vs baseline § B (shared)
 - [ ] Опционально: optimizer ранжирует по `expectancy_r`, а не Calmar score
 
 Paper/live, portfolio-real, slippage, ГО — [`Roadmap.md`](../Roadmap.md).

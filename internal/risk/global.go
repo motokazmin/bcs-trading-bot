@@ -11,6 +11,9 @@ var ErrCircuitBreakerTriggered = errors.New("circuit breaker triggered: daily lo
 // ErrMaxParallelTrades — превышен лимит одновременных позиций по портфелю.
 var ErrMaxParallelTrades = errors.New("max parallel trades limit reached")
 
+// ErrTickerBusy — по тикеру уже есть открытая позиция (одна позиция на тикер).
+var ErrTickerBusy = errors.New("ticker busy: position already open")
+
 // OpenPosition — открытая позиция для учёта в глобальном риск-контроллере.
 type OpenPosition struct {
 	Ticker string
@@ -75,6 +78,16 @@ func (g *GlobalRiskController) CanOpenPosition() error {
 	return nil
 }
 
+// CanOpenTicker проверяет, что по тикеру ещё нет открытой позиции.
+func (g *GlobalRiskController) CanOpenTicker(ticker string) error {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	if _, ok := g.openPositions[ticker]; ok {
+		return ErrTickerBusy
+	}
+	return nil
+}
 // RegisterOpen регистрирует открытие позиции.
 func (g *GlobalRiskController) RegisterOpen(ticker string, riskAmount float64) {
 	g.mu.Lock()

@@ -40,12 +40,19 @@ type Config struct {
 	ClassCode       string             `yaml:"class_code"`
 	CandleTimeFrame string             `yaml:"candle_timeframe"`
 	Costs           costs.Config       `yaml:"costs"`
+	Portfolio       PortfolioConfig    `yaml:"portfolio"`
 	Risk            RiskConfig         `yaml:"risk"`
 	Strategy        StrategyConfig     `yaml:"strategy"`
 	Virtual         VirtualConfig      `yaml:"virtual"`
 	Session         SessionConfig      `yaml:"session"`
 	Storage         StorageConfig      `yaml:"storage"`
 	Experiments     []ExperimentConfig `yaml:"experiments"`
+}
+
+// PortfolioConfig — режим единого счёта для нескольких experiments.
+type PortfolioConfig struct {
+	// SharedAccount: один VirtualExecutor + один GlobalRisk на все experiments.
+	SharedAccount bool `yaml:"shared_account"`
 }
 
 // ExperimentConfig — изолированный виртуальный счёт с собственными параметрами стратегии и риска.
@@ -274,6 +281,31 @@ func (e ResolvedExperiment) PerTickerMaxDailyLoss(tickerCount int) float64 {
 		return 0
 	}
 	return e.Risk.MaxDailyLoss / float64(tickerCount)
+}
+
+// SharedAccountEnabled — единый virtual-счёт и GlobalRisk на все experiments.
+func (c *Config) SharedAccountEnabled() bool {
+	return c.Portfolio.SharedAccount
+}
+
+// SharedRisk возвращает корневой risk для shared account (fallback — первый experiment).
+func (c *Config) SharedRisk() RiskConfig {
+	if c.Risk.Deposit > 0 {
+		return c.Risk
+	}
+	exps := c.ResolvedExperiments()
+	if len(exps) > 0 {
+		return exps[0].Risk
+	}
+	return c.Risk
+}
+
+// SharedVirtualBalance — баланс единого VirtualExecutor.
+func (c *Config) SharedVirtualBalance() float64 {
+	if c.Virtual.Balance > 0 {
+		return c.Virtual.Balance
+	}
+	return c.SharedRisk().Deposit
 }
 
 // TypeOrDefault возвращает type стратегии (default momentum_breakout).
@@ -612,16 +644,26 @@ func (c *Config) validate() error {
 			if err := validateStrategyConfig(exp.Strategy); err != nil {
 				return fmt.Errorf("experiments.%s: %w", exp.ID, err)
 			}
-			if exp.Risk.Deposit <= 0 {
-				return fmt.Errorf("experiments.%s: risk.deposit должен быть > 0", exp.ID)
-			}
-			if exp.Risk.MaxDailyLoss <= 0 {
-				return fmt.Errorf("experiments.%s: risk.max_daily_loss должен быть > 0", exp.ID)
+			if !c.Portfolio.SharedAccount {
+				if exp.Risk.Deposit <= 0 {
+					return fmt.Errorf("experiments.%s: risk.deposit должен быть > 0", exp.ID)
+				}
+				if exp.Risk.MaxDailyLoss <= 0 {
+					return fmt.Errorf("experiments.%s: risk.max_daily_loss должен быть > 0", exp.ID)
+				}
 			}
 			for _, t := range exp.Tickers {
 				if t.Symbol == "" {
 					return fmt.Errorf("experiments.%s: пустой тикер", exp.ID)
 				}
+			}
+		}
+		if c.Portfolio.SharedAccount {
+			if c.Risk.Deposit <= 0 {
+				return fmt.Errorf("portfolio.shared_account: корневой risk.deposit должен быть > 0")
+			}
+			if c.Risk.MaxDailyLoss <= 0 {
+				return fmt.Errorf("portfolio.shared_account: корневой risk.max_daily_loss должен быть > 0")
 			}
 		}
 		return nil

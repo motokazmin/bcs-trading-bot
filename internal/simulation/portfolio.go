@@ -16,31 +16,37 @@ import (
 	"bcs-trading-bot/pkg/models"
 )
 
-// PortfolioRunnerConfig — параметры портфельной симуляции (несколько тикеров, общий риск).
+// PortfolioRunnerConfig — параметры портфельной симуляции (несколько слотов, общий риск).
+// Ключ Tickers — уникальный slot key (обычно ticker или "experimentID/ticker").
 type PortfolioRunnerConfig struct {
-	Tickers         map[string]RunnerConfig // ticker -> config
-	SessionCfg      config.SessionConfig
-	GlobalRisk      *risk.GlobalRiskController
+	Tickers           map[string]RunnerConfig
+	SessionCfg        config.SessionConfig // fallback, если у RunnerConfig.SessionCfg пустая timezone
+	GlobalRisk        *risk.GlobalRiskController
 	StepPriceByTicker map[string]float64
 }
 
 type tickerState struct {
-	cfg       RunnerConfig
-	strat     strategy.CandleStrategy
-	riskMgr   *risk.RiskManager
-	position  *position.State
-	tradesToday int
+	cfg          RunnerConfig
+	strat        strategy.CandleStrategy
+	riskMgr      *risk.RiskManager
+	session      *engine.SessionClock
+	position     *position.State
+	tradesToday  int
 	eodCloseDate string
 }
 
-// PortfolioRunner симулирует несколько тикеров с общим глобальным риск-контроллером.
+// PortfolioRunner симулирует несколько слотов с общим глобальным риск-контроллером.
+// Несколько стратегий на одном тикере допустимы (разные slot keys); одна позиция на тикер —
+// через GlobalRisk.CanOpenTicker.
 type PortfolioRunner struct {
-	cfg      PortfolioRunnerConfig
-	session  *engine.SessionClock
-	states   map[string]*tickerState
-	global   *risk.GlobalRiskController
-	store    interfaces.TradeStore
-	riskResetDate string
+	cfg             PortfolioRunnerConfig
+	states          map[string]*tickerState
+	byTicker        map[string][]*tickerState
+	global          *risk.GlobalRiskController
+	store           interfaces.TradeStore
+	riskResetDate   string
+	daySession      *engine.SessionClock // timezone/EOD для daily reset
+	TickerBusySkips int
 }
 
 // NewPortfolioRunner создаёт портфельный симулятор.
@@ -52,42 +58,67 @@ func NewPortfolioRunner(cfg PortfolioRunnerConfig, store interfaces.TradeStore) 
 		store = interfaces.NoopTradeStore{}
 	}
 
-	clock, err := engine.NewSessionClock(
-		cfg.SessionCfg.Timezone,
-		cfg.SessionCfg.EODCloseTime,
-		cfg.SessionCfg.SessionOpenTime,
-		cfg.SessionCfg.EntryDelayMinutes,
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	states := make(map[string]*tickerState, len(cfg.Tickers))
-	for ticker, rc := range cfg.Tickers {
+	byTicker := make(map[string][]*tickerState)
+	var daySession *engine.SessionClock
+
+	slotKeys := make([]string, 0, len(cfg.Tickers))
+	for k := range cfg.Tickers {
+		slotKeys = append(slotKeys, k)
+	}
+	sort.Strings(slotKeys)
+
+	for _, slotKey := range slotKeys {
+		rc := cfg.Tickers[slotKey]
+		if rc.Ticker == "" {
+			rc.Ticker = slotKey
+		}
 		if rc.StepPriceValue <= 0 {
 			rc.StepPriceValue = 1.0
 		}
 		if rc.Strategy == nil {
-			return nil, fmt.Errorf("simulation: strategy не задана для %s", ticker)
+			return nil, fmt.Errorf("simulation: strategy не задана для %s", slotKey)
 		}
 		trailCfg := rc.TrailCfg
 		if trailCfg.StepPriceValue <= 0 {
 			trailCfg.StepPriceValue = rc.StepPriceValue
 		}
 		rc.TrailCfg = trailCfg
-		states[ticker] = &tickerState{
+
+		sessCfg := rc.SessionCfg
+		if sessCfg.Timezone == "" {
+			sessCfg = cfg.SessionCfg
+		}
+		clock, err := engine.NewSessionClock(
+			sessCfg.Timezone,
+			sessCfg.EODCloseTime,
+			sessCfg.SessionOpenTime,
+			sessCfg.EntryDelayMinutes,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("simulation: session %s: %w", slotKey, err)
+		}
+		if daySession == nil {
+			daySession = clock
+		}
+
+		st := &tickerState{
 			cfg:     rc,
 			strat:   rc.Strategy,
 			riskMgr: risk.NewRiskManager(rc.Deposit, rc.MaxDailyLoss, rc.RiskPerTradePct, rc.StepPriceValue),
+			session: clock,
 		}
+		states[slotKey] = st
+		byTicker[rc.Ticker] = append(byTicker[rc.Ticker], st)
 	}
 
 	return &PortfolioRunner{
-		cfg:     cfg,
-		session: clock,
-		states:  states,
-		global:  cfg.GlobalRisk,
-		store:   store,
+		cfg:        cfg,
+		states:     states,
+		byTicker:   byTicker,
+		global:     cfg.GlobalRisk,
+		store:      store,
+		daySession: daySession,
 	}, nil
 }
 
@@ -129,25 +160,30 @@ func (p *PortfolioRunner) mergeCandles(candlesByTicker map[string][]models.Candl
 }
 
 func (p *PortfolioRunner) processEvent(ctx context.Context, executor interfaces.OrderExecutor, ev candleEvent) {
-	st, ok := p.states[ev.ticker]
-	if !ok {
+	slots := p.byTicker[ev.ticker]
+	if len(slots) == 0 {
 		return
 	}
 	candle := ev.candle
 
 	p.checkDailyReset(candle.Timestamp)
-	p.checkEOD(ctx, executor, st, candle)
 
-	if st.position != nil {
-		p.processIntrabar(ctx, executor, st, candle)
+	// Сначала закрытия/EOD у всех слотов тикера, затем входы (детерминированный порядок).
+	for _, st := range slots {
+		p.checkEOD(ctx, executor, st, candle)
+		if st.position != nil {
+			p.processIntrabar(ctx, executor, st, candle)
+		}
 	}
-	if st.position == nil {
-		p.processCandle(ctx, executor, st, candle)
+	for _, st := range slots {
+		if st.position == nil {
+			p.processCandle(ctx, executor, st, candle)
+		}
 	}
 }
 
 func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces.OrderExecutor, st *tickerState, candle models.Candle) {
-	if !p.session.EntriesAllowed(candle.Timestamp) {
+	if !st.session.EntriesAllowed(candle.Timestamp) {
 		return
 	}
 	if st.cfg.MaxTradesPerDay > 0 && st.tradesToday >= st.cfg.MaxTradesPerDay {
@@ -165,6 +201,10 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces
 		if err := p.global.CanOpenPosition(); err != nil {
 			return
 		}
+		if err := p.global.CanOpenTicker(st.cfg.Ticker); err != nil {
+			p.TickerBusySkips++
+			return
+		}
 	}
 
 	qty := st.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
@@ -173,6 +213,9 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces
 	}
 	signal.Quantity = qty
 	signal.OrderType = models.OrderTypeLimit
+	if signal.Ticker == "" {
+		signal.Ticker = st.cfg.Ticker
+	}
 
 	tradeRisk := abs(signal.Price-signal.StopLoss) * float64(qty) * st.cfg.StepPriceValue
 	if p.global != nil {
@@ -188,7 +231,7 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces
 	st.tradesToday++
 	st.position = position.NewFromSignal(*signal, candle.Timestamp)
 	if p.global != nil {
-		p.global.RegisterOpen(candle.Ticker, st.position.RDistance*float64(st.position.Quantity)*st.cfg.StepPriceValue)
+		p.global.RegisterOpen(st.cfg.Ticker, st.position.RDistance*float64(st.position.Quantity)*st.cfg.StepPriceValue)
 	}
 }
 
@@ -206,13 +249,13 @@ func (p *PortfolioRunner) processIntrabar(ctx context.Context, executor interfac
 
 func (p *PortfolioRunner) checkEOD(ctx context.Context, executor interfaces.OrderExecutor, st *tickerState, candle models.Candle) {
 	ts := candle.Timestamp
-	if !p.session.ShouldForceClose(ts) {
-		if p.session.EntriesAllowed(ts) {
+	if !st.session.ShouldForceClose(ts) {
+		if st.session.EntriesAllowed(ts) {
 			st.eodCloseDate = ""
 		}
 		return
 	}
-	today := p.session.Today(ts)
+	today := st.session.Today(ts)
 	if st.eodCloseDate == today {
 		return
 	}
@@ -223,10 +266,10 @@ func (p *PortfolioRunner) checkEOD(ctx context.Context, executor interfaces.Orde
 }
 
 func (p *PortfolioRunner) checkDailyReset(now time.Time) {
-	if !p.session.IsSessionOpen(now) {
+	if p.daySession == nil || !p.daySession.IsSessionOpen(now) {
 		return
 	}
-	today := p.session.Today(now)
+	today := p.daySession.Today(now)
 	if p.riskResetDate == today {
 		return
 	}
@@ -281,39 +324,39 @@ func (p *PortfolioRunner) closePosition(ctx context.Context, executor interfaces
 	}
 
 	trade := models.ClosedTrade{
-		TradingMode:       st.cfg.TradingMode,
-		RunID:             st.cfg.RunID,
-		ExperimentID:      st.cfg.ExperimentID,
-		StopMode:          st.cfg.StopMode,
-		Ticker:            st.cfg.Ticker,
-		ClassCode:         st.cfg.ClassCode,
-		StepPriceValue:    st.cfg.StepPriceValue,
-		Direction:         pos.Direction,
-		Quantity:          pos.Quantity,
-		EntryPrice:        pos.EntryPrice,
-		ExitPrice:         price,
-		InitialStopLoss:   pos.InitialStopLoss,
-		InitialTakeProfit: pos.InitialTakeProfit,
-		FinalStopLoss:     pos.StopLoss,
-		RDistance:         pos.RDistance,
-		GrossPnL:          pnl,
-		PnLR:              pnlR,
-		MFEinR:            position.CalcMFEinR(pos),
-		MAEinR:            position.CalcMAEinR(pos),
-		BreakoutUpper:     pos.BreakoutUpper,
-		BreakoutLower:     pos.BreakoutLower,
-		CloseReason:       reason,
-		TrailStage:        pos.TrailStage,
-		IsWinner:          pnl > 0,
-		OpenedAt:          pos.OpenedAt,
-		ClosedAt:          closedAt,
-		HoldSeconds:       int(closedAt.Sub(pos.OpenedAt).Seconds()),
-		TradingDate:       p.session.Today(closedAt),
-		CandleTimeframe:   st.cfg.CandleTimeframe,
-		Lookback:             st.cfg.Lookback,
-		RiskPerTradePct:      st.cfg.RiskPerTradePct,
-		DepositPerTicker:     st.cfg.Deposit,
-		StrategyParamsJSON:   st.cfg.StrategyParamsJSON,
+		TradingMode:        st.cfg.TradingMode,
+		RunID:              st.cfg.RunID,
+		ExperimentID:       st.cfg.ExperimentID,
+		StopMode:           st.cfg.StopMode,
+		Ticker:             st.cfg.Ticker,
+		ClassCode:          st.cfg.ClassCode,
+		StepPriceValue:     st.cfg.StepPriceValue,
+		Direction:          pos.Direction,
+		Quantity:           pos.Quantity,
+		EntryPrice:         pos.EntryPrice,
+		ExitPrice:          price,
+		InitialStopLoss:    pos.InitialStopLoss,
+		InitialTakeProfit:  pos.InitialTakeProfit,
+		FinalStopLoss:      pos.StopLoss,
+		RDistance:          pos.RDistance,
+		GrossPnL:           pnl,
+		PnLR:               pnlR,
+		MFEinR:             position.CalcMFEinR(pos),
+		MAEinR:             position.CalcMAEinR(pos),
+		BreakoutUpper:      pos.BreakoutUpper,
+		BreakoutLower:      pos.BreakoutLower,
+		CloseReason:        reason,
+		TrailStage:         pos.TrailStage,
+		IsWinner:           pnl > 0,
+		OpenedAt:           pos.OpenedAt,
+		ClosedAt:           closedAt,
+		HoldSeconds:        int(closedAt.Sub(pos.OpenedAt).Seconds()),
+		TradingDate:        st.session.Today(closedAt),
+		CandleTimeframe:    st.cfg.CandleTimeframe,
+		Lookback:           st.cfg.Lookback,
+		RiskPerTradePct:    st.cfg.RiskPerTradePct,
+		DepositPerTicker:   st.cfg.Deposit,
+		StrategyParamsJSON: st.cfg.StrategyParamsJSON,
 	}
 	_ = p.store.SaveClosedTrade(ctx, trade)
 }
