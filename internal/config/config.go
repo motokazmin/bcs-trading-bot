@@ -61,6 +61,10 @@ type ExperimentConfig struct {
 	Name              string         `yaml:"name"`
 	Tickers           []TickerConfig `yaml:"tickers"`
 	EntryDelayMinutes *int           `yaml:"entry_delay_minutes"`
+	SessionOpenTime   string         `yaml:"session_open_time"`
+	EODCloseTime      string         `yaml:"eod_close_time"`
+	WeekdaysOnly      *bool          `yaml:"weekdays_only"`
+	WeekendOnly       *bool          `yaml:"weekend_only"`
 	Strategy          StrategyConfig `yaml:"strategy"`
 	Risk              RiskConfig     `yaml:"risk"`
 	Virtual           VirtualConfig  `yaml:"virtual"`
@@ -72,6 +76,10 @@ type ResolvedExperiment struct {
 	Name              string
 	Tickers           []TickerConfig
 	EntryDelayMinutes *int
+	SessionOpenTime   string
+	EODCloseTime      string
+	WeekdaysOnly      *bool
+	WeekendOnly       *bool
 	Strategy          StrategyConfig
 	Risk              RiskConfig
 	Virtual           VirtualConfig
@@ -153,6 +161,7 @@ type StrategyConfig struct {
 	ATRBars                   int     `yaml:"atr_bars"`
 	EntryStartMinutes         int     `yaml:"entry_start_minutes"`
 	EntryEndMinutes           int     `yaml:"entry_end_minutes"`
+	GapThreshold              float64 `yaml:"gap_threshold"`
 	RangeStartMinutes         int     `yaml:"range_start_minutes"`
 	RangeEndMinutes           int     `yaml:"range_end_minutes"`
 }
@@ -166,6 +175,8 @@ type SessionConfig struct {
 	EODCloseTime      string `yaml:"eod_close_time"`
 	SessionOpenTime   string `yaml:"session_open_time"`
 	EntryDelayMinutes int    `yaml:"entry_delay_minutes"`
+	WeekdaysOnly      bool   `yaml:"weekdays_only"`
+	WeekendOnly       bool   `yaml:"weekend_only"`
 }
 
 // TickerSymbols возвращает список символов тикеров для логирования.
@@ -201,6 +212,10 @@ func (c *Config) ResolvedExperiments() []ResolvedExperiment {
 			Name:              exp.Name,
 			Tickers:           exp.Tickers,
 			EntryDelayMinutes: exp.EntryDelayMinutes,
+			SessionOpenTime:   exp.SessionOpenTime,
+			EODCloseTime:      exp.EODCloseTime,
+			WeekdaysOnly:      exp.WeekdaysOnly,
+			WeekendOnly:       exp.WeekendOnly,
 			Strategy:          exp.Strategy,
 			Risk:              exp.Risk,
 			Virtual:           exp.Virtual,
@@ -237,6 +252,18 @@ func (c *Config) SessionForExperiment(exp ResolvedExperiment) SessionConfig {
 	s := c.Session
 	if exp.EntryDelayMinutes != nil {
 		s.EntryDelayMinutes = *exp.EntryDelayMinutes
+	}
+	if strings.TrimSpace(exp.SessionOpenTime) != "" {
+		s.SessionOpenTime = strings.TrimSpace(exp.SessionOpenTime)
+	}
+	if strings.TrimSpace(exp.EODCloseTime) != "" {
+		s.EODCloseTime = strings.TrimSpace(exp.EODCloseTime)
+	}
+	if exp.WeekdaysOnly != nil {
+		s.WeekdaysOnly = *exp.WeekdaysOnly
+	}
+	if exp.WeekendOnly != nil {
+		s.WeekendOnly = *exp.WeekendOnly
 	}
 	return s
 }
@@ -406,6 +433,9 @@ func StrategyConfigFromMap(fields map[string]interface{}, stopMode string) Strat
 	}
 	if v, ok := fields["entry_end_minutes"].(int); ok {
 		cfg.EntryEndMinutes = v
+	}
+	if v, ok := fields["gap_threshold"].(float64); ok {
+		cfg.GapThreshold = v
 	}
 	if v, ok := fields["range_start_minutes"].(int); ok {
 		cfg.RangeStartMinutes = v

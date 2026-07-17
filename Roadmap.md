@@ -13,15 +13,16 @@
 - [x] Net PnL и комиссия в `VirtualExecutor`, worker, SQLite
 - [x] Commission-rerun champions (ORC, OR Fade, MF) — seed 1
 - [x] Baseline доходности — [`docs/champion-baseline.md`](docs/champion-baseline.md)
-- [x] Walk-forward optimizer, 3 FROZEN champions, `portfolio-paper.yaml`
+- [x] Walk-forward optimizer, FROZEN champions, `portfolio-paper.yaml`
 - [x] Рефакторинг доков: `docs/system.md` + lean roadmap
 - [x] **Единый virtual-счёт** — `portfolio.shared_account`, `CanOpenTicker`, `optimizer portfolio-backtest` (GO 2026-07-17)
+- [x] **Extended sessions** — Morning + Evening Session ORC → FROZEN; paper = 5 champions (2026-07-17)
 
 ---
 
 ## Перед live (приоритет)
 
-- [ ] **Paper-валидация portfolio** — 2–4 нед на shared `portfolio-paper.yaml`, сверка с baseline § B
+- [ ] **Paper-валидация portfolio** — 2–4 нед на shared `portfolio-paper.yaml` (5 champions), сверка с baseline § C
 - [ ] **Portfolio на одном real-счёте** — в `real` сейчас только **1 experiment** (`cmd/bot/main.go`):
   - один `BCSClient` на все стратегии (тот же shared-паттерн, что paper);
   - конфиг `portfolio-real.yaml`

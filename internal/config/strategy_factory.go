@@ -21,6 +21,7 @@ func (s StrategyConfig) toStrategyParams(session SessionConfig) (strategy.Params
 		"maxEntriesPerTickerPerDay": float64(s.MaxTradesPerTickerPerDay),
 		"orbMinutes":                float64(s.ORBMinutes),
 		"fadeThreshold":             s.FadeThreshold,
+		"gapThreshold":              s.GapThreshold,
 		"trendSMAPeriod":            float64(s.TrendSMAPeriod),
 		"strategyEntryDelayMinutes": float64(s.StrategyEntryDelayMinutes),
 	}

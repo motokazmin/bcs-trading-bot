@@ -13,9 +13,16 @@ type SessionClock struct {
 	eodMinutes        int
 	openMinutes       int
 	entryDelayMinutes int
+	weekdaysOnly      bool // только пн–пт
+	weekendOnly       bool // только сб–вс (ДСВД)
 }
 
 func NewSessionClock(timezone, eodClose, sessionOpen string, entryDelayMinutes int) (*SessionClock, error) {
+	return NewSessionClockExt(timezone, eodClose, sessionOpen, entryDelayMinutes, false, false)
+}
+
+// NewSessionClockExt — SessionClock с фильтром дней недели.
+func NewSessionClockExt(timezone, eodClose, sessionOpen string, entryDelayMinutes int, weekdaysOnly, weekendOnly bool) (*SessionClock, error) {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		return nil, fmt.Errorf("часовой пояс %q: %w", timezone, err)
@@ -29,12 +36,17 @@ func NewSessionClock(timezone, eodClose, sessionOpen string, entryDelayMinutes i
 	if err != nil {
 		return nil, fmt.Errorf("session_open_time: %w", err)
 	}
+	if weekdaysOnly && weekendOnly {
+		return nil, fmt.Errorf("session: weekdays_only и weekend_only взаимоисключающи")
+	}
 
 	return &SessionClock{
 		loc:               loc,
 		eodMinutes:        eodMinutes,
 		openMinutes:       openMinutes,
 		entryDelayMinutes: entryDelayMinutes,
+		weekdaysOnly:      weekdaysOnly,
+		weekendOnly:       weekendOnly,
 	}, nil
 }
 
@@ -71,8 +83,23 @@ func (s *SessionClock) Today(t time.Time) string {
 	return s.today(t)
 }
 
+func (s *SessionClock) dayAllowed(now time.Time) bool {
+	wd := now.In(s.loc).Weekday()
+	isWeekend := wd == time.Saturday || wd == time.Sunday
+	if s.weekendOnly && !isWeekend {
+		return false
+	}
+	if s.weekdaysOnly && isWeekend {
+		return false
+	}
+	return true
+}
+
 // EntriesAllowed возвращает false после eod_close_time, до session_open_time + entry_delay и до открытия сессии.
 func (s *SessionClock) EntriesAllowed(now time.Time) bool {
+	if !s.dayAllowed(now) {
+		return false
+	}
 	m := s.nowMinutes(now)
 	if m >= s.eodMinutes {
 		return false
@@ -85,10 +112,16 @@ func (s *SessionClock) EntriesAllowed(now time.Time) bool {
 
 // ShouldForceClose возвращает true, если наступило время принудительного закрытия.
 func (s *SessionClock) ShouldForceClose(now time.Time) bool {
+	if !s.dayAllowed(now) {
+		return false
+	}
 	return s.nowMinutes(now) >= s.eodMinutes
 }
 
 // IsSessionOpen возвращает true, если наступило или прошло session_open_time.
 func (s *SessionClock) IsSessionOpen(now time.Time) bool {
+	if !s.dayAllowed(now) {
+		return false
+	}
 	return s.nowMinutes(now) >= s.openMinutes
 }

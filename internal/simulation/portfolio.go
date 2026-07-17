@@ -89,11 +89,13 @@ func NewPortfolioRunner(cfg PortfolioRunnerConfig, store interfaces.TradeStore) 
 		if sessCfg.Timezone == "" {
 			sessCfg = cfg.SessionCfg
 		}
-		clock, err := engine.NewSessionClock(
+		clock, err := engine.NewSessionClockExt(
 			sessCfg.Timezone,
 			sessCfg.EODCloseTime,
 			sessCfg.SessionOpenTime,
 			sessCfg.EntryDelayMinutes,
+			sessCfg.WeekdaysOnly,
+			sessCfg.WeekendOnly,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("simulation: session %s: %w", slotKey, err)

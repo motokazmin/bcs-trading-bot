@@ -14,6 +14,12 @@ func init() {
 		NewFromParams:        newORCFromParams,
 		ParamsToConfigFields: orcConfigFields,
 	})
+	Register(Descriptor{
+		ID:                   IDSessionORC,
+		DefaultSearchSpace:   "configs/strategies/session-orc-evening.yaml",
+		NewFromParams:        newSessionORCFromParams,
+		ParamsToConfigFields: orcConfigFields,
+	})
 }
 
 // ORCWhitelist — рабочий whitelist ORC (matrix 2026-07-11).
@@ -37,9 +43,10 @@ var ORCBlacklist = map[string]struct{}{
 type OpeningRangeContinuation struct {
 	mu sync.Mutex
 
-	opts    orcOpts
-	buffer  *candleBuffer
-	session SessionTimes
+	opts            orcOpts
+	buffer          *candleBuffer
+	session         SessionTimes
+	allowAllTickers bool
 
 	day         string
 	orbHigh     float64
@@ -72,7 +79,12 @@ type orcPendingLimit struct {
 	breakoutCandle models.Candle
 }
 
-func (s *OpeningRangeContinuation) ID() string { return IDOpeningRangeContinuation }
+func (s *OpeningRangeContinuation) ID() string {
+	if s.allowAllTickers {
+		return IDSessionORC
+	}
+	return IDOpeningRangeContinuation
+}
 
 func (s *OpeningRangeContinuation) OnCandle(candle models.Candle) *models.Order {
 	s.mu.Lock()
@@ -175,6 +187,9 @@ func (s *OpeningRangeContinuation) OnCandle(candle models.Candle) *models.Order 
 }
 
 func (s *OpeningRangeContinuation) isTickerAllowed(ticker string) bool {
+	if s.allowAllTickers {
+		return true
+	}
 	return tickerAllowed(ticker, ORCWhitelist, ORCBlacklist)
 }
 
@@ -239,6 +254,14 @@ func hourEnd(t time.Time) time.Time {
 }
 
 func newORCFromParams(params Params, ctx BuildContext) (CandleStrategy, error) {
+	return newORCFromParamsExt(params, ctx, false)
+}
+
+func newSessionORCFromParams(params Params, ctx BuildContext) (CandleStrategy, error) {
+	return newORCFromParamsExt(params, ctx, true)
+}
+
+func newORCFromParamsExt(params Params, ctx BuildContext, allowAll bool) (CandleStrategy, error) {
 	stopMode := ctx.StopMode
 	if stopMode == "" {
 		stopMode = StopModeATR
@@ -261,9 +284,10 @@ func newORCFromParams(params Params, ctx BuildContext) (CandleStrategy, error) {
 		RangeUseCap:       paramsBoolDefault(params, "rangeUseCap", true),
 	}.normalized()
 	return &OpeningRangeContinuation{
-		opts:    opts,
-		buffer:  newCandleBuffer(50),
-		session: ctx.Session,
+		opts:            opts,
+		buffer:          newCandleBuffer(50),
+		session:         ctx.Session,
+		allowAllTickers: allowAll,
 	}, nil
 }
 

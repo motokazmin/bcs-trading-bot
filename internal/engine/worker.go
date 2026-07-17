@@ -61,7 +61,14 @@ func NewTickerWorker(
 	store interfaces.TradeStore,
 	globalRisk *risk.GlobalRiskController,
 ) (*TickerWorker, error) {
-	clock, err := NewSessionClock(sessionCfg.Timezone, sessionCfg.EODCloseTime, sessionCfg.SessionOpenTime, sessionCfg.EntryDelayMinutes)
+	clock, err := NewSessionClockExt(
+		sessionCfg.Timezone,
+		sessionCfg.EODCloseTime,
+		sessionCfg.SessionOpenTime,
+		sessionCfg.EntryDelayMinutes,
+		sessionCfg.WeekdaysOnly,
+		sessionCfg.WeekendOnly,
+	)
 	if err != nil {
 		return nil, err
 	}

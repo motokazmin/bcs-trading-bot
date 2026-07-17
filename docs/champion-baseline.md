@@ -67,7 +67,43 @@ go run ./cmd/optimizer portfolio-backtest \
 
 По слотам (shared): ORC 109 / +49k / +0,45R; OR Fade 127 / +73k / +0,57R; MF 21 / +14k / +0,67R.
 
-**Go/no-go (2026-07-17): GO.** Модель единого счёта не ломает edge; конфликт MGNT/TATN редкий (1 skip). Числа слотов отличаются от solo WF (другая модель: continuous + общий CB) — для paper ориентир = **секция B**.
+**Go/no-go (2026-07-17): GO** для модели единого счёта (3 champions). Для paper с 5 champions ориентир = **секция C**.
+
+---
+
+### C. Единый счёт 200k — 5 FROZEN (2026-07-17)
+
+FROZEN main (ORC + OR Fade + MF) + **Morning Session ORC** + **Evening Session ORC**.
+
+```text
+go run ./cmd/optimizer portfolio-backtest \
+  -config configs/runs/portfolio-paper.yaml \
+  -date-from 2024-07-04 -date-to 2026-07-03
+```
+
+| Метрика | Shared 5 champions |
+|---------|-------------------|
+| Net PnL | **+275 951 ₽** |
+| Доходность / ~2 года | **~138%** (~69%/год простая) |
+| Сделок | **473** (~20 / мес) |
+| exp_R | **+0.59R** |
+| exp ₽/сделку | **+583 ₽** |
+| PF | **1.98** |
+| Win rate | **57,1%** |
+| Max DD | **~19 632 ₽** |
+| ticker_busy skips | **1** |
+
+По слотам (shared):
+
+| Слот | Сделок | Net PnL | exp_R |
+|------|-------:|--------:|------:|
+| Morning Session ORC | 102 | +51 013 ₽ | +0.50R |
+| ORC main | 114 | +38 604 ₽ | +0.34R |
+| OR Fade | 136 | +65 986 ₽ | +0.49R |
+| MF Afternoon | 21 | +13 727 ₽ | +0.67R |
+| Evening Session ORC | 100 | +106 621 ₽ | +1.07R |
+
+**Paper ориентир = секция C.**
 
 ---
 
@@ -75,14 +111,14 @@ go run ./cmd/optimizer portfolio-backtest \
 
 | Метрика | Где смотреть | Baseline (ориентир) |
 |---------|--------------|---------------------|
-| `expectancy_r` | admin / export | **+0,53R** (shared); solo-сумма +0,42R |
-| Net PnL в ₽ | `data/trades.db`, admin | ~+5,6k ₽/мес на 200k (shared +135k / 24) |
-| Net PnL по слоту | admin / export | см. таблицу B |
+| `expectancy_r` | admin / export | **+0,59R** (§ C); ранее 3 champions +0,53R (§ B) |
+| Net PnL в ₽ | `data/trades.db`, admin | ~+11,5k ₽/мес на 200k (shared +276k / 24) |
+| Net PnL по слоту | admin / export | см. таблицу C |
 | Win rate | admin | ~55–60% |
-| Profit factor | admin / export | > 1,3 (shared ~1,9) |
-| Сделок в месяц | admin | ~11 (257 / 24 мес) |
+| Profit factor | admin / export | > 1,3 (shared ~2,0) |
+| Сделок в месяц | admin | ~20 (473 / 24 мес) |
 | Просадка / серия стопов | логи, CB | CB 2% = −4 000 ₽/день max |
-| ticker busy | логи | редкий skip MGNT/TATN |
+| ticker busy | логи | редкий skip пересекающихся тикеров |
 
 **Красные флаги:** exp_R < 0 два месяца подряд; PF < 1,0 на 30+ сделках; просадка > 10% от депозита без восстановления.
 
@@ -92,4 +128,4 @@ go run ./cmd/optimizer portfolio-backtest \
 
 После смены параметров champions, комиссии или модели fill — пересчитать solo из `runs-registry.json` и shared через `optimizer portfolio-backtest`. Slippage и portfolio-real — [`Roadmap.md`](../Roadmap.md).
 
-*Зафиксировано: 2026-07-12 (solo WF); shared account: 2026-07-17.*
+*Зафиксировано: 2026-07-12 (solo WF); shared 3 champions § B: 2026-07-17; shared 5 champions § C: 2026-07-17.*

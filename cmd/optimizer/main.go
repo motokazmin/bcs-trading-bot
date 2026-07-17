@@ -149,6 +149,11 @@ func runCmd(args []string) {
 		MinTrades:          *minTrades,
 		Session:            optimizer.DefaultSession(),
 	}
+	if sess, err := optimizer.LoadSessionFromStrategyFile(spacePath); err == nil {
+		settings.Session = sess
+		logx.Info("session: open=%s eod=%s delay=%d weekdays_only=%v weekend_only=%v",
+			sess.SessionOpenTime, sess.EODCloseTime, sess.EntryDelayMinutes, sess.WeekdaysOnly, sess.WeekendOnly)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -266,6 +271,9 @@ func backtestCmd(args []string) {
 		Costs:              u.ResolvedCosts(*commission, *commissionRate),
 		MinTrades:          1,
 		Session:            optimizer.DefaultSession(),
+	}
+	if sess, err := optimizer.LoadSessionFromStrategyFile(spacePath); err == nil {
+		settings.Session = sess
 	}
 	evaluator := eval.NewEvaluator(settings, space, candleData)
 	params := eval.DefaultParamsFromSpace(space)

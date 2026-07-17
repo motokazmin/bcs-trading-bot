@@ -14,6 +14,12 @@ func init() {
 		NewFromParams:        newORFadeFromParams,
 		ParamsToConfigFields: orFadeConfigFields,
 	})
+	Register(Descriptor{
+		ID:                   IDSessionORFade,
+		DefaultSearchSpace:   "configs/legacy/extended-sessions/strategies/session-or-fade-evening.yaml",
+		NewFromParams:        newSessionORFadeFromParams,
+		ParamsToConfigFields: orFadeConfigFields,
+	})
 }
 
 // ORFadeWhitelist — рабочий whitelist OR Fade (wave3-narrow-afks, 2026-07-12).
@@ -38,9 +44,10 @@ var ORFadeBlacklist = map[string]struct{}{
 type OpeningRangeFade struct {
 	mu sync.Mutex
 
-	opts    orFadeOpts
-	buffer  *candleBuffer
-	session SessionTimes
+	opts            orFadeOpts
+	buffer          *candleBuffer
+	session         SessionTimes
+	allowAllTickers bool
 
 	day         string
 	orbHigh     float64
@@ -70,7 +77,12 @@ type orFadeWatch struct {
 	breakoutCandle models.Candle
 }
 
-func (s *OpeningRangeFade) ID() string { return IDOpeningRangeFade }
+func (s *OpeningRangeFade) ID() string {
+	if s.allowAllTickers {
+		return IDSessionORFade
+	}
+	return IDOpeningRangeFade
+}
 
 func (s *OpeningRangeFade) OnCandle(candle models.Candle) *models.Order {
 	s.mu.Lock()
@@ -214,6 +226,9 @@ func (s *OpeningRangeFade) watchExpired(now time.Time) bool {
 }
 
 func (s *OpeningRangeFade) isTickerAllowed(ticker string) bool {
+	if s.allowAllTickers {
+		return true
+	}
 	return tickerAllowed(ticker, ORFadeWhitelist, ORFadeBlacklist)
 }
 
@@ -242,6 +257,14 @@ func (s *OpeningRangeFade) updateORB(candle models.Candle) {
 }
 
 func newORFadeFromParams(params Params, ctx BuildContext) (CandleStrategy, error) {
+	return newORFadeFromParamsExt(params, ctx, false)
+}
+
+func newSessionORFadeFromParams(params Params, ctx BuildContext) (CandleStrategy, error) {
+	return newORFadeFromParamsExt(params, ctx, true)
+}
+
+func newORFadeFromParamsExt(params Params, ctx BuildContext, allowAll bool) (CandleStrategy, error) {
 	stopMode := ctx.StopMode
 	if stopMode == "" {
 		stopMode = StopModeATR
@@ -275,9 +298,10 @@ func newORFadeFromParams(params Params, ctx BuildContext) (CandleStrategy, error
 		RangeUseCap:         paramsBoolDefault(params, "rangeUseCap", true),
 	}.normalized()
 	return &OpeningRangeFade{
-		opts:    opts,
-		buffer:  newCandleBuffer(50),
-		session: ctx.Session,
+		opts:            opts,
+		buffer:          newCandleBuffer(50),
+		session:         ctx.Session,
+		allowAllTickers: allowAll,
 	}, nil
 }
 
