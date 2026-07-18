@@ -1,0 +1,107 @@
+# MF Afternoon — narrow вокруг mf-longonly-wide-seed2 (честный longOnly, 2026-07-18).
+# Центр: lookback=38, breakout≈0.0073, RR≈1.26, trendSMA=33, delay=26, atr≈2.94.
+trading_mode: virtual
+
+tickers:
+  - ticker: MGNT
+    step_price_value: 1.0
+  - ticker: TATN
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 150
+
+strategy:
+  type: momentum_filtered
+  stop_mode: atr
+  lookback: 38
+  breakout_threshold: 0.007252730090202771
+  reward_ratio: 1.2561787040542707
+  volume_filter: false
+  volume_min_ratio: 1.2495129051328298
+  long_only: true
+  trend_sma_period: 33
+  strategy_entry_delay_minutes: 26
+  atr_multiplier: 2.9359198709477794
+  trail_activation_r: 2.9329653708355483
+  trail_discrete_step_r: 0.3330322344686612
+  trail_stage_max: 2
+  max_trades_per_ticker_per_day: 2
+
+search_space:
+  strategy: momentum_filtered
+  parameters:
+    lookback:
+      type: int
+      min: 32
+      max: 40
+    breakoutThreshold:
+      type: float
+      min: 0.0062
+      max: 0.0083
+    rewardRatio:
+      type: float
+      min: 1.07
+      max: 1.45
+    volumeFilter:
+      type: int
+      min: 0
+      max: 1
+    volumeFilterMultiplier:
+      type: float
+      min: 1.0
+      max: 1.5
+    trendSMAPeriod:
+      type: int
+      min: 28
+      max: 38
+    strategyEntryDelayMinutes:
+      type: int
+      min: 22
+      max: 30
+    atrMultiplier:
+      type: float
+      min: 2.5
+      max: 3.0
+    trailActivationR:
+      type: float
+      min: 2.5
+      max: 3.0
+    trailDiscreteStepR:
+      type: float
+      min: 0.28
+      max: 0.40
+    trailStageMax:
+      type: int
+      min: 1
+      max: 3
+    maxEntriesPerTickerPerDay:
+      type: int
+      min: 1
+      max: 3
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+    longOnly: 1
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-momentum-filtered-afternoon.db

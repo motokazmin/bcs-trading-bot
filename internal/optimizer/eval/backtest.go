@@ -38,7 +38,7 @@ func DefaultParamsFromSpace(space *core.SearchSpace) core.ParameterSet {
 	if space == nil {
 		return core.ParameterSet{}
 	}
-	out := make(core.ParameterSet, len(space.Parameters))
+	out := make(core.ParameterSet, len(space.Parameters)+len(space.Fixed))
 	for name, bounds := range space.Parameters {
 		switch bounds.Type {
 		case core.ParamInt:
@@ -49,6 +49,7 @@ func DefaultParamsFromSpace(space *core.SearchSpace) core.ParameterSet {
 			out[name] = (bounds.Min + bounds.Max) / 2
 		}
 	}
+	space.ApplyFixed(out)
 	return out
 }
 

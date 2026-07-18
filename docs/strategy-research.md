@@ -97,22 +97,22 @@ atr≈1.23, RR≈1.27, require_inside_range=false
 | Статус | **FROZEN** — не оптимизировать без явного запроса |
 | Принцип | Momentum breakout + SMA-тренд, **long-only**, входы с 12:30 |
 | Слот | **12:30–18:40** (`session.entry_delay_minutes: 150`) |
-| Champion run | **`mf-wave2-narrow-rerun`** (seed 1) |
-| Expectancy | **+0.18R** |
-| PF | 1.34 |
-| PnL | +11 974 ₽ / ~2 года (~3,0%/год) |
-| WF | **13/23** окон |
-| Сделок | 67 |
+| Champion run | **`mf-longonly-narrow-ws2-seed1`** (seed2 OK) |
+| Expectancy | **+0.23R** |
+| PF | 1.59 |
+| PnL | +12 666 ₽ / ~2 года (~3,2%/год) |
+| WF | **12/23** окон |
+| Сделок | 56 |
 | Тикеры | **MGNT, TATN** |
 | Комиссия | 0,008% за leg |
 
 ```
-lookback=31, breakout≈0.83%, RR≈1.84, trendSMA≈20
-strategyEntryDelay≈24, atr≈2.73, volume_filter=true, long_only=true
+lookback=36, breakout≈0.63%, RR≈1.27, trendSMA≈28
+strategyEntryDelay≈24, atr≈2.85, volume_filter=true, long_only=true
 ```
 
 - Реестр: `results/afternoon/runs-registry.json`
-- Best config: `configs/champions/mf-afternoon-wave2-narrow.yaml`
+- Best config: `configs/champions/mf-afternoon-longonly-narrow-ws2.yaml`
 - Tickers: `configs/shared/tickers-mf-afternoon-mgnt-tatn.yaml`
 - Подробнее: [`champion-mf-afternoon.md`](champion-mf-afternoon.md)
 
@@ -293,7 +293,7 @@ AFT_STRATEGY=momentum_filtered AFT_RUN_ID=mf-wave1 make optimizer-afternoon
 | `mean_reversion` (matrix) | −17k | без whitelist |
 | `mean_reversion` afternoon (MGNT/ROSN/TATN) | exp −0.01R, −2.6k | **отклонено** 2026-07-11 |
 | `momentum_filtered` (matrix) | −27k | без delay + whitelist |
-| `momentum_filtered` afternoon | **+0.18R**, 13/23 (rerun) | ✅ FROZEN champion |
+| `momentum_filtered` afternoon | **+0.23R**, 12/23 | ✅ FROZEN champion |
 | `momentum_breakout` afternoon (GAZP+CHMF) | exp −0.02R | **отклонено** 2026-07-11 |
 | OR Fade wave1-expanded | **+0.78R** seed1 / +0.14R seed2 | новый universe LKOH/CHMF/MOEX |
 | ORC на 9 тикеров | −280k | whitelist критичен |
@@ -423,7 +423,7 @@ Baseline portfolio (§ C): **~+276k / ~2 года**, **+0,59R**/сделку, **
 ## Открытые задачи (research)
 
 - [x] OR Fade → **FROZEN** (`wave1-conservative-rerun`) — 2026-07-11
-- [x] MF Afternoon → **FROZEN** (`mf-wave2-narrow-rerun`) — 2026-07-11
+- [x] MF Afternoon → **FROZEN** (`mf-longonly-narrow-ws2-seed1`) — 2026-07-18
 - [x] ORC → **FROZEN** (`wave2-rerun`) — 2026-07-11
 - [x] Per-ticker matrix, per-strategy whitelist
 - [x] Комиссия BCS «Трейдер» + commission-rerun champions
