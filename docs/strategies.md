@@ -3,6 +3,7 @@
 Документ описывает архитектуру торговых стратегий, процесс добавления новой и подключение в **боте** (live/paper) и **optimizer** (offline backtest).
 
 **См. также:**
+- [optimizer-modes.md](optimizer-modes.md) — solo (поиск) vs portfolio (единый счёт)
 - [strategy-research.md](strategy-research.md) — FROZEN portfolio, champions, методология исследований
 - [system.md](system.md) — риск, lifecycle сделки, paper trading
 - [champion-baseline.md](champion-baseline.md) — baseline доходности для сравнения с paper/live

@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/marketdata"
+	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/optimizer/eval"
-	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/pkg/models"
 )
 
@@ -19,7 +20,7 @@ func TestPipelineIntegration(t *testing.T) {
 	dir := t.TempDir()
 	candles := syntheticCandles("TEST", 5*24*12) // ~5 дней M5
 	path := filepath.Join(dir, "TEST.csv")
-	if err := optimizer.WriteCSV(path, candles); err != nil {
+	if err := marketdata.WriteCSV(path, candles); err != nil {
 		t.Fatalf("write csv: %v", err)
 	}
 
@@ -81,15 +82,15 @@ fixed:
 	to := candles[len(candles)-1].Timestamp.Add(time.Minute)
 
 	settings := eval.RunSettings{
-		Tickers:            []string{"TEST"},
-		StopMode:           "atr",
-		ClassCode:          "TQBR",
-		CandleTimeframe:    "M5",
-		Deposit:            100_000,
+		Tickers:         []string{"TEST"},
+		StopMode:        "atr",
+		ClassCode:       "TQBR",
+		CandleTimeframe: "M5",
+		Deposit:         100_000,
 		StepPriceValue:  1.0,
 		Costs:           costs.Config{CommissionPerLot: 0.10},
 		MinTrades:       1,
-		Session:            optimizer.DefaultSession(),
+		Session:         optimizer.DefaultSession(),
 	}
 
 	evaluator := eval.NewEvaluator(settings, space, data)

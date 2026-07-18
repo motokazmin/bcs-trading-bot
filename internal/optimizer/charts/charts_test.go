@@ -307,7 +307,7 @@ func TestTradeChartWindow(t *testing.T) {
 	if !from.Equal(t0.Add(-padding)) {
 		t.Fatalf("from: got %v want %v", from, t0.Add(-padding))
 	}
-	if !to.Equal(t1.Add(2*time.Hour).Add(padding)) {
+	if !to.Equal(t1.Add(2 * time.Hour).Add(padding)) {
 		t.Fatalf("to: got %v", to)
 	}
 }

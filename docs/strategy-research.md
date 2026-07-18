@@ -10,6 +10,7 @@
 
 | Задача | Документ / путь |
 |--------|-----------------|
+| Solo vs portfolio (режимы optimizer) | [`optimizer-modes.md`](optimizer-modes.md) |
 | Paper portfolio | `configs/runs/portfolio-paper.yaml` |
 | Baseline доходности (live) | [`champion-baseline.md`](champion-baseline.md) |
 | После paper/live — рост доходности | [Post-validation](#post-validation-повышение-доходности) (ниже) |

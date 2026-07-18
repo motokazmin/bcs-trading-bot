@@ -15,8 +15,8 @@ import (
 
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/optimizer/data"
 	evalpkg "bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
@@ -30,12 +30,12 @@ const chartWindowPadding = 5 * 24 * time.Hour
 
 // ChartsOptions — параметры генерации графиков по эксперименту.
 type ChartsOptions struct {
-	Experiment       string
-	ResultsDir       string
-	ExperimentDir    string // если задан — используется напрямую (например output optimizer run)
-	HistoryDir       string
-	Costs            costs.Config
-	ClassCode        string
+	Experiment    string
+	ResultsDir    string
+	ExperimentDir string // если задан — используется напрямую (например output optimizer run)
+	HistoryDir    string
+	Costs         costs.Config
+	ClassCode     string
 }
 
 // ChartsBatchResult — итог пакетной генерации графиков.
@@ -92,7 +92,7 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 		return nil, err
 	}
 
-	from, to, ok := data.CandleDataRange(candleData)
+	from, to, ok := marketdata.CandleDataRange(candleData)
 	if !ok {
 		return nil, fmt.Errorf("нет свечей для графиков")
 	}
@@ -387,7 +387,7 @@ type chartStatItem struct {
 func BuildChartHTML(meta ChartMeta, candles []models.Candle, trades []models.ClosedTrade, costsCfg costs.Config, classCode string) ([]byte, error) {
 	visible := candles
 	if windowFrom, windowTo, ok := tradeChartWindow(trades, chartWindowPadding); ok {
-		visible = data.FilterCandles(candles, windowFrom, windowTo.Add(5*time.Minute))
+		visible = marketdata.FilterCandles(candles, windowFrom, windowTo.Add(5*time.Minute))
 		meta.PeriodFrom = windowFrom
 		meta.PeriodTo = windowTo
 	}

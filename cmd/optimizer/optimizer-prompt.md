@@ -40,11 +40,12 @@ internal/optimizer/
     report.go                — экспорт результатов (JSON + best-config)
   charts/
     charts.go                — HTML-графики по сделкам
-  data/
-    tickers_config.go        — tickers.yaml
-    fetch_config.go          — fetch/retry/throttle конфиг
-  history.go, fetch.go       — CSV + BCS API для истории
   two_phase.go               — lean → full universe
+internal/marketdata/
+  fetch.go, sync.go          — BCS candles-chart API + инкрементальный sync
+  csv.go                     — CSV read/write/range/filter
+  tickers.go                 — tickers.yaml
+  fetch_config.go, throttle.go
 ```
 
 ## Функциональность
@@ -53,7 +54,7 @@ internal/optimizer/
 
 Читает историю котировок из локального хранилища в формате **CSV**
 (`data/history/{ticker}.csv`). Загрузка истории с BCS — отдельная подкоманда
-`optimizer fetch-history`, результат сохраняется в тот же CSV-формат.
+`optimizer sync-history`, результат сохраняется в тот же CSV-формат.
 
 Схема колонок: `timestamp, open, high, low, close, volume` — точный формат
 (разделитель, формат timestamp, наличие заголовка) задокументировать в

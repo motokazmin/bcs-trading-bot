@@ -1,7 +1,7 @@
 # Как устроена торговая система
 
 Философия, риск-менеджмент, инструменты и жизненный цикл сделки.  
-**Не roadmap** — план работ: [Roadmap.md](../Roadmap.md). **Champions и исследования:** [strategy-research.md](strategy-research.md).
+**Не roadmap** — план работ: [Roadmap.md](../Roadmap.md). **Champions и исследования:** [strategy-research.md](strategy-research.md). **Режимы optimizer:** [optimizer-modes.md](optimizer-modes.md).
 
 ---
 

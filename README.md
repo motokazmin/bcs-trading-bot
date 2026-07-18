@@ -33,7 +33,7 @@ Paper trading: `configs/runs/portfolio-paper.yaml` (единый virtual-счё�
 
 Baseline доходности (для сравнения с live): [`docs/champion-baseline.md`](docs/champion-baseline.md) § C.
 
-Документация: [`docs/strategy-research.md`](docs/strategy-research.md) · [`docs/system.md`](docs/system.md) · [`docs/strategies.md`](docs/strategies.md)
+Документация: [`docs/strategy-research.md`](docs/strategy-research.md) · [`docs/optimizer-modes.md`](docs/optimizer-modes.md) · [`docs/system.md`](docs/system.md) · [`docs/strategies.md`](docs/strategies.md)
 
 ---
 
@@ -112,7 +112,7 @@ make sync-history      # догрузить CSV-историю для optimizer 
 make optimizer-orc     # ORC (FROZEN — только по запросу)
 ```
 
-Переменные optimizer: `OPTIMIZER_PARALLEL`, `OPTIMIZER_TWO_PHASE=1`, `SEARCH_SPACE`. Документация: [`cmd/optimizer/README.md`](cmd/optimizer/README.md) ([подход](cmd/optimizer/README.md#подход), [архитектура](cmd/optimizer/README.md#архитектура-для-разработчиков)).
+Переменные optimizer: `OPTIMIZER_PARALLEL`, `OPTIMIZER_TWO_PHASE=1`, `SEARCH_SPACE`. Документация: [`cmd/optimizer/README.md`](cmd/optimizer/README.md) · режимы solo/portfolio: [`docs/optimizer-modes.md`](docs/optimizer-modes.md).
 
 Требуется `export BCS_REFRESH_TOKEN=...` (см. ниже).
 
@@ -514,6 +514,7 @@ bcs-trading-bot/
 │   └── strategies/                    # Search space для optimizer
 ├── docs/
 │   ├── strategy-research.md           # Champions, методология optimizer
+│   ├── optimizer-modes.md             # Solo vs portfolio режимы
 │   ├── system.md                      # Философия, риск, lifecycle сделки
 │   ├── champion-*.md                  # Детали champions
 │   ├── champion-baseline.md           # Baseline доходности для live

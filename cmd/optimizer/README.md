@@ -4,7 +4,7 @@ Offline-подбор гиперпараметров **акций TQBR**: walk-fo
 
 > **Статус (2026-07-11):** portfolio **FROZEN** — ORC, OR Fade, MF Afternoon.  
 > Optimizer по champions — **только по явному запросу**.  
-> Методология и результаты: [`docs/strategy-research.md`](../../docs/strategy-research.md) · baseline для live: [`docs/champion-baseline.md`](../../docs/champion-baseline.md).
+> Режимы solo / portfolio: [`docs/optimizer-modes.md`](../../docs/optimizer-modes.md) · методология: [`docs/strategy-research.md`](../../docs/strategy-research.md) · baseline: [`docs/champion-baseline.md`](../../docs/champion-baseline.md).
 
 Отдельный бинарник (`bin/optimizer`). Тот же код стратегий и тот же цикл сделки, что в боте: `internal/simulation.PortfolioRunner` ≈ `engine.TickerWorker`.
 
@@ -16,6 +16,7 @@ Offline-подбор гиперпараметров **акций TQBR**: walk-fo
 - [Команды и флаги](#команды-и-флаги)
 - [Scoring и комиссия](#scoring-и-комиссия)
 - [Архитектура](#архитектура)
+- [Режимы solo / portfolio](../../docs/optimizer-modes.md)
 - [Как добавить стратегию](../../docs/strategies.md)
 
 ---
@@ -156,7 +157,6 @@ optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml \
   -date-from 2024-07-04 -date-to 2026-07-03
   # единый счёт 200k: все experiments, общий CB, one-position-per-ticker
 optimizer charts -experiment orc-wave2   # или -all -results-dir results/orc/wave2-rerun
-optimizer fetch-history ...              # legacy: полная перезагрузка
 optimizer run -h
 ```
 
@@ -180,7 +180,7 @@ cmd/optimizer/main.go
   ├── run      → eval.Evaluator → core/* (search, windows, score)
   │              → report/* (JSON, best-config)
   │              → simulation.PortfolioRunner
-  ├── sync-history / fetch-history → data/*, BCS API → CSV
+  ├── sync-history → marketdata (BCS API → CSV)
   └── charts   → charts/* (HTML + export)
 ```
 
@@ -190,7 +190,7 @@ cmd/optimizer/main.go
 | `internal/optimizer/eval` | Trials, parallel run, backtest |
 | `internal/optimizer/report` | JSON, best-config, top-N |
 | `internal/optimizer/charts` | Графики и export для ИИ |
-| `internal/optimizer/data` | tickers.yaml, sync |
+| `internal/marketdata` | CSV-история, sync с BCS, tickers.yaml |
 
 **Design:** no auto-deploy · `Searcher` — задел под TPE/Bayesian (`core/search.go`).
 

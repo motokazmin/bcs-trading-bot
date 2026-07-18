@@ -65,9 +65,9 @@ func RunOptimizationWithConfig(ctx context.Context, evaluator *Evaluator, space 
 	logx.Info("optimizer: старт %d trials, %d walk-forward окон, parallel=%d", trials, len(windows), parallel)
 
 	var (
-		doneCount  atomic.Int32
-		bestMu     sync.Mutex
-		bestScore  = math.Inf(-1)
+		doneCount atomic.Int32
+		bestMu    sync.Mutex
+		bestScore = math.Inf(-1)
 		// Сериализует вывод прогресса, чтобы логи из goroutine не перемешивались.
 		progressMu sync.Mutex
 	)

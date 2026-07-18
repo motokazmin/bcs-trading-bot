@@ -11,11 +11,11 @@ import (
 
 // BacktestResult — метрики одного backtest-прогона.
 type BacktestResult struct {
-	StrategyID string    `json:"strategy_id"`
-	From       time.Time `json:"from"`
-	To         time.Time `json:"to"`
+	StrategyID string       `json:"strategy_id"`
+	From       time.Time    `json:"from"`
+	To         time.Time    `json:"to"`
 	Metrics    core.Metrics `json:"metrics"`
-	NumTrades  int       `json:"num_trades"`
+	NumTrades  int          `json:"num_trades"`
 }
 
 // RunBacktest прогоняет одну конфигурацию на периоде.

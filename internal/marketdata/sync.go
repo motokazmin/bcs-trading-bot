@@ -1,4 +1,4 @@
-package optimizer
+package marketdata
 
 import (
 	"context"
@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/bcs"
-	"bcs-trading-bot/internal/config"
-	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
 )
@@ -22,7 +20,7 @@ type SyncOptions struct {
 	TimeFrame           string
 	InitialHistoryYears int
 	Tickers             []string
-	Fetch               data.FetchConfig
+	Fetch               FetchConfig
 	ParallelTickers     int
 	Now                 time.Time // для тестов; zero = time.Now()
 }
@@ -39,7 +37,7 @@ func SyncHistory(ctx context.Context, client *bcs.BCSClient, opts SyncOptions) e
 		opts.InitialHistoryYears = defaultInitialHistoryYears
 	}
 	fetchCfg := opts.Fetch.Normalized()
-	fetchCfg.Throttle = data.NewAdaptiveThrottle(fetchCfg.ChunkDelay, fetchCfg.MaxChunkDelay)
+	fetchCfg.Throttle = NewAdaptiveThrottle(fetchCfg.ChunkDelay, fetchCfg.MaxChunkDelay)
 
 	now := opts.Now
 	if now.IsZero() {
@@ -118,7 +116,7 @@ func tickerNamesFromErrors(errs []error) []string {
 	return out
 }
 
-func syncOneTicker(ctx context.Context, client *bcs.BCSClient, opts SyncOptions, fetchCfg data.FetchConfig, ticker string, now time.Time, barDur time.Duration) error {
+func syncOneTicker(ctx context.Context, client *bcs.BCSClient, opts SyncOptions, fetchCfg FetchConfig, ticker string, now time.Time, barDur time.Duration) error {
 	path := filepath.Join(opts.OutputDir, ticker+".csv")
 	existing, err := TryLoadCSV(path, ticker)
 	if err != nil {
@@ -168,37 +166,4 @@ func syncFrom(existing []models.Candle, now time.Time, initialYears int, barDur 
 		return time.Time{}, syncSkip
 	}
 	return from, syncIncremental
-}
-
-// FetchHistory — полная перезагрузка диапазона (legacy, для отладки).
-func FetchHistory(ctx context.Context, client *bcs.BCSClient, tickers []string, classCode, timeFrame, outputDir string, from, to time.Time, fetchCfg data.FetchConfig) error {
-	fetchCfg = fetchCfg.Normalized()
-	fetchCfg.Throttle = data.NewAdaptiveThrottle(fetchCfg.ChunkDelay, fetchCfg.MaxChunkDelay)
-
-	var errs []error
-	for i, ticker := range tickers {
-		if i > 0 {
-			if err := sleepCtx(ctx, fetchCfg.TickerDelay); err != nil {
-				return err
-			}
-		}
-		path := filepath.Join(outputDir, ticker+".csv")
-		added, err := fetchTickerRange(ctx, client, path, ticker, classCode, timeFrame, nil, from, to, fetchCfg)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", ticker, err))
-			continue
-		}
-		fmt.Printf("saved %d candles -> %s\n", added, path)
-	}
-	return finishSyncHistory(errs, len(tickers))
-}
-
-// DefaultSession возвращает session config по умолчанию.
-func DefaultSession() config.SessionConfig {
-	return config.SessionConfig{
-		Timezone:          "Europe/Moscow",
-		EODCloseTime:      "18:40",
-		SessionOpenTime:   "10:00",
-		EntryDelayMinutes: 0,
-	}
 }

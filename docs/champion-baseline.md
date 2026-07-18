@@ -2,6 +2,8 @@
 
 **Зачем:** эталонные метрики walk-forward backtest после commission-rerun (2026-07-11). Сверяйте paper и real с этими цифрами.
 
+Solo vs shared (portfolio-backtest): [`optimizer-modes.md`](optimizer-modes.md).
+
 **Источник:** `results/*/runs-registry.json`, прогоны `*-rerun`, seed 1. Инструменты: **акции TQBR** (MOEX). Комиссия: **0,008% за leg** (BCS «Трейдер»). Депозит в backtest: **200 000 ₽**, риск **0,5%** на сделку.
 
 **Ограничения модели:** fill по **close** свечи, **без проскальзывания**; лимит на вход в live не моделируется. Портфельная сумма — **оценка** (три отдельных backtest'а на одном депозите, слоты по времени не пересекаются).

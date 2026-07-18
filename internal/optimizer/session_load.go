@@ -36,3 +36,13 @@ func LoadSessionFromStrategyFile(path string) (config.SessionConfig, error) {
 	}
 	return s, nil
 }
+
+// DefaultSession возвращает session config по умолчанию.
+func DefaultSession() config.SessionConfig {
+	return config.SessionConfig{
+		Timezone:          "Europe/Moscow",
+		EODCloseTime:      "18:40",
+		SessionOpenTime:   "10:00",
+		EntryDelayMinutes: 0,
+	}
+}

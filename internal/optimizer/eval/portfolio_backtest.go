@@ -8,8 +8,8 @@ import (
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/simulation"
 	"bcs-trading-bot/internal/storage/memory"
@@ -32,10 +32,10 @@ type PortfolioBacktestResult struct {
 
 // ExperimentTradeStats — разбивка сделок по experiment id.
 type ExperimentTradeStats struct {
-	Trades       int
-	NetPnL       float64
-	ExpectancyR  float64
-	WinRate      float64
+	Trades      int
+	NetPnL      float64
+	ExpectancyR float64
+	WinRate     float64
 }
 
 // PortfolioBacktestOptions — параметры прогона portfolio-backtest.
@@ -91,7 +91,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 
 	from, to := opts.From, opts.To
 	if from.IsZero() || to.IsZero() {
-		dataFrom, dataTo, ok := data.CandleDataRange(candleData)
+		dataFrom, dataTo, ok := marketdata.CandleDataRange(candleData)
 		if !ok {
 			return PortfolioBacktestResult{}, fmt.Errorf("portfolio-backtest: пустая история")
 		}
@@ -221,7 +221,7 @@ func detailedTradeStats(trades []models.ClosedTrade, costsCfg costs.Config, clas
 
 func statsByExperiment(trades []models.ClosedTrade, costsCfg costs.Config, classCode string) map[string]ExperimentTradeStats {
 	type acc struct {
-		n, wins int
+		n, wins   int
 		net, sumR float64
 	}
 	by := make(map[string]*acc)

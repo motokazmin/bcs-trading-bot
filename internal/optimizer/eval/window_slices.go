@@ -1,8 +1,8 @@
 package eval
 
 import (
+	"bcs-trading-bot/internal/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/pkg/models"
 )
 
@@ -21,7 +21,7 @@ func BuildWindowCandleSlices(windows []core.Window, tickers []string, candleData
 			if !ok {
 				continue
 			}
-			candles[ticker] = data.FilterCandles(all, w.Start, w.End)
+			candles[ticker] = marketdata.FilterCandles(all, w.Start, w.End)
 		}
 		out[i] = WindowCandleSlices{Candles: candles}
 	}

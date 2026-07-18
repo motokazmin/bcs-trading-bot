@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/costs"
-	"bcs-trading-bot/internal/optimizer"
+	"bcs-trading-bot/internal/marketdata"
 	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/pkg/models"
 )
@@ -14,9 +14,9 @@ import (
 func TestLoadCandleDataSkipsMissing(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "SBER.csv")
-	if err := optimizer.WriteCSV(path, []models.Candle{{
+	if err := marketdata.WriteCSV(path, []models.Candle{{
 		Timestamp: time.Date(2024, 7, 1, 10, 0, 0, 0, time.UTC),
-		Open: 1, High: 2, Low: 0.5, Close: 1.5, Volume: 10,
+		Open:      1, High: 2, Low: 0.5, Close: 1.5, Volume: 10,
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -77,4 +77,3 @@ func TestAggregateTradesSortsAcrossTickersByTime(t *testing.T) {
 		t.Fatalf("MaxDrawdown = %.2f, want %.2f (сделки не отсортированы по ClosedAt across тикеров)", got.MaxDrawdown, wantDD)
 	}
 }
-
