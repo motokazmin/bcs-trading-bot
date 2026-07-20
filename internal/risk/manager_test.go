@@ -55,3 +55,18 @@ func TestCalculatePositionSizeStocksDefaultStep(t *testing.T) {
 		t.Fatalf("position size: got %d, want 500", got)
 	}
 }
+
+func TestCapQuantityByCash(t *testing.T) {
+	if got := risk.CapQuantityByCash(500, 100, 20_000); got != 200 {
+		t.Fatalf("cap: got %d, want 200", got)
+	}
+	if got := risk.CapQuantityByCash(100, 100, 50_000); got != 100 {
+		t.Fatalf("no-op: got %d, want 100", got)
+	}
+	if got := risk.CapQuantityByCash(100, 1658, 1000); got != 0 {
+		t.Fatalf("too little cash: got %d, want 0", got)
+	}
+	if got := risk.CapQuantityByCash(50, 100, 0); got != 0 {
+		t.Fatalf("zero cash: got %d, want 0", got)
+	}
+}

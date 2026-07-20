@@ -213,6 +213,17 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		return
 	}
 
+	// BUY: risk-sizing не знает свободный кэш — режем notional до GetBalance.
+	if signal.Direction == "BUY" {
+		if bal, err := executor.GetBalance(ctx); err == nil {
+			quantity = risk.CapQuantityByCash(quantity, signal.Price, bal)
+			if quantity <= 0 {
+				logx.SignalRejected(w.label, signal.Direction, "недостаточно средств")
+				return
+			}
+		}
+	}
+
 	tradeRisk := math.Abs(signal.Price-signal.StopLoss) * float64(quantity) * w.stepPriceValue
 	if w.globalRisk != nil {
 		if err := w.globalRisk.PreTradeCheck(tradeRisk); err != nil {

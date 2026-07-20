@@ -17,7 +17,9 @@ func TestStoreSaveClosedTrade(t *testing.T) {
 	}
 	defer store.Close()
 
-	openedAt := time.Date(2026, 6, 25, 10, 15, 0, 0, time.UTC)
+	msk := time.FixedZone("MSK", 3*3600)
+	// 13:15 MSK == 10:15 UTC — в БД должно лечь UTC wall clock.
+	openedAt := time.Date(2026, 6, 25, 13, 15, 0, 0, msk)
 	closedAt := openedAt.Add(5 * time.Minute)
 
 	trade := models.ClosedTrade{
@@ -68,23 +70,25 @@ func TestStoreSaveClosedTrade(t *testing.T) {
 	}
 
 	var got struct {
-		tradingMode  string
-		experimentID string
-		stopMode     string
-		ticker       string
-		grossPnL     float64
-		trailStage   int
-		mfeInR       float64
-		maeInR       float64
+		tradingMode   string
+		experimentID  string
+		stopMode      string
+		ticker        string
+		grossPnL      float64
+		trailStage    int
+		mfeInR        float64
+		maeInR        float64
 		breakoutUpper float64
 		breakoutLower float64
+		openedAt      string
+		closedAt      string
 	}
 	err = store.db.QueryRow(`
 		SELECT trading_mode, experiment_id, stop_mode, ticker, gross_pnl, trail_stage,
-		       mfe_in_r, mae_in_r, breakout_upper, breakout_lower
+		       mfe_in_r, mae_in_r, breakout_upper, breakout_lower, opened_at, closed_at
 		FROM closed_trades WHERE id = 1`,
 	).Scan(&got.tradingMode, &got.experimentID, &got.stopMode, &got.ticker, &got.grossPnL, &got.trailStage,
-		&got.mfeInR, &got.maeInR, &got.breakoutUpper, &got.breakoutLower)
+		&got.mfeInR, &got.maeInR, &got.breakoutUpper, &got.breakoutLower, &got.openedAt, &got.closedAt)
 	if err != nil {
 		t.Fatalf("select: %v", err)
 	}
@@ -92,6 +96,12 @@ func TestStoreSaveClosedTrade(t *testing.T) {
 		got.ticker != "SBER" || got.grossPnL != 30.0 || got.trailStage != 1 || got.mfeInR != 2.2 ||
 		got.maeInR != 0.8 || got.breakoutUpper != 104.5 || got.breakoutLower != 98.0 {
 		t.Fatalf("unexpected row: %+v", got)
+	}
+	if got.openedAt != "2026-06-25 10:15:00" {
+		t.Fatalf("opened_at UTC: got %q, want 2026-06-25 10:15:00", got.openedAt)
+	}
+	if got.closedAt != "2026-06-25 10:20:00" {
+		t.Fatalf("closed_at UTC: got %q, want 2026-06-25 10:20:00", got.closedAt)
 	}
 }
 
@@ -110,4 +120,60 @@ func TestOpenIdempotentMigrations(t *testing.T) {
 		t.Fatalf("second open: %v", err)
 	}
 	store2.Close()
+}
+
+func TestMigration005NormalizesLocalClosedAt(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "trades.db")
+
+	store, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer store.Close()
+
+	if _, err := store.db.Exec(`DROP TABLE IF EXISTS _migration_005_utc_times`); err != nil {
+		t.Fatalf("drop marker: %v", err)
+	}
+
+	// Старый баг: opened UTC, closed Local MSK (+3h), hold корректный.
+	_, err = store.db.Exec(`
+		INSERT INTO closed_trades (
+			trading_mode, run_id, experiment_id, stop_mode, recorded_at,
+			ticker, class_code, step_price_value, direction, quantity,
+			entry_price, exit_price, initial_stop_loss, initial_take_profit, final_stop_loss, r_distance,
+			gross_pnl, pnl_r, close_reason, trail_stage, is_winner,
+			opened_at, closed_at, hold_seconds, trading_date,
+			candle_timeframe, lookback, risk_per_trade_pct, deposit_per_ticker
+		) VALUES (
+			'virtual', 'run', 'exp', 'atr', '2026-07-20 22:42:55',
+			'CHMF', 'TQBR', 1, 'BUY', 1,
+			100, 101, 99, 102, 99, 1,
+			1, 1, 'TP', 0, 1,
+			'2026-07-20 18:15:00', '2026-07-20 22:42:55', 5275, '2026-07-20',
+			'M5', 0, 0.5, 200000
+		)`)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	if err := applyMigration005(store.db); err != nil {
+		t.Fatalf("migration: %v", err)
+	}
+
+	var closedAt, recordedAt string
+	if err := store.db.QueryRow(`SELECT closed_at, recorded_at FROM closed_trades WHERE id = 1`).Scan(&closedAt, &recordedAt); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	// 18:15:00 + 5275s = 19:42:55 UTC
+	if closedAt != "2026-07-20 19:42:55" {
+		t.Fatalf("closed_at: got %q, want 2026-07-20 19:42:55", closedAt)
+	}
+	if recordedAt != "2026-07-20 19:42:55" {
+		t.Fatalf("recorded_at: got %q, want 2026-07-20 19:42:55", recordedAt)
+	}
+
+	if err := applyMigration005(store.db); err != nil {
+		t.Fatalf("idempotent migration: %v", err)
+	}
 }

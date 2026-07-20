@@ -80,12 +80,7 @@ var templateFuncs = template.FuncMap{
 	"fmtMoney": func(v float64) string {
 		return fmt.Sprintf("%.2f", v)
 	},
-	"fmtTime": func(t time.Time) string {
-		if t.IsZero() {
-			return "—"
-		}
-		return t.Format("02.01 15:04")
-	},
+	"fmtTime": formatAdminTimeMSK,
 	"fmtHold": func(sec int) string {
 		return formatHoldDuration(sec)
 	},
@@ -100,6 +95,26 @@ var templateFuncs = template.FuncMap{
 		}
 		return sum
 	},
+}
+
+func formatAdminTimeMSK(t time.Time) string {
+	if t.IsZero() {
+		return "—"
+	}
+	return t.In(adminMoscow()).Format("02.01 15:04")
+}
+
+var adminMoscowLoc *time.Location
+
+func adminMoscow() *time.Location {
+	if adminMoscowLoc == nil {
+		loc, err := time.LoadLocation("Europe/Moscow")
+		if err != nil {
+			loc = time.FixedZone("MSK", 3*3600)
+		}
+		adminMoscowLoc = loc
+	}
+	return adminMoscowLoc
 }
 
 func formatHoldDuration(sec int) string {

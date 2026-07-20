@@ -65,7 +65,8 @@ func (s *Store) SaveClosedTrade(_ context.Context, trade models.ClosedTrade) err
 		stopMode = "range"
 	}
 
-	now := time.Now().Format(timeLayout)
+	// Все времена в БД — naive UTC (wall clock UTC), без локальной таймзоны процесса.
+	now := time.Now().UTC().Format(timeLayout)
 
 	_, err := s.db.Exec(`
 		INSERT INTO closed_trades (
@@ -104,8 +105,8 @@ func (s *Store) SaveClosedTrade(_ context.Context, trade models.ClosedTrade) err
 		trade.CloseReason,
 		trade.TrailStage,
 		isWinner,
-		trade.OpenedAt.Format(timeLayout),
-		trade.ClosedAt.Format(timeLayout),
+		trade.OpenedAt.UTC().Format(timeLayout),
+		trade.ClosedAt.UTC().Format(timeLayout),
 		trade.HoldSeconds,
 		trade.TradingDate,
 		trade.CandleTimeframe,

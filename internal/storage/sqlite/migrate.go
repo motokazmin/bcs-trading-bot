@@ -19,6 +19,9 @@ func applyMigrations(db *sql.DB) error {
 	if err := applyMigration004(db); err != nil {
 		return fmt.Errorf("миграция 004: %w", err)
 	}
+	if err := applyMigration005(db); err != nil {
+		return fmt.Errorf("миграция 005: %w", err)
+	}
 	return nil
 }
 
@@ -49,6 +52,37 @@ func applyMigration004(db *sql.DB) error {
 		return err
 	}
 	return addColumnIfMissing(db, "closed_trades", "breakout_lower", `REAL NOT NULL DEFAULT 0`)
+}
+
+// applyMigration005 чинит closed_at/recorded_at, сохранённые через Format() в Local (MSK),
+// тогда как opened_at уже был UTC. Эталон — hold_seconds (считается по абсолютному Instant).
+func applyMigration005(db *sql.DB) error {
+	var name string
+	err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='_migration_005_utc_times'`).Scan(&name)
+	if err == nil {
+		return nil
+	}
+	if err != sql.ErrNoRows {
+		return fmt.Errorf("check migration marker: %w", err)
+	}
+
+	_, err = db.Exec(`
+		UPDATE closed_trades
+		SET
+			recorded_at = datetime(
+				recorded_at,
+				printf('%+d seconds', hold_seconds - (strftime('%s', closed_at) - strftime('%s', opened_at)))
+			),
+			closed_at = datetime(opened_at, printf('+%d seconds', hold_seconds))
+		WHERE ABS((strftime('%s', closed_at) - strftime('%s', opened_at)) - hold_seconds) > 30`)
+	if err != nil {
+		return fmt.Errorf("normalize closed_at: %w", err)
+	}
+
+	if _, err := db.Exec(`CREATE TABLE _migration_005_utc_times (applied_at TEXT NOT NULL DEFAULT (datetime('now')))`); err != nil {
+		return fmt.Errorf("migration marker: %w", err)
+	}
+	return nil
 }
 
 func addColumnIfMissing(db *sql.DB, table, column, definition string) error {
