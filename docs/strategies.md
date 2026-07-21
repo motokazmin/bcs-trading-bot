@@ -167,6 +167,8 @@ Snapshot параметров: `configs/champions/*.yaml` (source of truth в gi
 | MF Afternoon | `momentum_filtered` | 12:30–18:40 | MGNT, TATN |
 | Evening Session ORC | `session_orc` | 19:05–23:50 | NVTK, GAZP, ROSN, CHMF, MOEX, TATN, MGNT |
 
+Первые входы: ORC/Fade/Session ORC — после `orb_minutes` от открытия слота (не после `lookback`×M5). MF — после `entry_delay` (~12:30) и при достаточном буфере под свой `lookback`. Глобального warmup «100 минут» у бота нет.
+
 Подробнее: [strategy-research.md](strategy-research.md).
 
 Список зарегистрированных ID в рантайме:

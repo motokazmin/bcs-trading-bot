@@ -241,7 +241,15 @@ go run ./cmd/bot
 10:00:02 [WS] подписка 10 инструмент(ов) [SBER GAZP ...] — свечи M5 + котировки
 ```
 
-После старта бот **молчит**, пока не накопится история свечей (`strategy.lookback` баров, по умолчанию 20 × M5 ≈ **100 минут** с начала основной сессии) и не появится сигнал пробоя.
+После старта бот сразу принимает свечи WebSocket. **Отдельного глобального warmup «100 минут» нет** — момент первых входов задаёт стратегия и сессия:
+
+| Стратегия (FROZEN) | Когда возможны входы |
+|---|---|
+| Session ORC (morning/evening) | После `orb_minutes` от `session_open_time` эксперимента (напр. morning: OR ~14 мин с 07:00) |
+| ORC / OR Fade (main) | После `orb_minutes` от открытия слота (обычно с 10:00) |
+| MF Afternoon | Не раньше `entry_delay_minutes` (~12:30) и когда в буфере набралось `lookback` баров для окна пробоя |
+
+`strategy.lookback` — окно high/low у momentum-семейства; воркер его как таймер старта **не** использует. ORC/Fade ждут `orb_minutes`, не lookback.
 
 В `session.session_open_time` (по умолчанию 10:00 МСК) сбрасывается дневной лимит убытков:
 
@@ -358,7 +366,7 @@ go run ./cmd/bot
 | `risk.max_daily_loss_percent` | `2` | % от депозита, если `max_daily_loss` не задан |
 | `risk.risk_per_trade_percent` | `0.5` | Риск на сделку (% депозита) |
 | `strategy.type` | `momentum_breakout` | ID стратегии — см. [docs/strategies.md](docs/strategies.md): `opening_range_continuation`, `opening_range_fade`, `momentum_filtered`, … |
-| `strategy.lookback` | `20` | Окно свечей стратегии |
+| `strategy.lookback` | `20` | Окно баров для momentum/MF (пробой high/low). Не warmup всего бота; ORC/Fade его не ждут |
 | `strategy.stop_mode` | `range` | `range` — стоп от половины диапазона; `atr` — ATR × multiplier |
 | `strategy.atr_period` | `14` | Период ATR (для `stop_mode: atr`) |
 | `strategy.atr_multiplier` | `2.0` | Множитель ATR для ширины стопа |

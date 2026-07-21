@@ -1,5 +1,9 @@
 {{define "filters"}}
-<form class="filters" method="get" id="filters-form">
+<form class="filters" method="get" id="filters-form"
+      data-range-from="{{.DateRange.From}}"
+      data-range-to="{{.DateRange.To}}"
+      data-trade-count="{{.Summary.TradeCount}}">
+  <input type="hidden" name="period" id="period-intent" value="">
   <label>Период
     <select id="period-select">
       <option value="all">Все</option>
@@ -21,14 +25,6 @@
   <button type="submit">Применить</button>
 </form>
 
-<div id="archive-comment-panel" class="archive-comment-panel" hidden>
-  <div class="archive-comment-header">
-    <span class="archive-comment-title" id="archive-comment-title"></span>
-    <button type="button" class="btn archive-comment-toggle" id="archive-comment-toggle" aria-expanded="true">Свернуть</button>
-  </div>
-  <div class="archive-comment-body" id="archive-comment-body"></div>
-</div>
-
 <div class="modal-overlay" id="archive-modal" hidden>
   <div class="modal" role="dialog" aria-labelledby="archive-modal-title">
     <h2 id="archive-modal-title">Архивировать период</h2>
@@ -48,6 +44,7 @@
 (() => {
   const form = document.getElementById('filters-form');
   const periodSelect = document.getElementById('period-select');
+  const periodIntent = document.getElementById('period-intent');
   const dateFrom = document.getElementById('date-from');
   const dateTo = document.getElementById('date-to');
   const archiveBtn = document.getElementById('archive-btn');
@@ -57,10 +54,6 @@
   const cancelBtn = document.getElementById('archive-cancel');
   const saveBtn = document.getElementById('archive-save');
   const errorEl = document.getElementById('archive-error');
-  const commentPanel = document.getElementById('archive-comment-panel');
-  const commentTitle = document.getElementById('archive-comment-title');
-  const commentBody = document.getElementById('archive-comment-body');
-  const commentToggle = document.getElementById('archive-comment-toggle');
 
   let archives = [];
 
@@ -72,11 +65,50 @@
     return `${yyyy}-${mm}-${dd}`;
   }
 
-  function findMatchingArchive() {
-    return archives.find((a) => a.date_from === dateFrom.value && a.date_to === dateTo.value) || null;
+  function periodFromURL() {
+    return new URLSearchParams(window.location.search).get('period') || '';
   }
 
+  function setPeriodIntent(value) {
+    periodIntent.value = value || '';
+  }
+
+  // Диапазон записей на экране: явный фильтр С/По, иначе фактический DateRange выборки.
+  function effectiveArchiveRange() {
+    if (dateFrom.value && dateTo.value) {
+      return { from: dateFrom.value, to: dateTo.value };
+    }
+    return {
+      from: form.dataset.rangeFrom || '',
+      to: form.dataset.rangeTo || '',
+    };
+  }
+
+  function tradeCountOnScreen() {
+    const n = parseInt(form.dataset.tradeCount || '0', 10);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function isValidPeriodIntent(intent) {
+    if (!intent) {
+      return false;
+    }
+    if (intent === 'all' || intent === 'today') {
+      return true;
+    }
+    if (archives.some((a) => a.id === intent)) {
+      return true;
+    }
+    // Архивы ещё не загружены — доверяем period из URL до loadArchives.
+    return archives.length === 0;
+  }
+
+  // Явный выбор из URL важнее совпадения дат (Сегодня vs архив на ту же дату).
   function currentPeriodValue() {
+    const intent = periodFromURL() || periodIntent.value;
+    if (isValidPeriodIntent(intent)) {
+      return intent;
+    }
     if (!dateFrom.value && !dateTo.value) {
       return 'all';
     }
@@ -84,45 +116,17 @@
     if (dateFrom.value === today && dateTo.value === today) {
       return 'today';
     }
-    return findMatchingArchive()?.id || '';
-  }
-
-  function setCommentExpanded(expanded) {
-    commentBody.hidden = !expanded;
-    commentToggle.textContent = expanded ? 'Свернуть' : 'Развернуть';
-    commentToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-  }
-
-  function updateArchiveComment() {
-    const archive = findMatchingArchive();
-    if (!archive?.comment) {
-      commentPanel.hidden = true;
-      commentTitle.textContent = '';
-      commentBody.textContent = '';
-      return;
-    }
-    commentTitle.textContent = archive.name;
-    commentBody.textContent = archive.comment;
-    commentPanel.hidden = false;
-    setCommentExpanded(true);
+    const archive = archives.find((a) => a.date_from === dateFrom.value && a.date_to === dateTo.value);
+    return archive ? archive.id : '';
   }
 
   function updateArchiveBtn() {
-    archiveBtn.disabled = !(dateFrom.value && dateTo.value);
-  }
-
-  function syncPeriodSelect() {
-    const value = currentPeriodValue();
-    if (value) {
-      periodSelect.value = value;
-      return;
-    }
-    // Произвольные даты С/По — без выбранного пресета.
-    periodSelect.selectedIndex = -1;
+    const range = effectiveArchiveRange();
+    archiveBtn.disabled = !(range.from && range.to && tradeCountOnScreen() > 0);
   }
 
   function renderPeriodOptions() {
-    const selected = currentPeriodValue() || periodSelect.value;
+    const selected = currentPeriodValue();
     periodSelect.innerHTML = '';
 
     const allOpt = document.createElement('option');
@@ -135,34 +139,55 @@
     todayOpt.textContent = 'Сегодня';
     periodSelect.appendChild(todayOpt);
 
-    for (const a of archives) {
-      const opt = document.createElement('option');
-      opt.value = a.id;
-      opt.textContent = a.name;
-      periodSelect.appendChild(opt);
+    if (archives.length > 0) {
+      const group = document.createElement('optgroup');
+      group.label = 'Архивы';
+      for (const a of archives) {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = a.name;
+        group.appendChild(opt);
+      }
+      periodSelect.appendChild(group);
     }
 
     if (selected && [...periodSelect.options].some((o) => o.value === selected)) {
       periodSelect.value = selected;
+      setPeriodIntent(selected);
     } else if (!dateFrom.value && !dateTo.value) {
       periodSelect.value = 'all';
+      setPeriodIntent('all');
     } else {
       periodSelect.selectedIndex = -1;
+      // Не затираем period из URL, пока опция архива ещё не появилась в списке.
+      if (!periodFromURL()) {
+        setPeriodIntent('');
+      }
     }
-    updateArchiveComment();
+
+    updateArchiveBtn();
   }
 
   async function loadArchives() {
-    const res = await fetch('/api/archives');
-    if (!res.ok) {
-      return;
+    try {
+      const res = await fetch('/api/archives');
+      if (!res.ok) {
+        return;
+      }
+      const data = await res.json();
+      archives = Array.isArray(data) ? data : [];
+    } catch (_) {
+      archives = [];
     }
-    archives = await res.json();
     renderPeriodOptions();
   }
 
   function openModal() {
-    modalPeriod.textContent = dateFrom.value + ' — ' + dateTo.value;
+    const range = effectiveArchiveRange();
+    if (!range.from || !range.to || tradeCountOnScreen() <= 0) {
+      return;
+    }
+    modalPeriod.textContent = range.from + ' — ' + range.to;
     commentInput.value = '';
     errorEl.hidden = true;
     errorEl.textContent = '';
@@ -174,43 +199,49 @@
     modal.hidden = true;
   }
 
+  function applyPeriodAndSubmit(period, from, to) {
+    setPeriodIntent(period);
+    dateFrom.value = from;
+    dateTo.value = to;
+    updateArchiveBtn();
+    form.submit();
+  }
+
   periodSelect.addEventListener('change', () => {
     const value = periodSelect.value;
     if (value === 'all') {
-      dateFrom.value = '';
-      dateTo.value = '';
-      form.submit();
+      applyPeriodAndSubmit('all', '', '');
       return;
     }
     if (value === 'today') {
       const today = todayISODate();
-      dateFrom.value = today;
-      dateTo.value = today;
-      form.submit();
+      applyPeriodAndSubmit('today', today, today);
       return;
     }
     const archive = archives.find((a) => a.id === value);
     if (!archive) {
       return;
     }
-    dateFrom.value = archive.date_from;
-    dateTo.value = archive.date_to;
-    form.submit();
+    applyPeriodAndSubmit(archive.id, archive.date_from, archive.date_to);
   });
 
-  dateFrom.addEventListener('change', () => {
+  function onManualDateEdit() {
+    // Ручные С/По — сбрасываем явный период, чтобы не подменять пункт списка.
+    setPeriodIntent('');
+    periodSelect.selectedIndex = -1;
     updateArchiveBtn();
-    syncPeriodSelect();
-    updateArchiveComment();
-  });
-  dateTo.addEventListener('change', () => {
-    updateArchiveBtn();
-    syncPeriodSelect();
-    updateArchiveComment();
-  });
+  }
 
-  commentToggle.addEventListener('click', () => {
-    setCommentExpanded(commentBody.hidden);
+  dateFrom.addEventListener('change', onManualDateEdit);
+  dateTo.addEventListener('change', onManualDateEdit);
+  dateFrom.addEventListener('input', updateArchiveBtn);
+  dateTo.addEventListener('input', updateArchiveBtn);
+
+  form.addEventListener('submit', () => {
+    // Если пункт не выбран (свой диапазон), не тащим старый period в URL.
+    if (periodSelect.selectedIndex < 0) {
+      setPeriodIntent('');
+    }
   });
 
   archiveBtn.addEventListener('click', openModal);
@@ -222,6 +253,7 @@
   });
 
   saveBtn.addEventListener('click', async () => {
+    const range = effectiveArchiveRange();
     errorEl.hidden = true;
     saveBtn.disabled = true;
     try {
@@ -229,8 +261,8 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          date_from: dateFrom.value,
-          date_to: dateTo.value,
+          date_from: range.from,
+          date_to: range.to,
           comment: commentInput.value,
         }),
       });
@@ -250,8 +282,9 @@
     }
   });
 
+  setPeriodIntent(periodFromURL());
   updateArchiveBtn();
-  syncPeriodSelect();
+  renderPeriodOptions();
   loadArchives();
 })();
 </script>
