@@ -62,7 +62,7 @@ Win rate **~40–55%** (зависит от стратегии).
 
 **Этапы:**
 
-1. **Сигнал** — M5, стратегии ORC / OR Fade / MF ([strategy-research.md](strategy-research.md)). Без второй позиции на тикер. Глобального warmup по `lookback` нет: ORC/Fade ждут `orb_minutes` от открытия слота; MF — `entry_delay` + достаточный буфер под свой `lookback`.
+1. **Сигнал** — M5, стратегии ORC / OR Fade / MF ([strategy-research.md](strategy-research.md)). Без второй позиции на тикер. ORC/Fade/Session ORC — вход после `orb_minutes`; MF — после `entry_delay` и накопленного `lookback`.
 2. **Риск** — Circuit Breaker → SL/TP (`reward_ratio`, ATR/range) → лот 0,5%.
 3. **Трейлинг** — по котировкам (live) или intrabar (backtest). Параметры: `trail_activation_r`, `trail_breakeven_r`, `trail_discrete_step_r`, `trail_stage_max`. После max stage: MFE − 1R. Стоп только в сторону прибыли.
 4. **EOD** — принудительное закрытие в `eod_close_time`.
