@@ -1,4 +1,4 @@
-package optimizer
+package marketdata
 
 import (
 	"errors"
@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/pkg/models"
 )
 
@@ -28,12 +27,12 @@ func TestIsRetryableAPIError(t *testing.T) {
 }
 
 func TestFetchConfigNormalized(t *testing.T) {
-	cfg := data.FetchConfig{}.Normalized()
+	cfg := FetchConfig{}.Normalized()
 	if cfg.ChunkDelay <= 0 || cfg.MaxRetries <= 0 {
 		t.Fatalf("defaults not applied: %+v", cfg)
 	}
-	def := data.DefaultFetchConfig().Normalized()
-	if !def.Adaptive || def.ChunkDelay != data.DefaultMinChunkDelay {
+	def := DefaultFetchConfig().Normalized()
+	if !def.Adaptive || def.ChunkDelay != DefaultMinChunkDelay {
 		t.Fatalf("default fetch config: %+v", def)
 	}
 }
@@ -119,14 +118,14 @@ func TestAppendCSV(t *testing.T) {
 	path := filepath.Join(dir, "SBER.csv")
 	first := []models.Candle{{
 		Timestamp: time.Date(2024, 7, 1, 10, 0, 0, 0, time.UTC),
-		Open: 1, High: 2, Low: 0.5, Close: 1.5, Volume: 10,
+		Open:      1, High: 2, Low: 0.5, Close: 1.5, Volume: 10,
 	}}
 	if err := WriteCSV(path, first); err != nil {
 		t.Fatal(err)
 	}
 	second := []models.Candle{{
 		Timestamp: time.Date(2024, 7, 1, 10, 5, 0, 0, time.UTC),
-		Open: 2, High: 3, Low: 1.5, Close: 2.5, Volume: 20,
+		Open:      2, High: 3, Low: 1.5, Close: 2.5, Volume: 20,
 	}}
 	if err := AppendCSV(path, second); err != nil {
 		t.Fatal(err)

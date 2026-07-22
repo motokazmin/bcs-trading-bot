@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"bcs-trading-bot/internal/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/pkg/logx"
@@ -148,7 +149,7 @@ func sameTickerSets(a, b []string) bool {
 // ResolvePhase1Tickers возвращает тикеры для фазы 1: override, lean из tickers-config или default.
 func ResolvePhase1Tickers(override string, lean []string, full []string) ([]string, error) {
 	if override != "" {
-		return normalizeSymbols(strings.Split(override, ",")), nil
+		return marketdata.NormalizeSymbols(strings.Split(override, ",")), nil
 	}
 	if len(lean) > 0 {
 		return intersectTickers(full, lean), nil

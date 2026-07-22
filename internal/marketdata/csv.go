@@ -1,9 +1,10 @@
-package data
+package marketdata
 
 import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -155,4 +156,110 @@ func parseFloatCol(row []string, col map[string]int, name string) (float64, erro
 		return 0, fmt.Errorf("колонка %q не найдена", name)
 	}
 	return strconv.ParseFloat(strings.TrimSpace(row[i]), 64)
+}
+
+func dedupeCandles(candles []models.Candle) []models.Candle {
+	if len(candles) == 0 {
+		return candles
+	}
+	out := make([]models.Candle, 0, len(candles))
+	var prev time.Time
+	for _, c := range candles {
+		if !c.Timestamp.Equal(prev) {
+			out = append(out, c)
+			prev = c.Timestamp
+		}
+	}
+	return out
+}
+
+// MergeCandles объединяет два отсортированных набора свечей без дубликатов по timestamp.
+func MergeCandles(existing, fresh []models.Candle) []models.Candle {
+	if len(existing) == 0 {
+		return dedupeCandles(fresh)
+	}
+	if len(fresh) == 0 {
+		return existing
+	}
+	merged := append(append([]models.Candle(nil), existing...), fresh...)
+	sort.Slice(merged, func(i, j int) bool {
+		return merged[i].Timestamp.Before(merged[j].Timestamp)
+	})
+	return dedupeCandles(merged)
+}
+
+// AppendCSV дописывает свечи в существующий CSV (без заголовка).
+func AppendCSV(path string, candles []models.Candle) error {
+	if len(candles) == 0 {
+		return nil
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	for _, c := range candles {
+		row := []string{
+			c.Timestamp.Format(time.RFC3339),
+			formatFloat(c.Open),
+			formatFloat(c.High),
+			formatFloat(c.Low),
+			formatFloat(c.Close),
+			strconv.FormatInt(c.Volume, 10),
+		}
+		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
+}
+
+func writeOrAppendCSV(path string, candles []models.Candle, fileExists bool) error {
+	if len(candles) == 0 {
+		return nil
+	}
+	if fileExists {
+		return AppendCSV(path, candles)
+	}
+	return WriteCSV(path, candles)
+}
+
+// WriteCSV сохраняет свечи в CSV-файл.
+func WriteCSV(path string, candles []models.Candle) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	defer w.Flush()
+
+	if err := w.Write([]string{"timestamp", "open", "high", "low", "close", "volume"}); err != nil {
+		return err
+	}
+	for _, c := range candles {
+		row := []string{
+			c.Timestamp.Format(time.RFC3339),
+			formatFloat(c.Open),
+			formatFloat(c.High),
+			formatFloat(c.Low),
+			formatFloat(c.Close),
+			strconv.FormatInt(c.Volume, 10),
+		}
+		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	return w.Error()
+}
+
+func formatFloat(v float64) string {
+	return strconv.FormatFloat(v, 'f', -1, 64)
 }

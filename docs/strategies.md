@@ -3,10 +3,11 @@
 Документ описывает архитектуру торговых стратегий, процесс добавления новой и подключение в **боте** (live/paper) и **optimizer** (offline backtest).
 
 **См. также:**
+- [optimizer-modes.md](optimizer-modes.md) — solo (поиск) vs portfolio (единый счёт)
 - [strategy-research.md](strategy-research.md) — FROZEN portfolio, champions, методология исследований
 - [system.md](system.md) — риск, lifecycle сделки, paper trading
 - [champion-baseline.md](champion-baseline.md) — baseline доходности для сравнения с paper/live
-- [champion-orc.md](champion-orc.md), [champion-or-fade.md](champion-or-fade.md), [champion-mf-afternoon.md](champion-mf-afternoon.md) — параметры production-стратегий
+- [champion-orc.md](champion-orc.md), [champion-or-fade.md](champion-or-fade.md), [champion-mf-afternoon.md](champion-mf-afternoon.md), [champion-session-orc-morning.md](champion-session-orc-morning.md), [champion-session-orc-evening.md](champion-session-orc-evening.md) — параметры production-стратегий
 - [README](../README.md), [cmd/optimizer/README.md](../cmd/optimizer/README.md)
 
 ---
@@ -141,6 +142,7 @@ flowchart TB
 | `opening_range_continuation` | `opening_range_continuation.go` | ORB + вход на ретесте лимитом; whitelist в коде | 2.6 | **FROZEN champion** (ORC) |
 | `opening_range_fade` | `opening_range_fade.go` | Ложный пробой OR → fade; whitelist в коде | 1.5 | **FROZEN champion** (OR Fade) |
 | `momentum_filtered` | `momentum_filtered.go` | Momentum + SMA-тренд, long-only, volume filter | 2.0 | **FROZEN champion** (MF Afternoon) |
+| `session_orc` | `opening_range_continuation.go` (алиас) | ORC на morning/evening сессии | 2.6 | **FROZEN** (morning + evening) |
 | `momentum_breakout` | `momentum.go` | Пробой high/low за `lookback` баров | 3.0 | исследования закрыты |
 | `opening_range` | `opening_range.go` | ORB: market-пробой диапазона первых `orb_minutes` | 2.0 | отклонено (хуже ORC) |
 | `mean_reversion` | `mean_reversion.go` | Fade от SMA при отклонении > `fade_threshold` | 1.5 | отклонено |
@@ -149,7 +151,7 @@ Search space по умолчанию — в `configs/strategies/` (см. `Defaul
 
 ### Production portfolio (paper)
 
-Три champion-стратегии в одном процессе:
+Пять champion-стратегий в одном процессе на едином счёте:
 
 ```bash
 go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
@@ -159,9 +161,13 @@ Snapshot параметров: `configs/champions/*.yaml` (source of truth в gi
 
 | Эксперимент | `strategy.type` | Слот MSK | Тикеры |
 |---|---|---|---|
+| Morning Session ORC | `session_orc` | 07:00–09:50 | ROSN, NVTK, MOEX, CHMF, TATN, SBER |
 | ORC | `opening_range_continuation` | ~10:00–10:30 | MGNT, ROSN, TATN |
 | OR Fade | `opening_range_fade` | ~10:15–12:30 | LKOH, CHMF, MOEX, AFKS |
 | MF Afternoon | `momentum_filtered` | 12:30–18:40 | MGNT, TATN |
+| Evening Session ORC | `session_orc` | 19:05–23:50 | NVTK, GAZP, ROSN, CHMF, MOEX, TATN, MGNT |
+
+Первые входы: ORC/Fade/Session ORC — после `orb_minutes` от открытия слота; MF — после `entry_delay` (~12:30) и накопленного `lookback`.
 
 Подробнее: [strategy-research.md](strategy-research.md).
 
@@ -226,20 +232,15 @@ func (s *MyStrategy) OnCandle(c candle models.Candle) *models.Order {
 - `newMyStrategyFromParams(params Params, ctx BuildContext)` — читает camelCase-ключи из optimizer.
 - `myStrategyConfigFields(params, ctx)` — возвращает `map[string]interface{}` с **snake_case** ключами для YAML бота.
 
-Имена параметров в optimizer (camelCase) ↔ YAML бота (snake_case) маппятся в `internal/config/strategy_factory.go` → `toStrategyParams` и в `StrategyConfigFromMap`.
+Гиперпараметры стратегии из YAML попадают в `strategy.Params` автоматически (`snake_case` → camelCase). Исключение: `max_trades_per_ticker_per_day` → `maxEntriesPerTickerPerDay`. Трейлинг (`trail_*`) и лимит входов читает engine, не стратегия.
 
 ### Шаг 3. Поля конфига
 
-Если стратегии нужны **новые** YAML-поля:
+Обычный путь: **новые ключи только в YAML + `ParamsToConfigFields` / `NewFromParams`**. Правка `internal/config` не нужна.
 
-1. Добавьте поля в `StrategyConfig` (`internal/config/config.go`).
-2. Прокиньте их в `toStrategyParams` (`internal/config/strategy_factory.go`).
-3. Добавьте разбор в `StrategyConfigFromMap` (для `best-config` из optimizer).
-4. При необходимости — в `buildBestConfig` / `strategyYAML` (`internal/optimizer/report/report.go`).
+Typed-поля в `StrategyConfig` (для engine): `type`, `stop_mode`, `lookback`, `max_trades_per_ticker_per_day`, `trail_*`. Остальное хранится в raw-map.
 
-Существующие поля, которые уже есть в `StrategyConfig`:
-
-`lookback`, `stop_mode`, `atr_period`, `atr_multiplier`, `reward_ratio`, `range_use_cap`, `volume_filter`, `volume_min_ratio`, `breakout_threshold`, `max_trades_per_ticker_per_day`, `long_only`, `trend_sma_period`, `strategy_entry_delay_minutes`, `orb_minutes`, `fade_threshold`, параметры OR Fade (`fade_window_minutes`, `fade_trade_end_minutes`, `require_inside_range`), а также трейлинг (`trail_*`).
+Если worker/export должен читать новый параметр как typed-контракт — тогда добавляйте поле в `StrategyConfig` осознанно.
 
 ### Шаг 4. YAML search space
 
@@ -359,7 +360,7 @@ experiments:
 ```bash
 export BCS_REFRESH_TOKEN=...
 go run ./cmd/bot -config configs/runs/portfolio-paper.yaml   # production champions
-# go run ./cmd/bot -config configs/runs/experiments-all.yaml  # legacy A/B momentum
+# go run ./cmd/bot -config configs/runs/legacy/experiments-all.yaml  # legacy A/B (архив)
 ```
 
 ### Из champion snapshot или best-config optimizer

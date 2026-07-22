@@ -98,42 +98,27 @@ func main() {
 
 	runID := fmt.Sprintf("%s-%s", filepath.Base(*configPath), time.Now().Format("20060102-150405"))
 
-	executors := make(map[string]interfaces.OrderExecutor, len(experiments))
-	sharedAccount := cfg.SharedAccountEnabled()
-	var sharedExecutor interfaces.OrderExecutor
-	var sharedGlobalRisk *risk.GlobalRiskController
-
-	if sharedAccount {
-		sharedRisk := cfg.SharedRisk()
-		maxParallel := sharedRisk.MaxParallelTrades
-		if maxParallel <= 0 {
-			maxParallel = 5
-		}
-		pct := sharedRisk.MaxDailyLossPercent
-		if pct <= 0 {
-			pct = 2.0
-		}
-		sharedGlobalRisk = risk.NewGlobalRiskController(sharedRisk.Deposit, pct, maxParallel)
-		logx.Info(
-			"Portfolio shared_account: депозит %.0f | CB %.1f%% | max_parallel=%d | one-position-per-ticker",
-			sharedRisk.Deposit, pct, maxParallel,
-		)
+	accountRisk := cfg.AccountRisk()
+	maxParallel := accountRisk.MaxParallelTrades
+	if maxParallel <= 0 {
+		maxParallel = 5
 	}
+	pct := accountRisk.MaxDailyLossPercent
+	if pct <= 0 {
+		pct = 2.0
+	}
+	globalRisk := risk.NewGlobalRiskController(accountRisk.Deposit, pct, maxParallel)
+	logx.Info(
+		"Единый счёт: депозит %.0f | CB %.1f%% | max_parallel=%d | one-position-per-ticker",
+		accountRisk.Deposit, pct, maxParallel,
+	)
 
+	var executor interfaces.OrderExecutor
 	switch cfg.TradingMode {
 	case config.TradingModeVirtual:
-		if sharedAccount {
-			sharedExecutor = bcs.NewVirtualExecutor(cfg.SharedVirtualBalance())
-			logx.Mode(true, fmt.Sprintf("shared баланс %.0f руб.", cfg.SharedVirtualBalance()))
-			for _, exp := range experiments {
-				executors[exp.ID] = sharedExecutor
-			}
-		} else {
-			for _, exp := range experiments {
-				executors[exp.ID] = bcs.NewVirtualExecutor(exp.Virtual.Balance)
-				logx.Mode(true, fmt.Sprintf("[%s] баланс %.0f руб.", exp.ID, exp.Virtual.Balance))
-			}
-		}
+		balance := cfg.AccountBalance()
+		executor = bcs.NewVirtualExecutor(balance)
+		logx.Mode(true, fmt.Sprintf("баланс %.0f руб.", balance))
 
 	case config.TradingModeReal:
 		if len(experiments) != 1 {
@@ -143,7 +128,7 @@ func main() {
 		if err := client.Connect(ctx); err != nil {
 			logx.Fatalf("авторизация (write) провалена: %v", err)
 		}
-		executors[experiments[0].ID] = client
+		executor = client
 		logx.Mode(false, "BCSClient (trade-api-write)")
 
 		balance, err := client.GetBalance(ctx)
@@ -160,44 +145,17 @@ func main() {
 	routes := make(map[string][]bcs.WorkerRoutes)
 	workerCount := 0
 
-	globalRiskByExp := make(map[string]*risk.GlobalRiskController, len(experiments))
-	if sharedAccount {
-		for _, exp := range experiments {
-			globalRiskByExp[exp.ID] = sharedGlobalRisk
-		}
-	} else {
-		for _, exp := range experiments {
-			maxParallel := exp.Risk.MaxParallelTrades
-			if maxParallel <= 0 {
-				maxParallel = 2
-			}
-			pct := exp.Risk.MaxDailyLossPercent
-			if pct <= 0 {
-				pct = 2.0
-			}
-			globalRiskByExp[exp.ID] = risk.NewGlobalRiskController(exp.Risk.Deposit, pct, maxParallel)
-		}
-	}
-
 	for _, exp := range experiments {
-		executor := executors[exp.ID]
 		expTickers := cfg.TickersForExperiment(exp)
 		session := cfg.SessionForExperiment(exp)
-		tickerCount := len(expTickers)
-		globalRisk := globalRiskByExp[exp.ID]
 
 		workerExp := exp
-		if sharedAccount {
-			// Sizing как в solo/portfolio-backtest: полный депозит на сделку, не deposit/N.
-			workerExp.Risk = cfg.SharedRisk()
-			tickerCount = 1
-		}
+		workerExp.Risk = accountRisk
 
 		for _, tc := range expTickers {
 			worker, err := engine.NewTickerWorker(
 				tc.Symbol,
 				workerExp,
-				tickerCount,
 				tc.StepPriceValue,
 				cfg.CostsConfig(),
 				session,
@@ -250,13 +208,7 @@ func runSmokeTest(ctx context.Context, cfg *config.Config, client *bcs.BCSClient
 	}
 	ticker := tickers[0]
 
-	executor := bcs.NewVirtualExecutor(cfg.Risk.Deposit)
-	if cfg.SharedAccountEnabled() {
-		executor = bcs.NewVirtualExecutor(cfg.SharedVirtualBalance())
-	} else if cfg.HasExperiments() {
-		exp := cfg.ResolvedExperiments()[0]
-		executor = bcs.NewVirtualExecutor(exp.Virtual.Balance)
-	}
+	executor := bcs.NewVirtualExecutor(cfg.AccountBalance())
 
 	if err := engine.RunSmokeTest(ctx, client, ticker, executor); err != nil {
 		logx.Fatalf("smoke-test провален: %v", err)

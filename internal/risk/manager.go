@@ -56,6 +56,19 @@ func (rm *RiskManager) CalculatePositionSize(entryPrice, stopLossPrice float64) 
 	return int(riskAmount / riskPerLot)
 }
 
+// CapQuantityByCash ограничивает объём доступным кэшем (BUY notional = price × qty).
+// Если price <= 0 или cash <= 0 — возвращает 0.
+func CapQuantityByCash(qty int, price, cash float64) int {
+	if qty <= 0 || price <= 0 || cash <= 0 {
+		return 0
+	}
+	maxQty := int(math.Floor(cash / price))
+	if maxQty < qty {
+		return maxQty
+	}
+	return qty
+}
+
 func (rm *RiskManager) RegisterLoss(amount float64) {
 	if amount <= 0 {
 		return

@@ -13,10 +13,10 @@ import (
 
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/marketdata"
 	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/internal/optimizer/charts"
 	"bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/internal/optimizer/report"
 	"bcs-trading-bot/internal/strategy"
@@ -43,9 +43,6 @@ func main() {
 		chartsCmd(os.Args[2:])
 	case "sync-history":
 		syncHistoryCmd(os.Args[2:])
-	case "fetch-history":
-		// legacy: полная перезагрузка диапазона
-		fetchHistoryCmd(os.Args[2:])
 	case "-h", "--help", "help":
 		printUsage()
 	default:
@@ -64,7 +61,6 @@ Usage:
   optimizer backtest [flags]     один прогон стратегии на истории
   optimizer portfolio-backtest   единый счёт: все experiments из bot YAML
   optimizer charts [flags]     графики сделок по эксперименту и тикеру
-  optimizer fetch-history [flags] полная перезагрузка диапазона (legacy)
 
 Подробности: cmd/optimizer/README.md (подход, флаги, scoring)`)
 }
@@ -104,7 +100,7 @@ func runCmd(args []string) {
 		}
 	}
 
-	u, err := data.LoadTickersConfig(*tickersConfigPath)
+	u, err := marketdata.LoadTickersConfig(*tickersConfigPath)
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
@@ -137,17 +133,17 @@ func runCmd(args []string) {
 		*strategyID, strings.Join(tickerList, ","), from.Format("2006-01-02"), to.Format("2006-01-02"), len(windows), *trials)
 
 	settings := eval.RunSettings{
-		Tickers:            tickerList,
-		HistoryDir:         *historyDir,
-		StrategyID:         *strategyID,
-		StopMode:           *stopMode,
-		ClassCode:          u.ClassCode,
-		CandleTimeframe:    u.CandleTimeframe,
-		Deposit:            *deposit,
-		StepPriceValue:     *stepPrice,
-		Costs:              u.ResolvedCosts(*commission, *commissionRate),
-		MinTrades:          *minTrades,
-		Session:            optimizer.DefaultSession(),
+		Tickers:         tickerList,
+		HistoryDir:      *historyDir,
+		StrategyID:      *strategyID,
+		StopMode:        *stopMode,
+		ClassCode:       u.ClassCode,
+		CandleTimeframe: u.CandleTimeframe,
+		Deposit:         *deposit,
+		StepPriceValue:  *stepPrice,
+		Costs:           u.ResolvedCosts(*commission, *commissionRate),
+		MinTrades:       *minTrades,
+		Session:         optimizer.DefaultSession(),
 	}
 	if sess, err := optimizer.LoadSessionFromStrategyFile(spacePath); err == nil {
 		settings.Session = sess
@@ -197,9 +193,9 @@ func runCmd(args []string) {
 	logx.Info("best-config: %s", yamlPath)
 
 	chartsResult, chartsErr := charts.RunCharts(ctx, charts.ChartsOptions{
-		ExperimentDir:      *output,
-		HistoryDir:         *historyDir,
-		Costs:              u.ResolvedCosts(*commission, *commissionRate),
+		ExperimentDir: *output,
+		HistoryDir:    *historyDir,
+		Costs:         u.ResolvedCosts(*commission, *commissionRate),
 	})
 	if chartsErr != nil {
 		logx.Warn("charts: %v", chartsErr)
@@ -236,7 +232,7 @@ func backtestCmd(args []string) {
 		}
 	}
 
-	u, err := data.LoadTickersConfig(*tickersConfigPath)
+	u, err := marketdata.LoadTickersConfig(*tickersConfigPath)
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
@@ -261,16 +257,16 @@ func backtestCmd(args []string) {
 	}
 
 	settings := eval.RunSettings{
-		Tickers:            tickerList,
-		StrategyID:         *strategyID,
-		StopMode:           *stopMode,
-		ClassCode:          u.ClassCode,
-		CandleTimeframe:    u.CandleTimeframe,
-		Deposit:            *deposit,
-		StepPriceValue:     *stepPrice,
-		Costs:              u.ResolvedCosts(*commission, *commissionRate),
-		MinTrades:          1,
-		Session:            optimizer.DefaultSession(),
+		Tickers:         tickerList,
+		StrategyID:      *strategyID,
+		StopMode:        *stopMode,
+		ClassCode:       u.ClassCode,
+		CandleTimeframe: u.CandleTimeframe,
+		Deposit:         *deposit,
+		StepPriceValue:  *stepPrice,
+		Costs:           u.ResolvedCosts(*commission, *commissionRate),
+		MinTrades:       1,
+		Session:         optimizer.DefaultSession(),
 	}
 	if sess, err := optimizer.LoadSessionFromStrategyFile(spacePath); err == nil {
 		settings.Session = sess
@@ -423,7 +419,7 @@ func syncHistoryCmd(args []string) {
 		logx.Fatal("задайте BCS_REFRESH_TOKEN")
 	}
 
-	u, err := data.LoadTickersConfig(*tickersConfigPath)
+	u, err := marketdata.LoadTickersConfig(*tickersConfigPath)
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
@@ -446,14 +442,14 @@ func syncHistoryCmd(args []string) {
 		logx.Fatalf("авторизация: %v", err)
 	}
 
-	if err := optimizer.SyncHistory(ctx, client, optimizer.SyncOptions{
+	if err := marketdata.SyncHistory(ctx, client, marketdata.SyncOptions{
 		OutputDir:           *outputDir,
 		ClassCode:           u.ClassCode,
 		TimeFrame:           u.CandleTimeframe,
 		InitialHistoryYears: years,
 		Tickers:             tickerList,
 		ParallelTickers:     *parallelTickers,
-		Fetch: data.FetchConfig{
+		Fetch: marketdata.FetchConfig{
 			ChunkDelay:    *chunkDelay,
 			MaxChunkDelay: *maxChunkDelay,
 			TickerDelay:   *tickerDelay,
@@ -461,59 +457,6 @@ func syncHistoryCmd(args []string) {
 		},
 	}); err != nil {
 		logx.Fatalf("sync-history: %v", err)
-	}
-}
-
-func fetchHistoryCmd(args []string) {
-	fs := flag.NewFlagSet("fetch-history", flag.ExitOnError)
-	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
-	tickers := fs.String("tickers", "", "override тикеров")
-	dateFrom := fs.String("date-from", "", "начало YYYY-MM-DD (default: initial_history_years назад)")
-	dateTo := fs.String("date-to", "", "конец YYYY-MM-DD (default: сегодня)")
-	outputDir := fs.String("output-dir", "data/history", "директория для CSV")
-	_ = fs.Parse(args)
-
-	token := os.Getenv("BCS_REFRESH_TOKEN")
-	if token == "" {
-		logx.Fatal("задайте BCS_REFRESH_TOKEN")
-	}
-
-	u, err := data.LoadTickersConfig(*tickersConfigPath)
-	if err != nil {
-		logx.Fatalf("tickers-config: %v", err)
-	}
-	tickerList := u.ResolveTickers(*tickers)
-
-	now := time.Now()
-	from := now.AddDate(-u.InitialHistoryYears, 0, 0)
-	to := now
-	if *dateFrom != "" {
-		from, err = report.ParseDate(*dateFrom)
-		if err != nil {
-			logx.Fatalf("date-from: %v", err)
-		}
-	}
-	if *dateTo != "" {
-		to, err = report.ParseDate(*dateTo)
-		if err != nil {
-			logx.Fatalf("date-to: %v", err)
-		}
-	}
-
-	client := bcs.NewBCSClient(token)
-	client.SetClassCode(u.ClassCode)
-	client.SetCandleTimeFrame(u.CandleTimeframe)
-
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
-
-	if err := client.Connect(ctx); err != nil {
-		logx.Fatalf("авторизация: %v", err)
-	}
-
-	logx.Info("fetch-history (полная перезагрузка): %s → %s", from.Format("2006-01-02"), to.Format("2006-01-02"))
-	if err := optimizer.FetchHistory(ctx, client, tickerList, u.ClassCode, u.CandleTimeframe, *outputDir, from, to, data.DefaultFetchConfig()); err != nil {
-		logx.Fatalf("fetch-history: %v", err)
 	}
 }
 
@@ -547,7 +490,7 @@ func resolveDateRange(fromStr, toStr string, candleData map[string][]models.Cand
 	}
 
 	// Базовый диапазон берём из фактически загруженных свечей.
-	csvFrom, csvTo, ok := data.CandleDataRange(candleData)
+	csvFrom, csvTo, ok := marketdata.CandleDataRange(candleData)
 	if !ok {
 		return time.Time{}, time.Time{}, fmt.Errorf("нет данных в CSV")
 	}

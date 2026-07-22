@@ -8,8 +8,8 @@ import (
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/simulation"
 	"bcs-trading-bot/internal/storage/memory"
@@ -32,10 +32,10 @@ type PortfolioBacktestResult struct {
 
 // ExperimentTradeStats — разбивка сделок по experiment id.
 type ExperimentTradeStats struct {
-	Trades       int
-	NetPnL       float64
-	ExpectancyR  float64
-	WinRate      float64
+	Trades      int
+	NetPnL      float64
+	ExpectancyR float64
+	WinRate     float64
 }
 
 // PortfolioBacktestOptions — параметры прогона portfolio-backtest.
@@ -60,9 +60,10 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 		return PortfolioBacktestResult{}, fmt.Errorf("portfolio-backtest: нет experiments в %s", opts.ConfigPath)
 	}
 
+	accountRisk := cfg.AccountRisk()
 	deposit := opts.Deposit
 	if deposit <= 0 {
-		deposit = experiments[0].Risk.Deposit
+		deposit = accountRisk.Deposit
 	}
 	if deposit <= 0 {
 		deposit = 200_000
@@ -71,12 +72,16 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 	if maxParallel <= 0 {
 		maxParallel = 5
 	}
-	dailyLossPct := experiments[0].Risk.MaxDailyLossPercent
+	dailyLossPct := accountRisk.MaxDailyLossPercent
 	if dailyLossPct <= 0 {
 		dailyLossPct = 2.0
 	}
 	maxDailyLoss := deposit * dailyLossPct / 100
 	costsCfg := cfg.CostsConfig()
+	riskPerTrade := accountRisk.RiskPerTradePercent
+	if riskPerTrade <= 0 {
+		riskPerTrade = 0.5
+	}
 
 	tickers := cfg.AllTickerSymbols()
 	candleData, err := LoadCandleData(opts.HistoryDir, tickers)
@@ -86,7 +91,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 
 	from, to := opts.From, opts.To
 	if from.IsZero() || to.IsZero() {
-		dataFrom, dataTo, ok := data.CandleDataRange(candleData)
+		dataFrom, dataTo, ok := marketdata.CandleDataRange(candleData)
 		if !ok {
 			return PortfolioBacktestResult{}, fmt.Errorf("portfolio-backtest: пустая история")
 		}
@@ -131,7 +136,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 				StepPriceValue:  step,
 				Deposit:         deposit,
 				MaxDailyLoss:    maxDailyLoss,
-				RiskPerTradePct: exp.Risk.RiskPerTradePercent,
+				RiskPerTradePct: riskPerTrade,
 				MaxTradesPerDay: exp.Strategy.MaxTradesPerTickerPerDay,
 				Strategy:        rcStrat,
 				StrategyID:      exp.Strategy.TypeOrDefault(),
@@ -216,7 +221,7 @@ func detailedTradeStats(trades []models.ClosedTrade, costsCfg costs.Config, clas
 
 func statsByExperiment(trades []models.ClosedTrade, costsCfg costs.Config, classCode string) map[string]ExperimentTradeStats {
 	type acc struct {
-		n, wins int
+		n, wins   int
 		net, sumR float64
 	}
 	by := make(map[string]*acc)

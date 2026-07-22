@@ -19,6 +19,16 @@ var migration001 string
 
 const timeLayout = "2006-01-02 15:04:05"
 
+// dbLoc — зона хранения времени в БД. Все opened_at/closed_at/recorded_at пишутся и
+// читаются как московское время (Москва без перехода на летнее время, стабильный UTC+3),
+// чтобы значения были читаемы «глазами» напрямую в базе.
+var dbLoc = func() *time.Location {
+	if loc, err := time.LoadLocation("Europe/Moscow"); err == nil {
+		return loc
+	}
+	return time.FixedZone("MSK", 3*3600)
+}()
+
 // Store сохраняет закрытые сделки в SQLite.
 type Store struct {
 	db *sql.DB
@@ -65,7 +75,7 @@ func (s *Store) SaveClosedTrade(_ context.Context, trade models.ClosedTrade) err
 		stopMode = "range"
 	}
 
-	now := time.Now().Format(timeLayout)
+	now := time.Now().In(dbLoc).Format(timeLayout)
 
 	_, err := s.db.Exec(`
 		INSERT INTO closed_trades (
@@ -104,8 +114,8 @@ func (s *Store) SaveClosedTrade(_ context.Context, trade models.ClosedTrade) err
 		trade.CloseReason,
 		trade.TrailStage,
 		isWinner,
-		trade.OpenedAt.Format(timeLayout),
-		trade.ClosedAt.Format(timeLayout),
+		trade.OpenedAt.In(dbLoc).Format(timeLayout),
+		trade.ClosedAt.In(dbLoc).Format(timeLayout),
 		trade.HoldSeconds,
 		trade.TradingDate,
 		trade.CandleTimeframe,

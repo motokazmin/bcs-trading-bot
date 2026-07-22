@@ -30,7 +30,7 @@ type TickerWorker struct {
 	candleTimeframe  string
 	lookback         int
 	riskPerTradePct  float64
-	depositPerTicker float64
+	depositPerTicker float64 // полный депозит счёта (имя колонки ClosedTrade / SQLite)
 	strategy         strategy.CandleStrategy
 	strategyID       string
 	riskMgr          *risk.RiskManager
@@ -53,7 +53,6 @@ type TickerWorker struct {
 func NewTickerWorker(
 	ticker string,
 	exp config.ResolvedExperiment,
-	tickerCount int,
 	stepPriceValue float64,
 	costsCfg costs.Config,
 	sessionCfg config.SessionConfig,
@@ -80,8 +79,8 @@ func NewTickerWorker(
 		store = interfaces.NoopTradeStore{}
 	}
 
-	deposit := exp.PerTickerDeposit(tickerCount)
-	maxLoss := exp.PerTickerMaxDailyLoss(tickerCount)
+	deposit := exp.Risk.Deposit
+	maxLoss := exp.Risk.MaxDailyLoss
 	label := ticker
 	if exp.ID != "" && exp.ID != "default" {
 		label = fmt.Sprintf("%s/%s", exp.ID, ticker)
@@ -212,6 +211,17 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 	if quantity <= 0 {
 		logx.SignalRejected(w.label, signal.Direction, "нулевой объём позиции")
 		return
+	}
+
+	// BUY: risk-sizing не знает свободный кэш — режем notional до GetBalance.
+	if signal.Direction == "BUY" {
+		if bal, err := executor.GetBalance(ctx); err == nil {
+			quantity = risk.CapQuantityByCash(quantity, signal.Price, bal)
+			if quantity <= 0 {
+				logx.SignalRejected(w.label, signal.Direction, "недостаточно средств")
+				return
+			}
+		}
 	}
 
 	tradeRisk := math.Abs(signal.Price-signal.StopLoss) * float64(quantity) * w.stepPriceValue
@@ -347,7 +357,7 @@ func (w *TickerWorker) closePosition(ctx context.Context, executor interfaces.Or
 		w.globalRisk.RegisterClose(w.ticker, pnl)
 	}
 
-	closedAt := time.Now()
+	closedAt := time.Now().UTC()
 	riskAmount := pos.RDistance * float64(pos.Quantity) * w.stepPriceValue
 	pnlR := 0.0
 	if riskAmount > 0 {

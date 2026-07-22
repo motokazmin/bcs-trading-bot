@@ -361,7 +361,7 @@ func (c *BCSClient) dispatchQuote(ctx context.Context, raw []byte, route WorkerR
 
 	ts, err := parseWSDateTime(msg.DateTime)
 	if err != nil {
-		ts = time.Now()
+		ts = time.Now().UTC()
 	}
 
 	tick := models.Tick{
@@ -381,9 +381,12 @@ func (c *BCSClient) dispatchQuote(ctx context.Context, raw []byte, route WorkerR
 func parseWSDateTime(value string) (time.Time, error) {
 	ts, err := time.Parse(time.RFC3339, value)
 	if err != nil {
-		return time.Parse(time.RFC3339Nano, value)
+		ts, err = time.Parse(time.RFC3339Nano, value)
+		if err != nil {
+			return time.Time{}, err
+		}
 	}
-	return ts, nil
+	return ts.UTC(), nil
 }
 
 func formatWSDialError(err error, resp *http.Response) error {

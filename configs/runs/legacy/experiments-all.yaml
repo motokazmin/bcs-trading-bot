@@ -8,7 +8,7 @@
 #   opening-range-continuation / opening-range-continuation-conservative
 #   mean-reversion / mean-reversion-conservative
 #
-# Запуск: go run ./cmd/bot -config configs/runs/experiments-all.yaml
+# Запуск: go run ./cmd/bot -config configs/runs/legacy/experiments-all.yaml
 
 trading_mode: virtual
 

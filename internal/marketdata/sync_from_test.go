@@ -1,4 +1,4 @@
-package optimizer
+package marketdata
 
 import (
 	"testing"

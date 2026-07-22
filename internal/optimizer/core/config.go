@@ -82,9 +82,20 @@ func (s *SearchSpace) FixedValue(key string, fallback float64) float64 {
 	return fallback
 }
 
-// Sample случайную точку из search space.
+// ApplyFixed копирует fixed-константы в params (поверх sample).
+// Без этого флаги вроде longOnly из YAML fixed не доходят до стратегии.
+func (s *SearchSpace) ApplyFixed(out ParameterSet) {
+	if s == nil || out == nil || len(s.Fixed) == 0 {
+		return
+	}
+	for k, v := range s.Fixed {
+		out[k] = v
+	}
+}
+
+// Sample случайную точку из search space + fixed-константы.
 func (s *SearchSpace) Sample(rng *rand.Rand) ParameterSet {
-	out := make(ParameterSet, len(s.Parameters))
+	out := make(ParameterSet, len(s.Parameters)+len(s.Fixed))
 	for name, bounds := range s.Parameters {
 		switch bounds.Type {
 		case ParamInt:
@@ -98,6 +109,7 @@ func (s *SearchSpace) Sample(rng *rand.Rand) ParameterSet {
 			out[name] = bounds.Min + rng.Float64()*(bounds.Max-bounds.Min)
 		}
 	}
+	s.ApplyFixed(out)
 	return out
 }
 

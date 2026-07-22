@@ -1,6 +1,6 @@
 # BCS Trading Bot (MVP)
 
-Торговый робот на Go для [BCS Trade API](https://trade-api.bcs.ru). **Дейтрейдинг акциями MOEX** (TQBR) на 5-минутных свечах с жёстким риск-менеджментом. FROZEN portfolio — ORC, OR Fade, MF Afternoon на акциях MGNT, ROSN, TATN, LKOH, CHMF, MOEX, AFKS.
+Торговый робот на Go для [BCS Trade API](https://trade-api.bcs.ru). **Дейтрейдинг акциями MOEX** (TQBR) на 5-минутных свечах с жёстким риск-менеджментом. FROZEN portfolio — 5 champions (ORC, OR Fade, MF Afternoon, Morning/Evening Session ORC) на едином счёте 200k.
 
 Робот не пытается «угадать» рынок — он контролирует убытки:
 
@@ -8,7 +8,7 @@
 - риск на сделку **0.5%** от депозита;
 - суточный предохранитель **Circuit Breaker**.
 
-Поддерживает **несколько тикеров** (каждый в своей горутине), **параллельные A/B-эксперименты** (`experiments` в конфиге) и два режима торговли:
+Поддерживает **несколько тикеров** (каждый в своей горутине), **несколько слотов стратегий** (`experiments` в конфиге на одном счёте) и два режима торговли:
 
 | Режим | `trading_mode` в конфиге | Поведение |
 |---|---|---|
@@ -19,19 +19,21 @@
 
 ### Production portfolio (FROZEN)
 
-После walk-forward исследований зафиксированы **3 champion-стратегии** на полный торговый день MOEX (10:00–18:40 MSK):
+После walk-forward исследований зафиксированы **5 champion-стратегий** на слотах торгового дня MOEX:
 
-| Слот | Стратегия | Тикеры |
+| Слот MSK | Стратегия | Тикеры |
 |------|-----------|--------|
+| 07:00–09:50 | Morning Session ORC | ROSN, NVTK, MOEX, CHMF, TATN, SBER |
 | ~10:00–10:30 | ORC | MGNT, ROSN, TATN |
 | ~10:15–12:30 | OR Fade | LKOH, CHMF, MOEX, AFKS |
 | 12:30–18:40 | MF Afternoon | MGNT, TATN |
+| 19:05–23:50 | Evening Session ORC | NVTK, GAZP, ROSN, CHMF, MOEX, TATN, MGNT |
 
-Paper trading: `configs/runs/portfolio-paper.yaml`. Параметры: `configs/champions/*.yaml`.
+Paper trading: `configs/runs/portfolio-paper.yaml` (единый virtual-счёт 200k). Параметры: `configs/champions/*.yaml`.
 
-Baseline доходности (для сравнения с live): [`docs/champion-baseline.md`](docs/champion-baseline.md).
+Baseline доходности (для сравнения с live): [`docs/champion-baseline.md`](docs/champion-baseline.md) § C.
 
-Документация: [`docs/strategy-research.md`](docs/strategy-research.md) · [`docs/system.md`](docs/system.md) · [`docs/strategies.md`](docs/strategies.md)
+Документация: [`docs/strategy-research.md`](docs/strategy-research.md) · [`docs/optimizer-modes.md`](docs/optimizer-modes.md) · [`docs/system.md`](docs/system.md) · [`docs/strategies.md`](docs/strategies.md)
 
 ---
 
@@ -58,7 +60,7 @@ Baseline доходности (для сравнения с live): [`docs/champi
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                              cmd/bot/main.go                                 │
 │                                                                              │
-│  YAML-конфиг ──► OAuth2 ──► OrderExecutor на эксперимент (virtual / real)   │
+│  YAML-конфиг ──► OAuth2 ──► единый OrderExecutor (virtual / real)           │
 │                                    ▲                                         │
 │  WebSocket Fan-Out ──┬──► TickerWorker [baseline/SBER] ──► Strategy + Risk  │
 │  (свечи + котировки) ├──► TickerWorker [atr-2/SBER]    ──► Strategy + Risk  │
@@ -66,13 +68,13 @@ Baseline доходности (для сравнения с live): [`docs/champi
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-При секции `experiments` в конфиге создаётся **отдельный виртуальный счёт на каждый эксперимент**; внутри эксперимента воркеры по тикерам делят один `VirtualExecutor`. Один WebSocket раздаёт рыночные данные всем воркерам (fan-out).
+При секции `experiments` все слоты торгуют на **одном virtual-счёте** (общий депозит, общий Circuit Breaker, one-position-per-ticker). Один WebSocket раздаёт рыночные данные всем воркерам (fan-out).
 
 Поток данных:
 
 1. Загрузка YAML-конфига (`-config`), токен из `BCS_REFRESH_TOKEN`.
 2. Авторизация через OAuth2 Keycloak → `access_token`.
-3. Инициализация исполнителя: один `VirtualExecutor` (или `BCSClient`) **на эксперимент**.
+3. Инициализация исполнителя: один `VirtualExecutor` (или `BCSClient`) на весь процесс.
 4. Для каждой пары «эксперимент × тикер» создаётся `TickerWorker` в отдельной горутине.
 5. WebSocket подписывается на **свечи** (сигналы стратегии) и **котировки** (тики для SL/TP).
 6. Воркер на каждом тике проверяет стоп/тейк и EOD; на свече — стратегию из `strategy.type` (см. [docs/strategies.md](docs/strategies.md)).
@@ -105,12 +107,12 @@ go build -o bot ./cmd/bot
 ```bash
 make help              # список команд
 make build             # bin/bot, bin/optimizer, bin/admin
-make bot               # paper trading, portfolio (3 champions)
+make bot               # paper trading, portfolio (5 champions)
 make sync-history      # догрузить CSV-историю для optimizer (9 акций)
 make optimizer-orc     # ORC (FROZEN — только по запросу)
 ```
 
-Переменные optimizer: `OPTIMIZER_PARALLEL`, `OPTIMIZER_TWO_PHASE=1`, `SEARCH_SPACE`. Документация: [`cmd/optimizer/README.md`](cmd/optimizer/README.md) ([подход](cmd/optimizer/README.md#подход), [архитектура](cmd/optimizer/README.md#архитектура-для-разработчиков)).
+Переменные optimizer: `OPTIMIZER_PARALLEL`, `OPTIMIZER_TWO_PHASE=1`, `SEARCH_SPACE`. Документация: [`cmd/optimizer/README.md`](cmd/optimizer/README.md) · режимы solo/portfolio: [`docs/optimizer-modes.md`](docs/optimizer-modes.md).
 
 Требуется `export BCS_REFRESH_TOKEN=...` (см. ниже).
 
@@ -130,15 +132,15 @@ go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
 make bot
 ```
 
-3 FROZEN champion-стратегии × 7 тикеров, один WebSocket. Сделки пишутся в `data/trades.db` с полем `experiment_id`.
+5 FROZEN champions на едином счёте 200k (10 тикеров universe, слоты 07:00–23:50), один WebSocket. Сделки пишутся в `data/trades.db` с полем `experiment_id`.
 
-### 3a. Paper trading — legacy A/B (momentum)
+### 3a. Paper trading — legacy A/B (архив)
 
 ```bash
-go run ./cmd/bot -config configs/runs/experiments-all.yaml
+go run ./cmd/bot -config configs/runs/legacy/experiments-all.yaml
 ```
 
-10 экспериментов momentum/OR — архив ранних опытов, см. `configs/runs/legacy/`.
+Исторический пакет momentum/OR (отдельные депозиты на experiment — устаревшая модель). См. `configs/runs/legacy/`.
 
 ### 4. Paper trading — фьючерсы (legacy, не champions)
 
@@ -161,7 +163,7 @@ make bot-real
 
 ### 5a. Быстрая проверка перед сессией (smoke-test)
 
-Проверяет OAuth, WebSocket и виртуальное исполнение **без ожидания lookback** и **без записи в БД**:
+Проверяет OAuth, WebSocket и виртуальное исполнение: один цикл open/close на первой котировке, без записи в БД:
 
 ```bash
 go run ./cmd/bot -config configs/runs/portfolio-paper.yaml -smoke-test
@@ -210,7 +212,7 @@ go run ./cmd/bot
 | Тег | Значение |
 |---|---|
 | `[SYS]` | Старт, конфиг, шаги инициализации |
-| `[MODE]` | Режим торговли и баланс virtual-счёта на эксперимент |
+| `[MODE]` | Режим торговли и баланс единого virtual-счёта |
 | `[WS]` | WebSocket: подписка, реконнект, ошибки сервера |
 | `[OPEN]` | Позиция открыта |
 | `[TP]` / `[SL]` / `[EOD]` | Позиция закрыта по тейку, стопу или концу дня |
@@ -225,7 +227,7 @@ go run ./cmd/bot
 
 ```
 10:00:00 [SYS] Запуск торгового робота БКС на Go...
-10:00:00 [SYS] Конфиг: configs/runs/experiments-all.yaml | Режим: virtual | Тикеры: SBER, GAZP, ... | Эксперименты: atr-2-lean (...), atr-1-lean (...), ... | Класс: TQBR | Свечи: M5
+10:00:00 [SYS] Конфиг: configs/runs/portfolio-paper.yaml | Режим: virtual | Тикеры: MGNT, ROSN, ... | Эксперименты: orc-wave2 (...), ... | Класс: TQBR | Свечи: M5
 10:00:00 [SYS] Шаг 1: Авторизация через БКС OAuth...
 10:00:01 [SYS] Access Token получен.
 10:00:01 [SYS] Хранилище сделок: data/trades.db
@@ -239,7 +241,15 @@ go run ./cmd/bot
 10:00:02 [WS] подписка 10 инструмент(ов) [SBER GAZP ...] — свечи M5 + котировки
 ```
 
-После старта бот **молчит**, пока не накопится история свечей (`strategy.lookback` баров, по умолчанию 20 × M5 ≈ **100 минут** с начала основной сессии) и не появится сигнал пробоя.
+После старта бот принимает свечи WebSocket. Первые входы зависят от стратегии и сессии:
+
+| Стратегия (FROZEN) | Когда возможны входы |
+|---|---|
+| Session ORC (morning/evening) | После `orb_minutes` от `session_open_time` эксперимента (напр. morning: OR ~14 мин с 07:00) |
+| ORC / OR Fade (main) | После `orb_minutes` от открытия слота (обычно с 10:00) |
+| MF Afternoon | С ~12:30 (`entry_delay_minutes`) и при накопленном `lookback` в буфере |
+
+`strategy.lookback` — окно баров для momentum/MF (пробой high/low). У ORC/Fade вход задаётся `orb_minutes`.
 
 В `session.session_open_time` (по умолчанию 10:00 МСК) сбрасывается дневной лимит убытков:
 
@@ -333,11 +343,11 @@ go run ./cmd/bot
 
 | Файл | Назначение |
 |---|---|
-| `configs/runs/portfolio-paper.yaml` | **Paper trading, 3 FROZEN champions** (ORC + OR Fade + MF Afternoon) |
+| `configs/runs/portfolio-paper.yaml` | **Paper trading, 5 FROZEN champions** (morning/evening Session ORC + ORC + OR Fade + MF Afternoon) |
 | `configs/champions/*.yaml` | Snapshot параметров champions (solo-запуск одной стратегии) |
 | `configs/runs/virtual-futures.yaml` | Legacy: paper trading, фьючерсы SPBFUT (не champions) |
 | `configs/runs/real-stocks.yaml` | Реальные ордера, акции TQBR |
-| `configs/runs/experiments-all.yaml` | Legacy A/B momentum (архив) |
+| `configs/runs/legacy/experiments-all.yaml` | Legacy A/B momentum (архив, multi-account) |
 
 Запуск: `go run ./cmd/bot -config configs/runs/portfolio-paper.yaml` или `make bot`
 
@@ -356,7 +366,7 @@ go run ./cmd/bot
 | `risk.max_daily_loss_percent` | `2` | % от депозита, если `max_daily_loss` не задан |
 | `risk.risk_per_trade_percent` | `0.5` | Риск на сделку (% депозита) |
 | `strategy.type` | `momentum_breakout` | ID стратегии — см. [docs/strategies.md](docs/strategies.md): `opening_range_continuation`, `opening_range_fade`, `momentum_filtered`, … |
-| `strategy.lookback` | `20` | Окно свечей стратегии |
+| `strategy.lookback` | `20` | Окно баров для momentum/MF (пробой high/low). У ORC/Fade вход задаётся `orb_minutes` |
 | `strategy.stop_mode` | `range` | `range` — стоп от половины диапазона; `atr` — ATR × multiplier |
 | `strategy.atr_period` | `14` | Период ATR (для `stop_mode: atr`) |
 | `strategy.atr_multiplier` | `2.0` | Множитель ATR для ширины стопа |
@@ -364,9 +374,9 @@ go run ./cmd/bot
 | `strategy.max_trades_per_ticker_per_day` | `0` | Лимит входов на тикер в день (`0` — без лимита) |
 | `strategy.volume_filter` | `false` | Фильтр по объёму: вход только при объёме свечи > `volume_min_ratio` × средний объём окна |
 | `strategy.volume_min_ratio` | `1.5` | Множитель к среднему объёму (при `volume_filter: true`) |
-| `virtual.balance` | = `risk.deposit` | Стартовый баланс virtual-счёта **на эксперимент** |
+| `virtual.balance` | = `risk.deposit` | Стартовый баланс единого virtual-счёта |
 | `storage.path` | `data/trades.db` | SQLite с закрытыми сделками |
-| `experiments[]` | — | Несколько стратегий в одном процессе (`virtual`: отдельный virtual-счёт на experiment; `real`: пока **1** experiment) |
+| `experiments[]` | — | Слоты стратегий в одном процессе на общем счёте (`real`: пока **1** experiment) |
 | `experiments[].id` | — | Идентификатор (`experiment_id` в БД и в логе `id/ticker`) |
 | `experiments[].tickers` | корневой `tickers` | Подмножество тикеров для этого эксперимента |
 | `experiments[].entry_delay_minutes` | корневой `session.entry_delay_minutes` | Задержка входов для эксперимента (минуты) |
@@ -478,9 +488,10 @@ type OrderExecutor interface {
 
 | ID | Описание |
 |---|---|
-| `opening_range_continuation` | ORC — ORB + retest (**FROZEN champion**) |
-| `opening_range_fade` | OR Fade — fade ложного пробоя OR (**FROZEN champion**) |
-| `momentum_filtered` | Momentum + SMA, long-only (**FROZEN champion**, afternoon) |
+| `opening_range_continuation` | ORC — ORB + retest (**FROZEN**, main session) |
+| `opening_range_fade` | OR Fade — fade ложного пробоя OR (**FROZEN**) |
+| `momentum_filtered` | Momentum + SMA, long-only (**FROZEN**, afternoon) |
+| `session_orc` | Session ORC — morning/evening слоты (**FROZEN**) |
 | `momentum_breakout` | Пробой high/low за lookback (legacy research) |
 | `opening_range` | ORB market-пробой (legacy) |
 | `mean_reversion` | Fade от SMA (legacy) |
@@ -511,6 +522,7 @@ bcs-trading-bot/
 │   └── strategies/                    # Search space для optimizer
 ├── docs/
 │   ├── strategy-research.md           # Champions, методология optimizer
+│   ├── optimizer-modes.md             # Solo vs portfolio режимы
 │   ├── system.md                      # Философия, риск, lifecycle сделки
 │   ├── champion-*.md                  # Детали champions
 │   ├── champion-baseline.md           # Baseline доходности для live

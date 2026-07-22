@@ -1,10 +1,9 @@
-package optimizer_test
+package marketdata
 
 import (
 	"testing"
 	"time"
 
-	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/pkg/models"
 )
 
@@ -22,7 +21,7 @@ func TestMergeCandles(t *testing.T) {
 		{Timestamp: t2, Close: 102},
 	}
 
-	merged := optimizer.MergeCandles(existing, fresh)
+	merged := MergeCandles(existing, fresh)
 	if len(merged) != 3 {
 		t.Fatalf("len: got %d, want 3", len(merged))
 	}

@@ -104,7 +104,7 @@ func TestRangeWithoutCapUsesHalfRange(t *testing.T) {
 
 // TestMomentumBreakoutFromParamsDefaultsRangeUseCapTrue проверяет, что путь
 // NewFromParams (используемый optimizer) по умолчанию включает капирование
-// range-стопа так же, как это делает runtime-бот (internal/config.StrategyOptions).
+// range-стопа так же, как это делает runtime-бот (StrategyConfig → NewFromParams).
 // Регрессия: momentumBreakoutOptsFromParams инвертировал флаг rangeUseCap,
 // из-за чего optimizer всегда считал range-стоп без капа (0.5*range вместо
 // капа ~0.5% от цены) — стопы были в разы шире, чем в проде, что портило

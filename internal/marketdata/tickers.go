@@ -1,4 +1,4 @@
-package data
+package marketdata
 
 import (
 	"fmt"
@@ -52,14 +52,14 @@ func (u *TickersConfig) normalize() {
 	if u.InitialHistoryYears <= 0 {
 		u.InitialHistoryYears = defaultInitialHistoryYears
 	}
-	u.Tickers = normalizeSymbols(u.Tickers)
-	u.LeanTickers = normalizeSymbols(u.LeanTickers)
+	u.Tickers = NormalizeSymbols(u.Tickers)
+	u.LeanTickers = NormalizeSymbols(u.LeanTickers)
 }
 
 // ResolveTickers возвращает список тикеров из tickers config или явный override (-tickers).
 func (u *TickersConfig) ResolveTickers(override string) []string {
 	if override != "" {
-		return normalizeSymbols(strings.Split(override, ","))
+		return NormalizeSymbols(strings.Split(override, ","))
 	}
 	return append([]string(nil), u.Tickers...)
 }
@@ -74,7 +74,7 @@ func (u *TickersConfig) CommissionPerLot(flagOverride float64) float64 {
 	return costs.ResolveFlag(flagOverride, u.ClassCode, u.Costs)
 }
 
-func normalizeSymbols(in []string) []string {
+func NormalizeSymbols(in []string) []string {
 	seen := make(map[string]struct{}, len(in))
 	out := make([]string, 0, len(in))
 	for _, s := range in {

@@ -30,6 +30,15 @@ var (
 	out          = log.New(os.Stdout, "", 0)
 )
 
+// moscowLoc — единая зона отметок времени в логах (совпадает с тем, что пишется в БД),
+// чтобы вывод не зависел от таймзоны процесса/окружения.
+var moscowLoc = func() *time.Location {
+	if loc, err := time.LoadLocation("Europe/Moscow"); err == nil {
+		return loc
+	}
+	return time.FixedZone("MSK", 3*3600)
+}()
+
 func detectColor() bool {
 	if os.Getenv("NO_COLOR") != "" {
 		return false
@@ -120,7 +129,7 @@ func write(parts ...string) {
 		}
 		msg += p
 	}
-	out.Println(paint(dim, time.Now().Format("2006-01-02 15:04:05")) + " " + msg)
+	out.Println(paint(dim, time.Now().In(moscowLoc).Format("2006-01-02 15:04:05")) + " " + msg)
 }
 
 // Info — обычное системное сообщение.

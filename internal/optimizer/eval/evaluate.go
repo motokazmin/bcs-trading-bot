@@ -10,8 +10,8 @@ import (
 
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/optimizer/data"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/trailing"
 	"bcs-trading-bot/pkg/logx"
@@ -20,17 +20,17 @@ import (
 
 // RunSettings — общие настройки прогона оптимизатора.
 type RunSettings struct {
-	Tickers            []string
-	HistoryDir         string
-	StrategyID         string
-	StopMode           string
-	ClassCode          string
-	CandleTimeframe    string
-	Deposit            float64
-	StepPriceValue     float64
-	Costs              costs.Config
-	MinTrades          int
-	Session            config.SessionConfig
+	Tickers         []string
+	HistoryDir      string
+	StrategyID      string
+	StopMode        string
+	ClassCode       string
+	CandleTimeframe string
+	Deposit         float64
+	StepPriceValue  float64
+	Costs           costs.Config
+	MinTrades       int
+	Session         config.SessionConfig
 }
 
 // Evaluator запускает backtest для набора параметров.
@@ -88,7 +88,7 @@ func (e *Evaluator) EvaluateTickerPeriod(ctx context.Context, params core.Parame
 	if !ok {
 		return PeriodResult{}
 	}
-	filtered := data.FilterCandles(candles, from, to)
+	filtered := marketdata.FilterCandles(candles, from, to)
 	if len(filtered) == 0 {
 		return PeriodResult{}
 	}
@@ -102,7 +102,7 @@ func candlesByTickerInRange(dataByTicker map[string][]models.Candle, tickers []s
 		if !ok {
 			continue
 		}
-		filtered := data.FilterCandles(candles, from, to)
+		filtered := marketdata.FilterCandles(candles, from, to)
 		if len(filtered) > 0 {
 			byTicker[ticker] = filtered
 		}
@@ -165,7 +165,7 @@ func LoadCandleData(historyDir string, tickers []string) (map[string][]models.Ca
 	var skipped []string
 	for _, ticker := range tickers {
 		path := filepath.Join(historyDir, ticker+".csv")
-		candles, err := data.TryLoadCSV(path, ticker)
+		candles, err := marketdata.TryLoadCSV(path, ticker)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", ticker, err)
 		}

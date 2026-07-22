@@ -15,7 +15,7 @@
 - [x] Baseline доходности — [`docs/champion-baseline.md`](docs/champion-baseline.md)
 - [x] Walk-forward optimizer, FROZEN champions, `portfolio-paper.yaml`
 - [x] Рефакторинг доков: `docs/system.md` + lean roadmap
-- [x] **Единый virtual-счёт** — `portfolio.shared_account`, `CanOpenTicker`, `optimizer portfolio-backtest` (GO 2026-07-17)
+- [x] **Единый virtual-счёт** — один executor/GlobalRisk на все experiments; `optimizer portfolio-backtest` (GO 2026-07-17; multi-account убран 2026-07-17)
 - [x] **Extended sessions** — Morning + Evening Session ORC → FROZEN; paper = 5 champions (2026-07-17)
 
 ---

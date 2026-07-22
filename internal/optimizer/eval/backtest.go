@@ -11,11 +11,11 @@ import (
 
 // BacktestResult — метрики одного backtest-прогона.
 type BacktestResult struct {
-	StrategyID string    `json:"strategy_id"`
-	From       time.Time `json:"from"`
-	To         time.Time `json:"to"`
+	StrategyID string       `json:"strategy_id"`
+	From       time.Time    `json:"from"`
+	To         time.Time    `json:"to"`
 	Metrics    core.Metrics `json:"metrics"`
-	NumTrades  int       `json:"num_trades"`
+	NumTrades  int          `json:"num_trades"`
 }
 
 // RunBacktest прогоняет одну конфигурацию на периоде.
@@ -38,7 +38,7 @@ func DefaultParamsFromSpace(space *core.SearchSpace) core.ParameterSet {
 	if space == nil {
 		return core.ParameterSet{}
 	}
-	out := make(core.ParameterSet, len(space.Parameters))
+	out := make(core.ParameterSet, len(space.Parameters)+len(space.Fixed))
 	for name, bounds := range space.Parameters {
 		switch bounds.Type {
 		case core.ParamInt:
@@ -49,6 +49,7 @@ func DefaultParamsFromSpace(space *core.SearchSpace) core.ParameterSet {
 			out[name] = (bounds.Min + bounds.Max) / 2
 		}
 	}
+	space.ApplyFixed(out)
 	return out
 }
 

@@ -1,19 +1,16 @@
 # Paper trading: пять FROZEN champions на ОДНОМ virtual-счёте 200k.
-# portfolio.shared_account: общий депозит, общий CB, one-position-per-ticker.
+# Общий депозит, общий CB, one-position-per-ticker.
 #
 # Слоты: morning ORC 07:00–09:50 | main ORC/Fade/MF 10:00–18:40 | evening ORC 19:05–23:50
-# Baseline (shared): docs/champion-baseline.md § C
+# Baseline: docs/champion-baseline.md § C
 # Проверка: go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
 #
 # Запуск: go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
 #
-# Champions: configs/champions/{orc-wave2,or-fade-wave3-afks,mf-afternoon-wave2-narrow,
+# Champions: configs/champions/{orc-wave2,or-fade-wave3-afks,mf-afternoon-longonly-narrow-ws2,
 #   session-orc-morning-wave2,session-orc-evening-wave2}.yaml
 
 trading_mode: virtual
-
-portfolio:
-  shared_account: true
 
 tickers:
   - MGNT
@@ -129,19 +126,19 @@ experiments:
       type: momentum_filtered
       stop_mode: atr
       atr_period: 14
-      lookback: 31
-      breakout_threshold: 0.008331434122254639
-      reward_ratio: 1.8380671358074852
+      lookback: 36
+      breakout_threshold: 0.006326656218747925
+      reward_ratio: 1.2727417282001618
       volume_filter: true
-      volume_min_ratio: 2.4863697165554925
+      volume_min_ratio: 1.4113866145561835
       long_only: true
-      trend_sma_period: 20
+      trend_sma_period: 28
       strategy_entry_delay_minutes: 24
-      atr_multiplier: 2.727324932266869
-      trail_activation_r: 2.400288919185261
-      trail_discrete_step_r: 0.6639651274158297
-      trail_stage_max: 3
-      max_trades_per_ticker_per_day: 1
+      atr_multiplier: 2.8507513131208873
+      trail_activation_r: 2.919057423904974
+      trail_discrete_step_r: 0.37290554637395923
+      trail_stage_max: 1
+      max_trades_per_ticker_per_day: 3
 
   - id: session-orc-evening
     name: "Evening Session ORC (19:05–23:50)"

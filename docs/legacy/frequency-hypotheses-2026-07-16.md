@@ -2,7 +2,8 @@
 
 Ветка: `research/frequency-hypotheses`.  
 Цель была поднять частоту сделок портфеля **без** роста risk%.  
-**Итог:** остаёмся с тремя FROZEN champions (ORC, OR Fade, MF Afternoon). Новые линии и candidates **не** вливаются в portfolio.
+**Итог на дату закрытия:** остались три FROZEN champions main-сессии (ORC, OR Fade, MF Afternoon). Новые линии и candidates **не** вливались в portfolio.
+*(После 2026-07-17 в paper добавлены Morning/Evening Session ORC → 5 champions; см. [`strategy-research.md`](../strategy-research.md).)*
 
 Актуальный статус: [`../strategy-research.md`](../strategy-research.md).
 
@@ -39,7 +40,7 @@
 
 Код стратегий в `internal/strategy/` оставлен (как mean_reversion / opening_range): DefaultSearchSpace указывает на `configs/legacy/frequency-hypotheses/strategies/`. Не запускать в production / paper portfolio.
 
-## FROZEN portfolio (без изменений)
+## FROZEN portfolio (на дату закрытия frequency-волны)
 
 ```
 10:00–10:30  ORC          MGNT, ROSN, TATN
@@ -47,4 +48,5 @@
 12:30–18:40  MF Afternoon MGNT, TATN
 ```
 
-Paper: `configs/runs/portfolio-paper.yaml`. Champions: `configs/champions/{orc-wave2,or-fade-wave3-afks,mf-afternoon-wave2-narrow}.yaml`.
+Snapshots: `configs/champions/{orc-wave2,or-fade-wave3-afks,mf-afternoon-wave2-narrow}.yaml`.  
+Актуальный paper (5 champions, + morning/evening Session ORC): `configs/runs/portfolio-paper.yaml`.

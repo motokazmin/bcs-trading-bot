@@ -80,12 +80,7 @@ var templateFuncs = template.FuncMap{
 	"fmtMoney": func(v float64) string {
 		return fmt.Sprintf("%.2f", v)
 	},
-	"fmtTime": func(t time.Time) string {
-		if t.IsZero() {
-			return "—"
-		}
-		return t.Format("02.01 15:04")
-	},
+	"fmtTime": formatAdminTimeMSK,
 	"fmtHold": func(sec int) string {
 		return formatHoldDuration(sec)
 	},
@@ -100,6 +95,16 @@ var templateFuncs = template.FuncMap{
 		}
 		return sum
 	},
+}
+
+// formatAdminTimeMSK форматирует время сделки. В БД оно уже хранится в московском
+// времени (parseDBTime читает его в зоне Europe/Moscow), поэтому дополнительная
+// конвертация не нужна — только форматирование.
+func formatAdminTimeMSK(t time.Time) string {
+	if t.IsZero() {
+		return "—"
+	}
+	return t.Format("02.01 15:04")
 }
 
 func formatHoldDuration(sec int) string {

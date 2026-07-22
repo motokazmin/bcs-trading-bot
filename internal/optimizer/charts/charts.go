@@ -15,8 +15,8 @@ import (
 
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/optimizer/data"
 	evalpkg "bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
@@ -30,12 +30,12 @@ const chartWindowPadding = 5 * 24 * time.Hour
 
 // ChartsOptions — параметры генерации графиков по эксперименту.
 type ChartsOptions struct {
-	Experiment       string
-	ResultsDir       string
-	ExperimentDir    string // если задан — используется напрямую (например output optimizer run)
-	HistoryDir       string
-	Costs            costs.Config
-	ClassCode        string
+	Experiment    string
+	ResultsDir    string
+	ExperimentDir string // если задан — используется напрямую (например output optimizer run)
+	HistoryDir    string
+	Costs         costs.Config
+	ClassCode     string
 }
 
 // ChartsBatchResult — итог пакетной генерации графиков.
@@ -92,7 +92,7 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 		return nil, err
 	}
 
-	from, to, ok := data.CandleDataRange(candleData)
+	from, to, ok := marketdata.CandleDataRange(candleData)
 	if !ok {
 		return nil, fmt.Errorf("нет свечей для графиков")
 	}
@@ -387,7 +387,7 @@ type chartStatItem struct {
 func BuildChartHTML(meta ChartMeta, candles []models.Candle, trades []models.ClosedTrade, costsCfg costs.Config, classCode string) ([]byte, error) {
 	visible := candles
 	if windowFrom, windowTo, ok := tradeChartWindow(trades, chartWindowPadding); ok {
-		visible = data.FilterCandles(candles, windowFrom, windowTo.Add(5*time.Minute))
+		visible = marketdata.FilterCandles(candles, windowFrom, windowTo.Add(5*time.Minute))
 		meta.PeriodFrom = windowFrom
 		meta.PeriodTo = windowTo
 	}
@@ -602,37 +602,22 @@ func tradesToChartMarkers(trades []models.ClosedTrade, costsCfg costs.Config, cl
 
 func parameterSetFromConfig(cfg *config.Config) core.ParameterSet {
 	s := cfg.Strategy
-	p := core.ParameterSet{
-		"lookback":                  float64(s.Lookback),
-		"atrPeriod":                 float64(s.ATRPeriod),
-		"atrMultiplier":             s.ATRMultiplier,
-		"rewardRatio":               s.RewardRatio,
-		"breakoutThreshold":         s.BreakoutThreshold,
-		"volumeMinRatio":            s.VolumeMinRatio,
-		"maxEntriesPerTickerPerDay": float64(s.MaxTradesPerTickerPerDay),
-		"orbMinutes":                float64(s.ORBMinutes),
-		"fadeThreshold":             s.FadeThreshold,
-		"trendSMAPeriod":            float64(s.TrendSMAPeriod),
-		"strategyEntryDelayMinutes": float64(s.StrategyEntryDelayMinutes),
-		"trailActivationR":          s.TrailActivationR,
-		"trailDiscreteStepR":        s.TrailDiscreteStepR,
-		"trailStageMax":             float64(s.TrailStageMax),
+	p, _ := s.ToParams(cfg.Session)
+	out := make(core.ParameterSet, len(p))
+	for k, v := range p {
+		out[k] = v
 	}
-	if s.VolumeFilterEnabled() {
-		p["volumeFilter"] = 1
-		if p["volumeMinRatio"] == 0 {
-			p["volumeMinRatio"] = 1.5
-		}
+	// Trail — в ParameterSet для charts, даже если toStrategyParams их пропускает.
+	if s.TrailActivationR > 0 {
+		out["trailActivationR"] = s.TrailActivationR
 	}
-	if s.LongOnlyEnabled() {
-		p["longOnly"] = 1
+	if s.TrailDiscreteStepR > 0 {
+		out["trailDiscreteStepR"] = s.TrailDiscreteStepR
 	}
-	if s.RangeUseCap != nil && !*s.RangeUseCap {
-		p["rangeUseCap"] = 0
-	} else {
-		p["rangeUseCap"] = 1
+	if s.TrailStageMax > 0 {
+		out["trailStageMax"] = float64(s.TrailStageMax)
 	}
-	return p
+	return out
 }
 
 func candleRange(candles []models.Candle) (from, to time.Time, ok bool) {
