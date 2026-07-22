@@ -160,9 +160,9 @@ func scanClosedTrade(scanner interface {
 }
 
 func parseDBTime(value string) (time.Time, error) {
-	t, err := time.ParseInLocation(timeLayout, value, time.UTC)
+	t, err := time.ParseInLocation(timeLayout, value, dbLoc)
 	if err != nil {
-		return time.ParseInLocation("2006-01-02 15:04:05.999999999", value, time.UTC)
+		return time.ParseInLocation("2006-01-02 15:04:05.999999999", value, dbLoc)
 	}
 	return t, nil
 }

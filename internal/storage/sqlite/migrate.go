@@ -22,6 +22,10 @@ func applyMigrations(db *sql.DB) error {
 	if err := applyMigration005(db); err != nil {
 		return fmt.Errorf("миграция 005: %w", err)
 	}
+	// Идемпотентно: подхватывает новые строки, если старый бинарник снова записал closed_at в Local.
+	if err := normalizeClosedAtSkew(db); err != nil {
+		return fmt.Errorf("normalize closed_at: %w", err)
+	}
 	return nil
 }
 
@@ -66,7 +70,20 @@ func applyMigration005(db *sql.DB) error {
 		return fmt.Errorf("check migration marker: %w", err)
 	}
 
-	_, err = db.Exec(`
+	if err := normalizeClosedAtSkew(db); err != nil {
+		return err
+	}
+
+	if _, err := db.Exec(`CREATE TABLE _migration_005_utc_times (applied_at TEXT NOT NULL DEFAULT (datetime('now')))`); err != nil {
+		return fmt.Errorf("migration marker: %w", err)
+	}
+	return nil
+}
+
+// normalizeClosedAtSkew выравнивает closed_at/recorded_at по hold_seconds, если они разъехались
+// (типично: opened_at UTC wall, closed_at Local MSK wall → +3ч). Безопасно вызывать при каждом Open.
+func normalizeClosedAtSkew(db *sql.DB) error {
+	_, err := db.Exec(`
 		UPDATE closed_trades
 		SET
 			recorded_at = datetime(
@@ -74,13 +91,10 @@ func applyMigration005(db *sql.DB) error {
 				printf('%+d seconds', hold_seconds - (strftime('%s', closed_at) - strftime('%s', opened_at)))
 			),
 			closed_at = datetime(opened_at, printf('+%d seconds', hold_seconds))
-		WHERE ABS((strftime('%s', closed_at) - strftime('%s', opened_at)) - hold_seconds) > 30`)
+		WHERE hold_seconds > 0
+		  AND ABS((strftime('%s', closed_at) - strftime('%s', opened_at)) - hold_seconds) > 30`)
 	if err != nil {
-		return fmt.Errorf("normalize closed_at: %w", err)
-	}
-
-	if _, err := db.Exec(`CREATE TABLE _migration_005_utc_times (applied_at TEXT NOT NULL DEFAULT (datetime('now')))`); err != nil {
-		return fmt.Errorf("migration marker: %w", err)
+		return fmt.Errorf("normalize closed_at skew: %w", err)
 	}
 	return nil
 }

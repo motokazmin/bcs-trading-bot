@@ -97,24 +97,14 @@ var templateFuncs = template.FuncMap{
 	},
 }
 
+// formatAdminTimeMSK форматирует время сделки. В БД оно уже хранится в московском
+// времени (parseDBTime читает его в зоне Europe/Moscow), поэтому дополнительная
+// конвертация не нужна — только форматирование.
 func formatAdminTimeMSK(t time.Time) string {
 	if t.IsZero() {
 		return "—"
 	}
-	return t.In(adminMoscow()).Format("02.01 15:04")
-}
-
-var adminMoscowLoc *time.Location
-
-func adminMoscow() *time.Location {
-	if adminMoscowLoc == nil {
-		loc, err := time.LoadLocation("Europe/Moscow")
-		if err != nil {
-			loc = time.FixedZone("MSK", 3*3600)
-		}
-		adminMoscowLoc = loc
-	}
-	return adminMoscowLoc
+	return t.Format("02.01 15:04")
 }
 
 func formatHoldDuration(sec int) string {

@@ -18,7 +18,7 @@ func TestStoreSaveClosedTrade(t *testing.T) {
 	defer store.Close()
 
 	msk := time.FixedZone("MSK", 3*3600)
-	// 13:15 MSK == 10:15 UTC — в БД должно лечь UTC wall clock.
+	// 13:15 MSK — в БД должно лечь московское время для удобства просмотра.
 	openedAt := time.Date(2026, 6, 25, 13, 15, 0, 0, msk)
 	closedAt := openedAt.Add(5 * time.Minute)
 
@@ -97,11 +97,11 @@ func TestStoreSaveClosedTrade(t *testing.T) {
 		got.maeInR != 0.8 || got.breakoutUpper != 104.5 || got.breakoutLower != 98.0 {
 		t.Fatalf("unexpected row: %+v", got)
 	}
-	if got.openedAt != "2026-06-25 10:15:00" {
-		t.Fatalf("opened_at UTC: got %q, want 2026-06-25 10:15:00", got.openedAt)
+	if got.openedAt != "2026-06-25 13:15:00" {
+		t.Fatalf("opened_at MSK: got %q, want 2026-06-25 13:15:00", got.openedAt)
 	}
-	if got.closedAt != "2026-06-25 10:20:00" {
-		t.Fatalf("closed_at UTC: got %q, want 2026-06-25 10:20:00", got.closedAt)
+	if got.closedAt != "2026-06-25 13:20:00" {
+		t.Fatalf("closed_at MSK: got %q, want 2026-06-25 13:20:00", got.closedAt)
 	}
 }
 
@@ -175,5 +175,55 @@ func TestMigration005NormalizesLocalClosedAt(t *testing.T) {
 
 	if err := applyMigration005(store.db); err != nil {
 		t.Fatalf("idempotent migration: %v", err)
+	}
+}
+
+func TestNormalizeClosedAtSkewHealsNewLocalRows(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "trades.db")
+
+	store, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer store.Close()
+
+	// Симулируем запись старым бинарником после миграции 005.
+	_, err = store.db.Exec(`
+		INSERT INTO closed_trades (
+			trading_mode, run_id, experiment_id, stop_mode, recorded_at,
+			ticker, class_code, step_price_value, direction, quantity,
+			entry_price, exit_price, initial_stop_loss, initial_take_profit, final_stop_loss, r_distance,
+			gross_pnl, pnl_r, close_reason, trail_stage, is_winner,
+			opened_at, closed_at, hold_seconds, trading_date,
+			candle_timeframe, lookback, risk_per_trade_pct, deposit_per_ticker
+		) VALUES (
+			'virtual', 'run', 'exp', 'atr', '2026-07-21 07:46:16',
+			'CHMF', 'TQBR', 1, 'BUY', 1,
+			100, 101, 99, 102, 99, 1,
+			1, 1, 'SL', 0, 0,
+			'2026-07-21 04:40:00', '2026-07-21 07:46:16', 376, '2026-07-21',
+			'M5', 0, 0.5, 200000
+		)`)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	if err := normalizeClosedAtSkew(store.db); err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+
+	var closedAt string
+	var diff int
+	if err := store.db.QueryRow(`
+		SELECT closed_at, (strftime('%s', closed_at) - strftime('%s', opened_at))
+		FROM closed_trades WHERE id = 1`).Scan(&closedAt, &diff); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if closedAt != "2026-07-21 04:46:16" {
+		t.Fatalf("closed_at: got %q, want 2026-07-21 04:46:16", closedAt)
+	}
+	if diff != 376 {
+		t.Fatalf("diff: got %d, want 376", diff)
 	}
 }

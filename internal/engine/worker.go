@@ -357,7 +357,7 @@ func (w *TickerWorker) closePosition(ctx context.Context, executor interfaces.Or
 		w.globalRisk.RegisterClose(w.ticker, pnl)
 	}
 
-	closedAt := time.Now()
+	closedAt := time.Now().UTC()
 	riskAmount := pos.RDistance * float64(pos.Quantity) * w.stepPriceValue
 	pnlR := 0.0
 	if riskAmount > 0 {
