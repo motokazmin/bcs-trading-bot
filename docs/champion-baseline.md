@@ -113,12 +113,12 @@ go run ./cmd/optimizer portfolio-backtest \
 
 | Метрика | Где смотреть | Baseline (ориентир) |
 |---------|--------------|---------------------|
-| `expectancy_r` | admin / export | **+0,55R** (§ C) |
-| Net PnL в ₽ | `data/trades.db`, admin | ~+11,5k ₽/мес на 200k (shared +277k / 24) |
-| Net PnL по слоту | admin / export | см. таблицу C |
-| Win rate | admin | ~55–60% |
-| Profit factor | admin / export | > 1,3 (shared ~2,0) |
-| Сделок в месяц | admin | ~20 (473 / 24 мес) |
+| `expectancy_r` | HTTP-админка / export | **+0,55R** (§ C) |
+| Net PnL в ₽ | `data/trades.db`, админка | ~+11,5k ₽/мес на 200k (shared +277k / 24) |
+| Net PnL по слоту | админка / export | см. таблицу C |
+| Win rate | админка | ~55–60% |
+| Profit factor | админка / export | > 1,3 (shared ~2,0) |
+| Сделок в месяц | админка | ~20 (473 / 24 мес) |
 | Просадка / серия стопов | логи, CB | CB 2% = −4 000 ₽/день max |
 | ticker busy | логи | редкий skip пересекающихся тикеров |
 

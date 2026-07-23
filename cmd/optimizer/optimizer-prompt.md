@@ -6,7 +6,12 @@
 Существующая структура:
 - cmd/bot/main.go — реалтайм-вход, оркестрация воркеров через engine.NewTickerWorker,
   graceful shutdown через signal.NotifyContext
-- cmd/admin/main.go — веб-админка/экспорт (SQLite + HTTP)
+- cmd/bot/main.go — оркестрация бота + встроенная HTTP-админка
+- cmd/optimizer — walk-forward optimizer
+- internal/live — HTTP UI/API админки
+- internal/api — архивы периодов и сборка экспорта для ИИ
+- internal/export — промпты и пакеты данных для ИИ
+- internal/storage/sqlite — SQLite сделок и аналитика
 - internal/strategy/momentum.go — MomentumBreakout (lookback, breakoutThreshold,
   volume filter через passesVolumeFilter — активно используется)
 - internal/risk/manager.go — риск-менеджмент (позиционирование, circuit breaker)
@@ -244,7 +249,7 @@ optimizer run \
 
 ## Definition of Done
 
-- `cmd/optimizer` собирается и запускается отдельно от `cmd/bot` и `cmd/admin`
+- `cmd/optimizer` собирается и запускается отдельно от `cmd/bot`
 - Запуск на реальной истории по SBER/ROSN/NVTK за произвольный период
   отрабатывает без ошибок и производит `best-config` YAML
 - Все unit/integration тесты проходят

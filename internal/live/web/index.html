@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Дашборд — BCS Admin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="page-dashboard" data-nav="dashboard">
+  <header class="topbar">
+    <div class="brand">BCS Trading Bot</div>
+    <nav>
+      <a href="/" class="active">Дашборд</a>
+      <a href="/open">Открытые</a>
+      <a href="/trades">Сделки</a>
+      <a href="/export">Экспорт для ИИ</a>
+    </nav>
+  </header>
+  <main class="container">
+    <h1>Дашборд</h1>
+    <div id="filters-root"></div>
+    <p id="page-error" class="muted" hidden></p>
+    <section class="cards" id="kpi-cards"></section>
+    <section id="comparison-section" hidden>
+      <h2>Сравнение экспериментов</h2>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr><th>experiment_id</th><th class="num">Сделок</th><th class="num">Exp (R)</th><th class="num">Win%</th><th class="num">PnL</th><th class="num">PF</th></tr>
+          </thead>
+          <tbody id="comparison-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+  <script src="/static/filters.js"></script>
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>

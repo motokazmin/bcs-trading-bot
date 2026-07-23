@@ -1,4 +1,5 @@
 (function () {
+  const App = window.AdminApp;
   const statusEl = document.getElementById('open-status');
   const itemsEl = document.getElementById('open-items');
   const countEl = document.getElementById('open-count');
@@ -97,9 +98,9 @@
   async function loadChart(ticker, id) {
     ensureChart();
     try {
-      const res = await fetch(`/live/chart?ticker=${encodeURIComponent(ticker)}&id=${encodeURIComponent(id || '')}`);
-      if (!res.ok) throw new Error(await res.text());
-      const payload = await res.json();
+      const chartRes = await App.api(`/chart?ticker=${encodeURIComponent(ticker)}&id=${encodeURIComponent(id || '')}`);
+      if (!chartRes.ok) throw new Error(await chartRes.text());
+      const payload = await chartRes.json();
       series.setData(payload.candles || []);
       series.setMarkers(payload.markers || []);
       clearLevels();
@@ -128,7 +129,7 @@
 
   async function tick() {
     try {
-      const res = await fetch('/live/positions');
+      const res = await App.api('/positions');
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       const positions = data.positions || [];

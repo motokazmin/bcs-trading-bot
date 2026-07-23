@@ -79,7 +79,7 @@ Win rate **~40–55%** (зависит от стратегии).
 
 **Отладка:** закомментированные fake-сигналы в `internal/strategy/momentum.go` (быстрый прогон SL/TP/EOD).
 
-**Логи:** `pkg/logx` — `[OPEN]` / `[TP]` / `[SL]` / `[EOD]`, PnL в ₽ и R. Персистентность: `data/trades.db`, admin.
+**Логи:** `pkg/logx` — `[OPEN]` / `[TP]` / `[SL]` / `[EOD]`, PnL в ₽ и R. Персистентность: `data/trades.db`. Админка: HTTP UI/API бота (`-http-listen`, по умолчанию `127.0.0.1:8091`).
 
 ---
 

@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"bcs-trading-bot/internal/api"
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine"
@@ -27,7 +28,8 @@ func main() {
 	configPath := flag.String("config", "configs/runs/portfolio-paper.yaml", "путь к YAML-конфигу")
 	noColor := flag.Bool("no-color", false, "отключить цветной вывод в терминале")
 	smokeTest := flag.Bool("smoke-test", false, "быстрая проверка: OAuth + WebSocket + виртуальная сделка без записи в БД")
-	liveListen := flag.String("live-listen", "127.0.0.1:8091", "адрес live API для админки (пустая строка — отключить)")
+	httpListen := flag.String("http-listen", "127.0.0.1:8091", "адрес HTTP UI/API админки (пустая строка — отключить)")
+	archivesPath := flag.String("archives", "data/archives.json", "путь к JSON с архивами периодов")
 	flag.Parse()
 
 	if *noColor {
@@ -86,12 +88,14 @@ func main() {
 	}
 
 	var tradeStore interfaces.TradeStore = interfaces.NoopTradeStore{}
+	var tradeReader interfaces.TradeReader
 	if cfg.StorageEnabled() {
 		store, err := sqlite.Open(cfg.Storage.Path)
 		if err != nil {
 			logx.Fatalf("ошибка открытия БД сделок: %v", err)
 		}
 		tradeStore = store
+		tradeReader = store
 		defer func() {
 			if err := store.Close(); err != nil {
 				logx.Warn("ошибка закрытия БД: %v", err)
@@ -191,18 +195,35 @@ func main() {
 		workerCount, len(experiments), cfg.Session.EODCloseTime,
 	)
 
-	if *liveListen != "" {
+	if *httpListen != "" {
 		deposit := cfg.AccountBalance()
-		liveSrv := live.NewServer(hub, *liveListen, deposit, executor)
+		adminToken := strings.TrimSpace(os.Getenv("ADMIN_TOKEN"))
+		liveSrv, err := live.NewServer(hub, live.Options{
+			Listen:   *httpListen,
+			Token:    adminToken,
+			Deposit:  deposit,
+			Exec:     executor,
+			Reader:   tradeReader,
+			Archives: api.NewArchiveStore(*archivesPath),
+		})
+		if err != nil {
+			logx.Fatalf("HTTP UI/API: %v", err)
+		}
 		httpSrv := &http.Server{
 			Addr:              liveSrv.ListenAddr(),
 			Handler:           liveSrv.Handler(),
 			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       10 * time.Second,
+			WriteTimeout:      60 * time.Second,
 		}
 		go func() {
-			logx.Info("Live API: http://%s (account/positions/candles/chart)", liveSrv.ListenAddr())
+			authHint := "без токена (только localhost)"
+			if adminToken != "" {
+				authHint = "ADMIN_TOKEN задан"
+			}
+			logx.Info("Админка: http://%s (%s)", liveSrv.ListenAddr(), authHint)
 			if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				logx.Error("live API: %v", err)
+				logx.Error("HTTP UI/API: %v", err)
 			}
 		}()
 		go func() {
