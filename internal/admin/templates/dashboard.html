@@ -8,6 +8,8 @@
   <div class="card"><div class="label">Expectancy (₽)</div><div class="value {{pnlClass .Summary.Expectancy}}">{{fmtMoney .Summary.Expectancy}} ₽</div></div>
   <div class="card"><div class="label">Win rate</div><div class="value">{{fmtPct .Summary.WinRate}}</div></div>
   <div class="card"><div class="label">Total PnL</div><div class="value {{pnlClass .Summary.TotalPnL}}">{{fmtMoney .Summary.TotalPnL}} ₽</div></div>
+  <div class="card highlight"><div class="label">Депозит</div><div class="value">{{if .AccountEquity.StartingDeposit}}{{fmtMoney .AccountEquity.StartingDeposit}} ₽{{else}}—{{end}}</div></div>
+  <div class="card highlight"><div class="label">Баланс</div><div class="value {{if .AccountEquity.StartingDeposit}}{{pnlClass .AccountEquity.CurrentBalance}}{{end}}">{{if .AccountEquity.StartingDeposit}}{{fmtMoney .AccountEquity.CurrentBalance}} ₽{{else}}—{{end}}</div></div>
   <div class="card"><div class="label">Profit factor</div><div class="value">{{printf "%.2f" .Summary.ProfitFactor}}</div></div>
   <div class="card"><div class="label">Ср. удержание</div><div class="value">{{fmtHoldSec .Summary.AvgHoldSec}}</div></div>
   <div class="card"><div class="label">Период</div><div class="value small">{{.DateRange.From}} — {{.DateRange.To}}</div></div>

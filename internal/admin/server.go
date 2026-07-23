@@ -24,11 +24,13 @@ func NewServer(cfg Config, handler *Handler) (*http.Server, error) {
 
 	mux.HandleFunc("GET /{$}", handler.handleDashboard)
 	mux.HandleFunc("GET /trades", handler.handleTrades)
+	mux.HandleFunc("GET /open", handler.handleOpen)
 	mux.HandleFunc("GET /export", handler.handleExportPage)
 
 	mux.HandleFunc("GET /api/summary", handler.handleAPISummary)
 	mux.HandleFunc("GET /api/comparison", handler.handleAPIComparison)
 	mux.HandleFunc("GET /api/trades", handler.handleAPITrades)
+	mux.HandleFunc("GET /api/account-equity", handler.handleAPIAccountEquity)
 	mux.HandleFunc("GET /api/prompt", handler.handleAPIPrompt)
 
 	mux.HandleFunc("GET /api/export/data", handler.handleExportData)
@@ -36,6 +38,12 @@ func NewServer(cfg Config, handler *Handler) (*http.Server, error) {
 	mux.HandleFunc("GET /api/archives", handler.handleAPIArchivesList)
 	mux.HandleFunc("POST /api/archives", handler.handleAPIArchivesCreate)
 	mux.HandleFunc("DELETE /api/archives/{id}", handler.handleAPIArchivesDelete)
+
+	mux.HandleFunc("GET /live/", handler.handleLiveProxy)
+	mux.HandleFunc("GET /live/account", handler.handleLiveProxy)
+	mux.HandleFunc("GET /live/positions", handler.handleLiveProxy)
+	mux.HandleFunc("GET /live/candles", handler.handleLiveProxy)
+	mux.HandleFunc("GET /live/chart", handler.handleLiveProxy)
 
 	return &http.Server{
 		Addr:         cfg.Listen,

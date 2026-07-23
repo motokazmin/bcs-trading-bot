@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"bcs-trading-bot/pkg/models"
@@ -196,7 +197,29 @@ func (s *Store) GetDailyPnL(ctx context.Context, f models.TradeFilter) ([]models
 }
 
 func (s *Store) GetEquityCurve(ctx context.Context, f models.TradeFilter) ([]models.EquityPoint, error) {
+	eq, err := s.GetAccountEquity(ctx, f, 0)
+	if err != nil {
+		return nil, err
+	}
+	return eq.Points, nil
+}
+
+func (s *Store) GetAccountEquity(ctx context.Context, f models.TradeFilter, startingDeposit float64) (models.AccountEquity, error) {
 	where, args := buildWhere(f)
+
+	starting := startingDeposit
+	if starting <= 0 {
+		// fallback для тестов/экспорта без конфига — не использовать как source of truth в админке
+		depositSQL := `SELECT COALESCE(deposit_per_ticker, 0) FROM closed_trades ` + where + ` ORDER BY closed_at DESC LIMIT 1`
+		err := s.db.QueryRowContext(ctx, depositSQL, args...).Scan(&starting)
+		if err == sql.ErrNoRows {
+			return models.AccountEquity{Points: []models.EquityPoint{}}, nil
+		}
+		if err != nil {
+			return models.AccountEquity{}, fmt.Errorf("starting deposit: %w", err)
+		}
+	}
+
 	query := `
 		SELECT closed_at, gross_pnl
 		FROM closed_trades ` + where + `
@@ -204,7 +227,7 @@ func (s *Store) GetEquityCurve(ctx context.Context, f models.TradeFilter) ([]mod
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("equity curve: %w", err)
+		return models.AccountEquity{}, fmt.Errorf("equity curve: %w", err)
 	}
 	defer rows.Close()
 
@@ -214,16 +237,28 @@ func (s *Store) GetEquityCurve(ctx context.Context, f models.TradeFilter) ([]mod
 		var closedAt string
 		var pnl float64
 		if err := rows.Scan(&closedAt, &pnl); err != nil {
-			return nil, err
+			return models.AccountEquity{}, err
 		}
 		ts, err := parseDBTime(closedAt)
 		if err != nil {
-			return nil, err
+			return models.AccountEquity{}, err
 		}
 		cumulative += pnl
-		out = append(out, models.EquityPoint{ClosedAt: ts, CumulativePnL: cumulative})
+		out = append(out, models.EquityPoint{
+			ClosedAt:      ts,
+			CumulativePnL: cumulative,
+			Balance:       starting + cumulative,
+		})
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return models.AccountEquity{}, err
+	}
+
+	return models.AccountEquity{
+		StartingDeposit: starting,
+		CurrentBalance:  starting + cumulative,
+		Points:          out,
+	}, nil
 }
 
 func (s *Store) GetDateRange(ctx context.Context, f models.TradeFilter) (models.DateRange, error) {

@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/live"
 	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/strategy"
@@ -42,11 +44,12 @@ type TickerWorker struct {
 	candleChan       chan models.Candle
 	tickChan         chan models.Tick
 	position         *position.State
+	posMu            sync.RWMutex
 	lastPrice        float64
 	eodCloseDate             string
 	riskResetDate            string
 	tradesToday              int
-	maxTradesPerTickerPerDay   int
+	maxTradesPerTickerPerDay int
 }
 
 // NewTickerWorker создаёт изолированный воркер для тикера.
@@ -126,6 +129,37 @@ func (w *TickerWorker) Ticker() string                   { return w.ticker }
 func (w *TickerWorker) ExperimentID() string             { return w.experimentID }
 func (w *TickerWorker) Label() string                    { return w.label }
 
+// SnapshotPosition возвращает копию открытой позиции для live API (или nil).
+func (w *TickerWorker) SnapshotPosition() *live.OpenPosition {
+	w.posMu.RLock()
+	defer w.posMu.RUnlock()
+	if w.position == nil {
+		return nil
+	}
+	pos := *w.position
+	last := w.lastPrice
+	step := w.stepPriceValue
+	if step <= 0 {
+		step = 1
+	}
+	return &live.OpenPosition{
+		ID:            fmt.Sprintf("%s/%s", w.experimentID, w.ticker),
+		ExperimentID:  w.experimentID,
+		Ticker:        w.ticker,
+		Direction:     pos.Direction,
+		Quantity:      pos.Quantity,
+		EntryPrice:    pos.EntryPrice,
+		StopLoss:      pos.StopLoss,
+		TakeProfit:    pos.TakeProfit,
+		TrailStage:    pos.TrailStage,
+		OpenedAt:      pos.OpenedAt,
+		LastPrice:     last,
+		UnrealizedPnL: position.CalcPnL(&pos, last, step),
+		RDistance:     pos.RDistance,
+		StepPrice:     step,
+	}
+}
+
 // Start запускает цикл обработки тиков, свечей и контроля позиции.
 func (w *TickerWorker) Start(ctx context.Context, executor interfaces.OrderExecutor) {
 	logx.WorkerLifecycle(w.label, "воркер запущен")
@@ -144,7 +178,9 @@ func (w *TickerWorker) Start(ctx context.Context, executor interfaces.OrderExecu
 				logx.WorkerLifecycle(w.label, "канал тиков закрыт")
 				return
 			}
+			w.posMu.Lock()
 			w.lastPrice = tick.Price
+			w.posMu.Unlock()
 			w.checkDailyReset(time.Now())
 			w.checkSLTP(ctx, executor, tick.Price)
 			w.checkEOD(ctx, executor, tick.Price, time.Now())
@@ -154,7 +190,9 @@ func (w *TickerWorker) Start(ctx context.Context, executor interfaces.OrderExecu
 				logx.WorkerLifecycle(w.label, "канал свечей закрыт")
 				return
 			}
+			w.posMu.Lock()
 			w.lastPrice = candle.Close
+			w.posMu.Unlock()
 			w.checkDailyReset(candle.Timestamp)
 			w.checkEOD(ctx, executor, candle.Close, candle.Timestamp)
 			w.processCandle(ctx, executor, candle)
@@ -174,7 +212,10 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		return
 	}
 
-	if w.position != nil {
+	w.posMu.RLock()
+	hasPos := w.position != nil
+	w.posMu.RUnlock()
+	if hasPos {
 		return
 	}
 
@@ -213,14 +254,12 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		return
 	}
 
-	// BUY: risk-sizing не знает свободный кэш — режем notional до GetBalance.
-	if signal.Direction == "BUY" {
-		if bal, err := executor.GetBalance(ctx); err == nil {
-			quantity = risk.CapQuantityByCash(quantity, signal.Price, bal)
-			if quantity <= 0 {
-				logx.SignalRejected(w.label, signal.Direction, "недостаточно средств")
-				return
-			}
+	// Risk-sizing не знает свободный кэш — режем notional до GetBalance (BUY и SELL как на реале).
+	if bal, err := executor.GetBalance(ctx); err == nil {
+		quantity = risk.CapQuantityByCash(quantity, signal.Price, bal)
+		if quantity <= 0 {
+			logx.SignalRejected(w.label, signal.Direction, "недостаточно средств")
+			return
 		}
 	}
 
@@ -242,28 +281,42 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 
 	logx.TradeOpen(w.label, signal.Direction, signal.Quantity, signal.Price, signal.StopLoss, signal.TakeProfit)
 	w.tradesToday++
+	w.posMu.Lock()
 	w.position = position.NewFromSignal(*signal, candle.Timestamp)
+	pos := w.position
+	w.posMu.Unlock()
 	if w.globalRisk != nil {
-		tradeRisk := w.position.RDistance * float64(w.position.Quantity) * w.stepPriceValue
+		tradeRisk := pos.RDistance * float64(pos.Quantity) * w.stepPriceValue
 		w.globalRisk.RegisterOpen(w.ticker, tradeRisk)
 	}
 }
 
 func (w *TickerWorker) checkSLTP(ctx context.Context, executor interfaces.OrderExecutor, price float64) {
+	w.posMu.Lock()
 	if w.position == nil {
+		w.posMu.Unlock()
 		return
 	}
-
 	position.UpdateMFE(w.position, price)
 	position.UpdateMAE(w.position, price)
-	w.updateTrailingStop(price)
+	prevStage := w.position.TrailStage
+	trailing.Apply(w.position, price, w.trailCfg)
+	stage := w.position.TrailStage
+	sl := w.position.StopLoss
+	reason := position.CheckExit(w.position, price)
+	w.posMu.Unlock()
 
-	if reason := position.CheckExit(w.position, price); reason != "" {
+	if stage > prevStage {
+		logx.Trailing(w.label, stage, sl)
+	}
+	if reason != "" {
 		w.closePosition(ctx, executor, price, reason)
 	}
 }
 
 func (w *TickerWorker) updateTrailingStop(price float64) {
+	w.posMu.Lock()
+	defer w.posMu.Unlock()
 	if w.position == nil {
 		return
 	}
@@ -287,7 +340,10 @@ func (w *TickerWorker) checkEOD(ctx context.Context, executor interfaces.OrderEx
 		return
 	}
 
-	if w.position != nil {
+	w.posMu.RLock()
+	hasPos := w.position != nil
+	w.posMu.RUnlock()
+	if hasPos {
 		w.closePosition(ctx, executor, price, models.CloseReasonEOD)
 	}
 
@@ -315,12 +371,14 @@ func (w *TickerWorker) checkDailyReset(now time.Time) {
 
 // closePosition закрывает позицию; вызывать только из горутины Start.
 func (w *TickerWorker) closePosition(ctx context.Context, executor interfaces.OrderExecutor, price float64, reason string) {
+	w.posMu.Lock()
 	if w.position == nil {
+		w.posMu.Unlock()
 		return
 	}
-
 	pos := w.position
 	w.position = nil
+	w.posMu.Unlock()
 
 	closeDir := "SELL"
 	if pos.Direction == "SELL" {
@@ -344,7 +402,9 @@ func (w *TickerWorker) closePosition(ctx context.Context, executor interfaces.Or
 
 	if err := executor.ExecuteOrder(ctx, order); err != nil {
 		logx.Error("[%s] ошибка закрытия позиции (%s): %v", w.label, reason, err)
+		w.posMu.Lock()
 		w.position = pos
+		w.posMu.Unlock()
 		return
 	}
 

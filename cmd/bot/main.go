@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -14,16 +15,19 @@ import (
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine"
+	"bcs-trading-bot/internal/live"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/storage/sqlite"
 	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/logx"
+	"bcs-trading-bot/pkg/models"
 )
 
 func main() {
 	configPath := flag.String("config", "configs/runs/portfolio-paper.yaml", "путь к YAML-конфигу")
 	noColor := flag.Bool("no-color", false, "отключить цветной вывод в терминале")
 	smokeTest := flag.Bool("smoke-test", false, "быстрая проверка: OAuth + WebSocket + виртуальная сделка без записи в БД")
+	liveListen := flag.String("live-listen", "127.0.0.1:8091", "адрес live API для админки (пустая строка — отключить)")
 	flag.Parse()
 
 	if *noColor {
@@ -144,6 +148,7 @@ func main() {
 
 	routes := make(map[string][]bcs.WorkerRoutes)
 	workerCount := 0
+	hub := live.NewHub()
 
 	for _, exp := range experiments {
 		expTickers := cfg.TickersForExperiment(exp)
@@ -170,9 +175,11 @@ func main() {
 				logx.Fatalf("ошибка создания воркера %s/%s: %v", exp.ID, tc.Symbol, err)
 			}
 
+			hub.Register(worker)
+			candleIn, tickIn := teeMarketToHub(ctx, hub, tc.Symbol, worker.CandleChan(), worker.TickChan())
 			routes[tc.Symbol] = append(routes[tc.Symbol], bcs.WorkerRoutes{
-				CandleChan: worker.CandleChan(),
-				TickChan:   worker.TickChan(),
+				CandleChan: candleIn,
+				TickChan:   tickIn,
 			})
 			go worker.Start(ctx, executor)
 			workerCount++
@@ -183,6 +190,28 @@ func main() {
 		"Шаг 2: Запущено %d воркеров (%d экспериментов, EOD: %s МСК)",
 		workerCount, len(experiments), cfg.Session.EODCloseTime,
 	)
+
+	if *liveListen != "" {
+		deposit := cfg.AccountBalance()
+		liveSrv := live.NewServer(hub, *liveListen, deposit, executor)
+		httpSrv := &http.Server{
+			Addr:              liveSrv.ListenAddr(),
+			Handler:           liveSrv.Handler(),
+			ReadHeaderTimeout: 5 * time.Second,
+		}
+		go func() {
+			logx.Info("Live API: http://%s (account/positions/candles/chart)", liveSrv.ListenAddr())
+			if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logx.Error("live API: %v", err)
+			}
+		}()
+		go func() {
+			<-ctx.Done()
+			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancelShutdown()
+			_ = httpSrv.Shutdown(shutdownCtx)
+		}()
+	}
 
 	go func() {
 		if err := client.SubscribeMarketDataFanOut(ctx, routes); err != nil && ctx.Err() == nil {
@@ -195,6 +224,64 @@ func main() {
 
 	<-ctx.Done()
 	logx.Info("Завершение работы...")
+}
+
+// teeMarketToHub дублирует свечи/тики в live hub и в каналы воркера.
+func teeMarketToHub(
+	ctx context.Context,
+	hub *live.Hub,
+	ticker string,
+	candleOut chan<- models.Candle,
+	tickOut chan<- models.Tick,
+) (chan<- models.Candle, chan<- models.Tick) {
+	candleIn := make(chan models.Candle, 64)
+	tickIn := make(chan models.Tick, 256)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case c, ok := <-candleIn:
+				if !ok {
+					return
+				}
+				if c.Ticker == "" {
+					c.Ticker = ticker
+				}
+				hub.IngestCandle(c)
+				select {
+				case candleOut <- c:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case t, ok := <-tickIn:
+				if !ok {
+					return
+				}
+				if t.Ticker == "" {
+					t.Ticker = ticker
+				}
+				hub.IngestTick(t)
+				select {
+				case tickOut <- t:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return candleIn, tickIn
 }
 
 func runSmokeTest(ctx context.Context, cfg *config.Config, client *bcs.BCSClient) {

@@ -55,20 +55,13 @@ func (v *VirtualExecutor) openPosition(order models.Order) error {
 	notional := order.Price * float64(order.Quantity)
 
 	switch order.Direction {
-	case "BUY":
+	case "BUY", "SELL":
+		// Как на кэш/марже 1:1: и лонг, и шорт резервируют notional из свободных средств.
+		// Шорт больше не раздувает balance (иначе следующий BUY уходит за депозит).
 		if v.balance < notional {
 			return fmt.Errorf("[VIRTUAL] недостаточно средств: нужно %.2f, доступно %.2f", notional, v.balance)
 		}
 		v.balance -= notional
-		v.positions[order.Ticker] = &virtualPosition{
-			direction:  order.Direction,
-			quantity:   order.Quantity,
-			entryPrice: order.Price,
-			stopLoss:   order.StopLoss,
-			takeProfit: order.TakeProfit,
-		}
-	case "SELL":
-		v.balance += notional
 		v.positions[order.Ticker] = &virtualPosition{
 			direction:  order.Direction,
 			quantity:   order.Quantity,
@@ -92,12 +85,16 @@ func (v *VirtualExecutor) closePosition(order models.Order) error {
 	closePrice := order.Price
 	qty := float64(pos.quantity)
 	commission := order.CommissionRub
+	entry := pos.entryPrice
 
 	switch pos.direction {
 	case "BUY":
+		// вернуть выручку продажи
 		v.balance += closePrice*qty - commission
 	case "SELL":
-		v.balance -= closePrice*qty + commission
+		// вернуть зарезервированный entry и учесть PnL шорта: +(entry-exit)*qty
+		// эквивалент: +(2*entry - exit)*qty - commission
+		v.balance += (2*entry-closePrice)*qty - commission
 	}
 
 	delete(v.positions, order.Ticker)
