@@ -66,8 +66,16 @@ type DailyPnLRow struct {
 
 // EquityPoint — точка кривой эквити.
 type EquityPoint struct {
-	ClosedAt    time.Time `json:"closed_at"`
-	CumulativePnL float64 `json:"cumulative_pnl"`
+	ClosedAt      time.Time `json:"closed_at"`
+	CumulativePnL float64   `json:"cumulative_pnl"`
+	Balance       float64   `json:"balance,omitempty"`
+}
+
+// AccountEquity — динамика единого счёта по закрытым сделкам.
+type AccountEquity struct {
+	StartingDeposit float64       `json:"starting_deposit"`
+	CurrentBalance  float64       `json:"current_balance"`
+	Points          []EquityPoint `json:"points"`
 }
 
 // ExperimentReport — полный отчёт по одному эксперименту.

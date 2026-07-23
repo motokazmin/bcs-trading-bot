@@ -213,12 +213,10 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces
 	if qty <= 0 {
 		return
 	}
-	if signal.Direction == "BUY" {
-		if bal, err := executor.GetBalance(ctx); err == nil {
-			qty = risk.CapQuantityByCash(qty, signal.Price, bal)
-			if qty <= 0 {
-				return
-			}
+	if bal, err := executor.GetBalance(ctx); err == nil {
+		qty = risk.CapQuantityByCash(qty, signal.Price, bal)
+		if qty <= 0 {
+			return
 		}
 	}
 	signal.Quantity = qty

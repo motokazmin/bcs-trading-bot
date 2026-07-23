@@ -4,27 +4,31 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 
+	"bcs-trading-bot/internal/live"
 	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/models"
 )
 
 // Handler обслуживает HTTP-запросы админки.
 type Handler struct {
-	reader   interfaces.TradeReader
-	export   *ExportService
-	archives *ArchiveStore
+	reader     interfaces.TradeReader
+	export     *ExportService
+	archives   *ArchiveStore
+	botLiveURL string
 }
 
-func NewHandler(reader interfaces.TradeReader, archives *ArchiveStore) *Handler {
+func NewHandler(reader interfaces.TradeReader, archives *ArchiveStore, botLiveURL string) *Handler {
 	return &Handler{
-		reader:   reader,
-		export:   NewExportService(reader),
-		archives: archives,
+		reader:     reader,
+		export:     NewExportService(reader),
+		archives:   archives,
+		botLiveURL: strings.TrimRight(botLiveURL, "/"),
 	}
 }
 
@@ -150,6 +154,9 @@ type pageData struct {
 	TradesPagination tradesPagination
 	DateRange        models.DateRange
 	Experiments      []string
+	AccountEquity models.AccountEquity
+	BotLiveURL    string
+	BotOnline     bool
 }
 
 func (h *Handler) buildPageData(ctx context.Context, r *http.Request, title, nav string) (pageData, error) {
@@ -170,16 +177,35 @@ func (h *Handler) buildPageData(ctx context.Context, r *http.Request, title, nav
 	if err != nil {
 		return pageData{}, err
 	}
+	deposit := h.fetchAccountDeposit(ctx)
+	equity, err := h.reader.GetAccountEquity(ctx, f, deposit)
+	if err != nil {
+		return pageData{}, err
+	}
 	return pageData{
-		Title:       title,
-		ActiveNav:   nav,
-		FilterQuery: r.URL.RawQuery,
-		Filter:      f,
-		Summary:     summary,
-		Comparison:  comparison,
-		DateRange:   dr,
-		Experiments: experiments,
+		Title:         title,
+		ActiveNav:     nav,
+		FilterQuery:   r.URL.RawQuery,
+		Filter:        f,
+		Summary:       summary,
+		Comparison:    comparison,
+		DateRange:     dr,
+		Experiments:   experiments,
+		AccountEquity: equity,
+		BotLiveURL:    h.botLiveURL,
 	}, nil
+}
+
+// fetchAccountDeposit спрашивает депозит у live API бота; 0 если бот недоступен.
+func (h *Handler) fetchAccountDeposit(ctx context.Context) float64 {
+	if h.botLiveURL == "" {
+		return 0
+	}
+	info, err := live.FetchAccount(ctx, h.botLiveURL)
+	if err != nil {
+		return 0
+	}
+	return info.Deposit
 }
 
 func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -324,6 +350,59 @@ func (h *Handler) handleTrades(w http.ResponseWriter, r *http.Request) {
 	data.Trades = trades
 	data.TradesPagination = buildTradesPagination(r, limit, offset, trades)
 	renderTemplate(w, "trades.html", data)
+}
+
+func (h *Handler) handleAPIAccountEquity(w http.ResponseWriter, r *http.Request) {
+	eq, err := h.reader.GetAccountEquity(r.Context(), h.parseFilter(r), h.fetchAccountDeposit(r.Context()))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, eq)
+}
+
+func (h *Handler) handleOpen(w http.ResponseWriter, r *http.Request) {
+	data, err := h.buildPageData(r.Context(), r, "Открытые", "open")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data.BotOnline = h.botLiveURL != ""
+	renderTemplate(w, "open.html", data)
+}
+
+// ProxyLive проксирует запросы к live API бота (обход CORS для локальной админки).
+func (h *Handler) handleLiveProxy(w http.ResponseWriter, r *http.Request) {
+	if h.botLiveURL == "" {
+		http.Error(w, "bot live URL не задан", http.StatusServiceUnavailable)
+		return
+	}
+	path := strings.TrimPrefix(r.URL.Path, "/live")
+	if path == "" {
+		path = "/"
+	}
+	target := h.botLiveURL + path
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		http.Error(w, "бот недоступен: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	for k, vv := range resp.Header {
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
 }
 
 func (h *Handler) handleAPIArchivesList(w http.ResponseWriter, r *http.Request) {

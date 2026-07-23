@@ -1,0 +1,209 @@
+package live
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/pkg/models"
+)
+
+// AccountInfo — снимок единого счёта для админки.
+type AccountInfo struct {
+	Deposit float64   `json:"deposit"`
+	Cash    float64   `json:"cash"` // свободный кэш (VirtualExecutor / брокер)
+	Updated time.Time `json:"updated_at"`
+}
+
+// Server — HTTP API для админки (открытые позиции + свечи дня + счёт).
+type Server struct {
+	hub     *Hub
+	listen  string
+	deposit float64
+	exec    interfaces.OrderExecutor
+}
+
+func NewServer(hub *Hub, listen string, deposit float64, exec interfaces.OrderExecutor) *Server {
+	if listen == "" {
+		listen = "127.0.0.1:8091"
+	}
+	return &Server{hub: hub, listen: listen, deposit: deposit, exec: exec}
+}
+
+func (s *Server) ListenAddr() string { return s.listen }
+
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /account", s.handleAccount)
+	mux.HandleFunc("GET /positions", s.handlePositions)
+	mux.HandleFunc("GET /candles", s.handleCandles)
+	mux.HandleFunc("GET /chart", s.handleChart)
+	mux.HandleFunc("GET /live/account", s.handleAccount)
+	mux.HandleFunc("GET /live/positions", s.handlePositions)
+	mux.HandleFunc("GET /live/candles", s.handleCandles)
+	mux.HandleFunc("GET /live/chart", s.handleChart)
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	return mux
+}
+
+func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
+	info := AccountInfo{
+		Deposit: s.deposit,
+		Cash:    s.deposit,
+		Updated: time.Now().UTC(),
+	}
+	if s.exec != nil {
+		if bal, err := s.exec.GetBalance(r.Context()); err == nil {
+			info.Cash = bal
+		}
+	}
+	writeJSON(w, info)
+}
+
+func (s *Server) handlePositions(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]any{
+		"updated_at": time.Now().UTC(),
+		"positions":  s.hub.Positions(),
+	})
+}
+
+func (s *Server) handleCandles(w http.ResponseWriter, r *http.Request) {
+	ticker := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("ticker")))
+	if ticker == "" {
+		http.Error(w, "ticker обязателен", http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, map[string]any{
+		"ticker":  ticker,
+		"candles": s.hub.Candles(ticker),
+	})
+}
+
+func (s *Server) handleChart(w http.ResponseWriter, r *http.Request) {
+	ticker := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("ticker")))
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if ticker == "" {
+		http.Error(w, "ticker обязателен", http.StatusBadRequest)
+		return
+	}
+
+	var pos *OpenPosition
+	for _, p := range s.hub.Positions() {
+		pp := p
+		if id != "" && pp.ID == id {
+			pos = &pp
+			break
+		}
+		if id == "" && pp.Ticker == ticker {
+			pos = &pp
+			break
+		}
+	}
+
+	candles := s.hub.Candles(ticker)
+	payload := BuildOpenChartPayload(candles, pos)
+	writeJSON(w, payload)
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(v)
+}
+
+// BuildOpenChartPayload — контракт как у optimizer/charts (candles/markers/trades).
+func BuildOpenChartPayload(candles []models.Candle, pos *OpenPosition) map[string]any {
+	outCandles := make([]map[string]any, len(candles))
+	for i, c := range candles {
+		outCandles[i] = map[string]any{
+			"time":  c.Timestamp.Unix(),
+			"open":  c.Open,
+			"high":  c.High,
+			"low":   c.Low,
+			"close": c.Close,
+		}
+	}
+
+	markers := []map[string]any{}
+	trades := []map[string]any{}
+	levels := []map[string]any{}
+
+	if pos != nil {
+		isLong := strings.EqualFold(pos.Direction, "BUY")
+		entryPos := "belowBar"
+		entryColor := "#26a69a"
+		entryShape := "arrowUp"
+		if !isLong {
+			entryPos = "aboveBar"
+			entryColor = "#ef5350"
+			entryShape = "arrowDown"
+		}
+		markers = append(markers, map[string]any{
+			"time":     pos.OpenedAt.Unix(),
+			"position": entryPos,
+			"color":    entryColor,
+			"shape":    entryShape,
+			"text":     "ВХ",
+			"size":     2,
+		})
+		trades = append(trades, map[string]any{
+			"index":            1,
+			"direction":        strings.ToUpper(pos.Direction),
+			"entryTime":        pos.OpenedAt.Unix(),
+			"exitTime":         0,
+			"entryPrice":       pos.EntryPrice,
+			"exitPrice":        pos.LastPrice,
+			"pnl":              pos.UnrealizedPnL,
+			"entryLabel":       pos.OpenedAt.Format("15:04"),
+			"exitLabel":        "open",
+			"closeReason":      "OPEN",
+			"closeReasonLabel": "открыта",
+		})
+		levels = append(levels,
+			map[string]any{"price": pos.EntryPrice, "title": "Entry", "color": "#90caf9"},
+			map[string]any{"price": pos.StopLoss, "title": "SL", "color": "#ef5350"},
+			map[string]any{"price": pos.TakeProfit, "title": "TP", "color": "#66bb6a"},
+		)
+	}
+
+	return map[string]any{
+		"candles":  candlesOrEmpty(outCandles),
+		"markers":  markers,
+		"trades":   trades,
+		"levels":   levels,
+		"position": pos,
+	}
+}
+
+func candlesOrEmpty(c []map[string]any) []map[string]any {
+	if c == nil {
+		return []map[string]any{}
+	}
+	return c
+}
+
+// FetchAccount запрашивает /account у live API бота.
+func FetchAccount(ctx context.Context, baseURL string) (AccountInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/account", nil)
+	if err != nil {
+		return AccountInfo{}, err
+	}
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return AccountInfo{}, err
+	}
+	defer resp.Body.Close()
+	var info AccountInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return AccountInfo{}, err
+	}
+	return info, nil
+}

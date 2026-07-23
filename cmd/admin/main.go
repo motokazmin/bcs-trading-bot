@@ -17,13 +17,13 @@ func main() {
 	defer store.Close()
 
 	archives := admin.NewArchiveStore(cfg.ArchivesPath)
-	handler := admin.NewHandler(store, archives)
+	handler := admin.NewHandler(store, archives, cfg.BotLiveURL)
 	server, err := admin.NewServer(cfg, handler)
 	if err != nil {
 		log.Fatalf("сервер: %v", err)
 	}
 
-	log.Printf("админка: http://%s (БД: %s, архивы: %s)", cfg.Listen, cfg.DBPath, cfg.ArchivesPath)
+	log.Printf("админка: http://%s (БД: %s, bot-live: %s)", cfg.Listen, cfg.DBPath, cfg.BotLiveURL)
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
