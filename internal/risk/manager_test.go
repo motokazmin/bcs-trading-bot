@@ -57,16 +57,24 @@ func TestCalculatePositionSizeStocksDefaultStep(t *testing.T) {
 }
 
 func TestCapQuantityByCash(t *testing.T) {
-	if got := risk.CapQuantityByCash(500, 100, 20_000); got != 200 {
+	if got := risk.CapQuantityByCash(500, 100, 20_000, 1); got != 200 {
 		t.Fatalf("cap: got %d, want 200", got)
 	}
-	if got := risk.CapQuantityByCash(100, 100, 50_000); got != 100 {
+	if got := risk.CapQuantityByCash(100, 100, 50_000, 1); got != 100 {
 		t.Fatalf("no-op: got %d, want 100", got)
 	}
-	if got := risk.CapQuantityByCash(100, 1658, 1000); got != 0 {
+	if got := risk.CapQuantityByCash(100, 1658, 1000, 1); got != 0 {
 		t.Fatalf("too little cash: got %d, want 0", got)
 	}
-	if got := risk.CapQuantityByCash(50, 100, 0); got != 0 {
+	if got := risk.CapQuantityByCash(50, 100, 0, 1); got != 0 {
 		t.Fatalf("zero cash: got %d, want 0", got)
+	}
+	// stepPriceValue != 1: notional на лот = price * step, а не просто price.
+	if got := risk.CapQuantityByCash(500, 100, 20_000, 2); got != 100 {
+		t.Fatalf("step=2: got %d, want 100", got)
+	}
+	// stepPriceValue <= 0 трактуется как 1 (обратная совместимость).
+	if got := risk.CapQuantityByCash(500, 100, 20_000, 0); got != 200 {
+		t.Fatalf("step<=0 fallback: got %d, want 200", got)
 	}
 }

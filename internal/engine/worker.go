@@ -256,7 +256,7 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 
 	// Risk-sizing не знает свободный кэш — режем notional до GetBalance (BUY и SELL как на реале).
 	if bal, err := executor.GetBalance(ctx); err == nil {
-		quantity = risk.CapQuantityByCash(quantity, signal.Price, bal)
+		quantity = risk.CapQuantityByCash(quantity, signal.Price, bal, w.stepPriceValue)
 		if quantity <= 0 {
 			logx.SignalRejected(w.label, signal.Direction, "недостаточно средств")
 			return

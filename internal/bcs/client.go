@@ -225,10 +225,13 @@ func (c *BCSClient) GetBalance(ctx context.Context) (float64, error) {
 		return 0, fmt.Errorf("ошибка разбора портфеля: %w", err)
 	}
 
-	if portfolio.Summary.Cash > 0 {
-		return portfolio.Summary.Cash, nil
-	}
-	return portfolio.Summary.TotalValue, nil
+	// Возвращаем именно свободный кэш брокера как есть (в т.ч. 0 или отрицательный
+	// при исчерпанной марже) — так же, как VirtualExecutor.GetBalance возвращает
+	// v.balance, а не совокупную стоимость портфеля. Раньше при Cash<=0 функция
+	// откатывалась на TotalValue (полную стоимость портфеля с открытыми позициями),
+	// из-за чего CapQuantityByCash получал завышенный "свободный кэш" и мог разрешить
+	// объём, на который реально нет свободных денег.
+	return portfolio.Summary.Cash, nil
 }
 
 func newClientOrderID() string {
