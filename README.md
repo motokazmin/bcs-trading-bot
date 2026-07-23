@@ -409,12 +409,13 @@ make bot
 # открыть http://127.0.0.1:8091
 ```
 
-На облачной VM с публичным IP:
+На облачной VM с публичным IP (тот же `make bot`):
 
 ```bash
 export BCS_REFRESH_TOKEN=...
 export ADMIN_TOKEN=$(openssl rand -hex 32)
-./bin/bot -config configs/runs/portfolio-paper.yaml -http-listen 0.0.0.0:8091
+export HTTP_LISTEN=0.0.0.0:8091
+make bot
 # браузер: http://PUBLIC_IP:8091 → ввести ADMIN_TOKEN
 ```
 

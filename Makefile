@@ -1,7 +1,7 @@
 # BCS Trading Bot — удобные команды запуска
 #
 # Требуется: export BCS_REFRESH_TOKEN=...
-# Опционально для публичного HTTP: export ADMIN_TOKEN=...
+# Облако:    export ADMIN_TOKEN=... HTTP_LISTEN=0.0.0.0:8091
 #
 # Сборка:     make build
 # Тесты:      make test
@@ -25,6 +25,8 @@ OPTIMIZER_PARALLEL ?= 0
 OPTIMIZER_TWO_PHASE ?=
 
 BOT_CONFIG ?= configs/runs/portfolio-paper.yaml
+# Админка: локально 127.0.0.1:8091; в облаке HTTP_LISTEN=0.0.0.0:8091 и ADMIN_TOKEN=...
+HTTP_LISTEN ?= 127.0.0.1:8091
 
 .PHONY: build build-bot build-optimizer test \
         sync-history optimizer-run optimizer-orc optimizer-momentum optimizer-or-fade optimizer-afternoon optimizer-focus strategy-matrix charts-all \
@@ -50,7 +52,7 @@ help:
 	@echo ""
 	@echo "Переменные: TICKERS_CONFIG, HISTORY_DIR, PARALLEL_TICKERS, OPTIMIZER_PARALLEL,"
 	@echo "            OPTIMIZER_TWO_PHASE=1, OPTIMIZER_STRATEGY, SEARCH_SPACE, OPTIMIZER_OUT,"
-	@echo "            BOT_CONFIG, BCS_REFRESH_TOKEN, ADMIN_TOKEN"
+	@echo "            BOT_CONFIG, HTTP_LISTEN, BCS_REFRESH_TOKEN, ADMIN_TOKEN"
 
 build: build-bot build-optimizer
 
@@ -121,13 +123,13 @@ charts-all: build-optimizer
 # --- Бот ---
 
 bot: build-bot
-	$(BINARY_DIR)/bot -config $(BOT_CONFIG)
+	$(BINARY_DIR)/bot -config $(BOT_CONFIG) -http-listen $(HTTP_LISTEN)
 
 bot-futures: build-bot
-	$(BINARY_DIR)/bot -config configs/runs/virtual-futures.yaml
+	$(BINARY_DIR)/bot -config configs/runs/virtual-futures.yaml -http-listen $(HTTP_LISTEN)
 
 bot-real: build-bot
-	$(BINARY_DIR)/bot -config configs/runs/real-stocks.yaml
+	$(BINARY_DIR)/bot -config configs/runs/real-stocks.yaml -http-listen $(HTTP_LISTEN)
 
 bot-smoke: build-bot
 	$(BINARY_DIR)/bot -config $(BOT_CONFIG) -smoke-test
