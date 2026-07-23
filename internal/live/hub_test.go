@@ -8,13 +8,13 @@ import (
 )
 
 type stubSource struct {
-	pos *OpenPosition
+	pos *models.PositionSnapshot
 }
 
-func (s stubSource) Label() string                    { return "x" }
-func (s stubSource) Ticker() string                   { return s.pos.Ticker }
-func (s stubSource) ExperimentID() string             { return s.pos.ExperimentID }
-func (s stubSource) SnapshotPosition() *OpenPosition  { return s.pos }
+func (s stubSource) Label() string                           { return "x" }
+func (s stubSource) Ticker() string                          { return s.pos.Ticker }
+func (s stubSource) ExperimentID() string                    { return s.pos.ExperimentID }
+func (s stubSource) SnapshotPosition() *models.PositionSnapshot { return s.pos }
 
 func TestHubCandlesResetOnNewDay(t *testing.T) {
 	h := NewHub()
@@ -35,7 +35,7 @@ func TestHubCandlesResetOnNewDay(t *testing.T) {
 
 func TestBuildOpenChartPayload(t *testing.T) {
 	opened := time.Date(2026, 7, 22, 8, 0, 0, 0, time.UTC)
-	pos := &OpenPosition{
+	pos := &models.PositionSnapshot{
 		ID: "a/SBER", ExperimentID: "a", Ticker: "SBER", Direction: "BUY",
 		Quantity: 1, EntryPrice: 100, StopLoss: 95, TakeProfit: 110,
 		OpenedAt: opened, LastPrice: 101, UnrealizedPnL: 1,
@@ -56,7 +56,7 @@ func TestBuildOpenChartPayload(t *testing.T) {
 
 func TestHubPositions(t *testing.T) {
 	h := NewHub()
-	h.Register(stubSource{pos: &OpenPosition{
+	h.Register(stubSource{pos: &models.PositionSnapshot{
 		ID: "e/T", Ticker: "T", ExperimentID: "e", Direction: "BUY",
 		EntryPrice: 10, Quantity: 2, LastPrice: 11, UnrealizedPnL: 2,
 	}})

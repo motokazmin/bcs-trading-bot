@@ -171,7 +171,7 @@ func (s *Server) handleChart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var pos *OpenPosition
+	var pos *models.PositionSnapshot
 	for _, p := range s.hub.Positions() {
 		pp := p
 		if id != "" && pp.ID == id {
@@ -197,7 +197,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 // BuildOpenChartPayload — контракт как у optimizer/charts (candles/markers/trades).
-func BuildOpenChartPayload(candles []models.Candle, pos *OpenPosition) map[string]any {
+func BuildOpenChartPayload(candles []models.Candle, pos *models.PositionSnapshot) map[string]any {
 	outCandles := make([]map[string]any, len(candles))
 	for i, c := range candles {
 		outCandles[i] = map[string]any{
