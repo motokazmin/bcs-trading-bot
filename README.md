@@ -204,7 +204,8 @@ cp configs/runs/portfolio-paper.yaml configs/local.yaml
 go run ./cmd/bot -config configs/local.yaml
 ```
 
-Флаг `-no-color` отключает ANSI-раскраску в терминале.
+Флаг `-no-color` отключает ANSI-раскраску в терминале.  
+Логи по умолчанию ещё и в `/var/log/trading-bot/bot.log` (`-log-file` / `LOG_FILE`; `-` или пусто — только stdout). См. [runbook](docs/runbook.md#логи-на-vm).
 
 ### Устаревший способ (env-переменные)
 
@@ -439,7 +440,7 @@ make bot                          # http://PUBLIC_IP:8091 → ADMIN_TOKEN
 | `GET /api/prompt?mode=summary\|detailed` | Текст промпта для копирования |
 | `GET /api/export/data?mode=summary\|detailed` | JSON с данными (`data-summary.json` / `data-trades.json`) |
 
-Флаги: `-http-listen` (пустая строка — выключить HTTP), `-archives` (по умолчанию `data/archives.json`).
+Флаги: `-http-listen` (пустая строка — выключить HTTP), `-archives` (по умолчанию `data/archives.json`), `-log-file` (дефолт `/var/log/trading-bot/bot.log`).
 
 ### Как анализировать с ИИ
 

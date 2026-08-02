@@ -9,6 +9,7 @@
 - [Переменные окружения](#переменные-окружения)
 - [Бот: локально](#бот-локально)
 - [Бот: облако / VM](#бот-облако--vm)
+- [Логи на VM](#логи-на-vm)
 - [Почему 127.0.0.1 vs 0.0.0.0](#почему-127001-vs-0000)
 - [Админка](#админка)
 - [Optimizer](#optimizer)
@@ -24,12 +25,15 @@
 | `ADMIN_TOKEN` | HTTP-админка с публичного IP | Да при bind не на localhost |
 | `HTTP_LISTEN` | Адрес `-http-listen` через `make bot` | Нет (дефолт `127.0.0.1:8091`) |
 | `BOT_CONFIG` | YAML для `make bot` | Нет (дефолт `configs/runs/portfolio-paper.yaml`) |
+| `LOG_FILE` | Путь лог-файла (`-log-file`) | Нет (дефолт `/var/log/trading-bot/bot.log`; `-` — только stdout) |
 
 ```bash
 export BCS_REFRESH_TOKEN="..."
 # облако:
 export ADMIN_TOKEN="$(openssl rand -hex 32)"
 export HTTP_LISTEN=0.0.0.0:8091
+# один раз: каталог под лог (если ещё нет)
+# sudo mkdir -p /var/log/trading-bot && sudo chown "$USER" /var/log/trading-bot
 ```
 
 Токены только в env, не в YAML.
@@ -83,11 +87,29 @@ make bot
 
 # с вашего ПК:
 # http://PUBLIC_IP:8091  → ввести ADMIN_TOKEN
+# на VM:  tail -f /var/log/trading-bot/bot.log
 ```
 
 Без `ADMIN_TOKEN` процесс **не стартует** с `0.0.0.0` / `:8091` (защита в коде).
 
 Firewall/security group: открыть TCP **8091** (или другой порт из `HTTP_LISTEN`) для вашего IP.
+
+### Логи на VM
+
+По умолчанию бот пишет в **stdout + `/var/log/trading-bot/bot.log`** (append, без ANSI). Каталог создаётся сам, если есть права записи.
+
+```bash
+# один раз:
+sudo mkdir -p /var/log/trading-bot
+sudo chown "$USER" /var/log/trading-bot
+
+make bot
+tail -f /var/log/trading-bot/bot.log
+
+# только stdout:
+# LOG_FILE=- make bot
+# bin/bot ... -log-file=
+```
 
 ---
 
