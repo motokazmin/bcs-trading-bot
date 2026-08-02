@@ -191,12 +191,13 @@ func (w *TickerWorker) Start(ctx context.Context, executor interfaces.OrderExecu
 				logx.WorkerLifecycle(w.label, "канал свечей закрыт")
 				return
 			}
+			now := time.Now()
 			w.posMu.Lock()
 			w.lastPrice = candle.Close
 			w.posMu.Unlock()
-			w.checkDailyReset(candle.Timestamp)
-			w.checkEOD(ctx, executor, candle.Close, candle.Timestamp)
-			w.processCandle(ctx, executor, candle)
+			w.checkDailyReset(now)
+			w.checkEOD(ctx, executor, candle.Close, now)
+			w.processCandle(ctx, executor, candle, now)
 
 		case <-eodTicker.C:
 			now := time.Now()
@@ -208,7 +209,7 @@ func (w *TickerWorker) Start(ctx context.Context, executor interfaces.OrderExecu
 	}
 }
 
-func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.OrderExecutor, candle models.Candle) {
+func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.OrderExecutor, candle models.Candle, now time.Time) {
 	if ctx.Err() != nil {
 		return
 	}
@@ -220,7 +221,15 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		return
 	}
 
-	if !w.session.EntriesAllowed(candle.Timestamp) {
+	maxAge := candleMaxAge(w.candleTimeframe)
+	if !candleFresh(now, candle.Timestamp, maxAge) {
+		age := now.Sub(candle.Timestamp)
+		logx.Warn("[%s] пропуск stale-свечи: bar=%s age=%s max=%s",
+			w.label, candle.Timestamp.Format(time.RFC3339), age.Round(time.Second), maxAge)
+		return
+	}
+
+	if !w.session.EntriesAllowed(now) {
 		return
 	}
 
@@ -280,10 +289,12 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		return
 	}
 
+	barAge := now.Sub(candle.Timestamp).Round(time.Second)
 	logx.TradeOpen(w.label, signal.Direction, signal.Quantity, signal.Price, signal.StopLoss, signal.TakeProfit)
+	logx.Info("[%s] bar_age=%s bar_time=%s", w.label, barAge, candle.Timestamp.Format(time.RFC3339))
 	w.tradesToday++
 	w.posMu.Lock()
-	w.position = position.NewFromSignal(*signal, candle.Timestamp)
+	w.position = position.NewFromSignal(*signal, now)
 	pos := w.position
 	w.posMu.Unlock()
 	if w.globalRisk != nil {
