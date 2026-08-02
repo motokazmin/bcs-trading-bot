@@ -2,6 +2,8 @@
 
 В `cmd/optimizer` два разных сценария. Их легко перепутать: оба крутят симуляцию на CSV, но отвечают на разные вопросы и используют разную модель счёта.
 
+Команды запуска: [`runbook.md#optimizer`](runbook.md#optimizer) · флаги CLI: [`cmd/optimizer/README.md`](../cmd/optimizer/README.md).
+
 | | Solo | Portfolio |
 |---|------|-----------|
 | **Вопрос** | Какие гиперпараметры устойчивы на walk-forward? | Как FROZEN champions ведут себя вместе на одном счёте? |

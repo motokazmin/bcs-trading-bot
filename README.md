@@ -33,7 +33,9 @@ Paper trading: `configs/runs/portfolio-paper.yaml` (единый virtual-счё�
 
 Baseline доходности (для сравнения с live): [`docs/champion-baseline.md`](docs/champion-baseline.md) § C.
 
-Документация: [`docs/strategy-research.md`](docs/strategy-research.md) · [`docs/optimizer-modes.md`](docs/optimizer-modes.md) · [`docs/system.md`](docs/system.md) · [`docs/strategies.md`](docs/strategies.md)
+**Запуск локально / в облаке, админка, optimizer:** [`docs/runbook.md`](docs/runbook.md) ← начните отсюда, если забыли команды.
+
+Документация: [`docs/runbook.md`](docs/runbook.md) · [`docs/strategy-research.md`](docs/strategy-research.md) · [`docs/optimizer-modes.md`](docs/optimizer-modes.md) · [`docs/system.md`](docs/system.md) · [`docs/strategies.md`](docs/strategies.md)
 
 ---
 
@@ -41,12 +43,13 @@ Baseline доходности (для сравнения с live): [`docs/champi
 
 - [Архитектура](#архитектура)
 - [Требования](#требования)
-- [Запуск](#запуск)
+- [Запуск](#запуск) — кратко; полный runbook: [docs/runbook.md](docs/runbook.md)
 - [Что вы увидите в логе](#что-вы-увидите-в-логе)
 - [Конфигурация](#конфигурация)
 - [Веб-админка и экспорт для ИИ](#веб-админка-и-экспорт-для-ии)
 - [Стратегии](docs/strategies.md)
 - [Исследования и champions](docs/strategy-research.md)
+- [Optimizer](docs/runbook.md#optimizer) · [режимы solo/portfolio](docs/optimizer-modes.md) · [CLI](cmd/optimizer/README.md)
 - [Модули](#модули)
 - [Структура проекта](#структура-проекта)
 - [Дорожная карта](Roadmap.md)
@@ -97,26 +100,36 @@ Live HTTP-админка (`internal/live`) встроена в тот же пр�
 
 ## Запуск
 
+Полная шпаргалка (локально vs облако, `127.0.0.1` / `0.0.0.0`, optimizer): **[docs/runbook.md](docs/runbook.md)**.
+
 ### 1. Сборка
 
 ```bash
 cd bcs-trading-bot
-go build -o bot ./cmd/bot
-```
-
-Или через **Makefile** (бот, optimizer):
-
-```bash
 make help              # список команд
 make build             # bin/bot, bin/optimizer
-make bot               # paper trading, portfolio (5 champions); админка на http://127.0.0.1:8091
-make sync-history      # догрузить CSV-историю для optimizer (9 акций)
-make optimizer-orc     # ORC (FROZEN — только по запросу)
 ```
 
-Переменные optimizer: `OPTIMIZER_PARALLEL`, `OPTIMIZER_TWO_PHASE=1`, `SEARCH_SPACE`. Документация: [`cmd/optimizer/README.md`](cmd/optimizer/README.md) · режимы solo/portfolio: [`docs/optimizer-modes.md`](docs/optimizer-modes.md).
+### Быстрый старт
 
-Требуется `export BCS_REFRESH_TOKEN=...` (см. ниже). Для публичного HTTP-доступа к админке — ещё `ADMIN_TOKEN`.
+```bash
+export BCS_REFRESH_TOKEN=...
+
+# локально (админка только с этой машины):
+make bot               # → http://127.0.0.1:8091
+
+# облако / VM (админка с ноутбука по PUBLIC_IP):
+# export ADMIN_TOKEN=$(openssl rand -hex 32)
+# export HTTP_LISTEN=0.0.0.0:8091
+# make bot             # → http://PUBLIC_IP:8091
+
+make sync-history      # CSV для optimizer
+# make optimizer-orc   # FROZEN — только по запросу
+```
+
+Почему на VM с `-http-listen 127.0.0.1:8091` админка с ноутбука не открывается — см. [runbook § bind](docs/runbook.md#почему-127001-vs-0000).
+
+Optimizer: [`docs/runbook.md#optimizer`](docs/runbook.md#optimizer) · флаги: [`cmd/optimizer/README.md`](cmd/optimizer/README.md) · режимы: [`docs/optimizer-modes.md`](docs/optimizer-modes.md).
 
 ### 2. Токены окружения
 
@@ -402,26 +415,20 @@ go run ./cmd/bot
 
 ## Веб-админка и экспорт для ИИ
 
-Админка встроена в бот: статичный UI + HTTP API на одном порту (по умолчанию `127.0.0.1:8091`).
+Админка встроена в бот (тот же процесс). Запуск локально / в облаке и смысл `127.0.0.1` vs `0.0.0.0`: **[docs/runbook.md](docs/runbook.md)**.
 
 ```bash
+# локально
 export BCS_REFRESH_TOKEN=...
-# локально токен админки не обязателен
-make bot
-# открыть http://127.0.0.1:8091
-```
+make bot                          # http://127.0.0.1:8091
 
-На облачной VM с публичным IP (тот же `make bot`):
-
-```bash
-export BCS_REFRESH_TOKEN=...
+# облако
 export ADMIN_TOKEN=$(openssl rand -hex 32)
 export HTTP_LISTEN=0.0.0.0:8091
-make bot
-# браузер: http://PUBLIC_IP:8091 → ввести ADMIN_TOKEN
+make bot                          # http://PUBLIC_IP:8091 → ADMIN_TOKEN
 ```
 
-Без `ADMIN_TOKEN` публичный bind (`0.0.0.0`, `:8091` и т.п.) не стартует. `GET /healthz` без авторизации; остальные API — `Authorization: Bearer <ADMIN_TOKEN>` (или `?access_token=`).
+Без `ADMIN_TOKEN` публичный bind (`0.0.0.0`, `:8091`) не стартует. `GET /healthz` без авторизации; остальное — Bearer / форма с токеном.
 
 | Страница / endpoint | Назначение |
 |---|---|
@@ -540,6 +547,7 @@ bcs-trading-bot/
 │   ├── shared/                        # Whitelist тикеров для optimizer
 │   └── strategies/                    # Search space для optimizer
 ├── docs/
+│   ├── runbook.md                     # Запуск бота/optimizer (локально, облако, админка)
 │   ├── strategy-research.md           # Champions, методология optimizer
 │   ├── optimizer-modes.md             # Solo vs portfolio режимы
 │   ├── system.md                      # Философия, риск, lifecycle сделки
@@ -578,7 +586,9 @@ bcs-trading-bot/
 
 Принципы риска, lifecycle сделки, paper trading: **[docs/system.md](docs/system.md)**.
 
-Champions и optimizer: **[docs/strategy-research.md](docs/strategy-research.md)**.
+Запуск (бот, админка, optimizer): **[docs/runbook.md](docs/runbook.md)**.
+
+Champions и методология optimizer: **[docs/strategy-research.md](docs/strategy-research.md)**.
 
 ## Полезные ссылки
 

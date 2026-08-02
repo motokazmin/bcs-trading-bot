@@ -72,6 +72,8 @@ Optimizer отвечает не на «максимальный PnL на все�
 
 ## Быстрый старт
 
+Шпаргалка рядом с ботом (локально / облако / make-цели): [`docs/runbook.md`](../../docs/runbook.md).
+
 ```bash
 export BCS_REFRESH_TOKEN=...   # только для sync-history
 
@@ -85,6 +87,9 @@ make sync-history
 
 make optimizer-run          # sync + ORC (scripts/run-orc-optimizer.sh по умолчанию)
 make charts-all             # HTML по OPTIMIZER_OUT
+
+# проверка paper YAML на shared-счёте:
+# go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
 ```
 
 Champion snapshots: `configs/champions/*.yaml` · Paper: `configs/runs/portfolio-paper.yaml`
