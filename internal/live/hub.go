@@ -4,39 +4,14 @@ import (
 	"sync"
 	"time"
 
+	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/models"
 )
-
-// OpenPosition — снимок открытой позиции для live API / админки.
-type OpenPosition struct {
-	ID            string    `json:"id"`
-	ExperimentID  string    `json:"experiment_id"`
-	Ticker        string    `json:"ticker"`
-	Direction     string    `json:"direction"`
-	Quantity      int       `json:"quantity"`
-	EntryPrice    float64   `json:"entry_price"`
-	StopLoss      float64   `json:"stop_loss"`
-	TakeProfit    float64   `json:"take_profit"`
-	TrailStage    int       `json:"trail_stage"`
-	OpenedAt      time.Time `json:"opened_at"`
-	LastPrice     float64   `json:"last_price"`
-	UnrealizedPnL float64   `json:"unrealized_pnl"`
-	RDistance     float64   `json:"r_distance"`
-	StepPrice     float64   `json:"step_price"`
-}
-
-// PositionSource отдаёт снимок открытой позиции (или nil).
-type PositionSource interface {
-	Label() string
-	Ticker() string
-	ExperimentID() string
-	SnapshotPosition() *OpenPosition
-}
 
 // Hub хранит воркеры и буфер свечей текущего торгового дня.
 type Hub struct {
 	mu        sync.RWMutex
-	sources   []PositionSource
+	sources   []interfaces.PositionSource
 	candles   map[string][]models.Candle
 	lastPrice map[string]float64
 	dayKey    map[string]string // ticker → YYYY-MM-DD MSK
@@ -56,7 +31,7 @@ func NewHub() *Hub {
 	}
 }
 
-func (h *Hub) Register(src PositionSource) {
+func (h *Hub) Register(src interfaces.PositionSource) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.sources = append(h.sources, src)
@@ -101,16 +76,16 @@ func (h *Hub) IngestTick(t models.Tick) {
 	h.lastPrice[t.Ticker] = t.Price
 }
 
-func (h *Hub) Positions() []OpenPosition {
+func (h *Hub) Positions() []models.PositionSnapshot {
 	h.mu.RLock()
-	sources := append([]PositionSource(nil), h.sources...)
+	sources := append([]interfaces.PositionSource(nil), h.sources...)
 	last := make(map[string]float64, len(h.lastPrice))
 	for k, v := range h.lastPrice {
 		last[k] = v
 	}
 	h.mu.RUnlock()
 
-	out := make([]OpenPosition, 0)
+	out := make([]models.PositionSnapshot, 0)
 	for _, src := range sources {
 		snap := src.SnapshotPosition()
 		if snap == nil {

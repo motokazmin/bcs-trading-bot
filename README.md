@@ -70,6 +70,8 @@ Baseline доходности (для сравнения с live): [`docs/champi
 
 При секции `experiments` все слоты торгуют на **одном virtual-счёте** (общий депозит, общий Circuit Breaker, one-position-per-ticker). Один WebSocket раздаёт рыночные данные всем воркерам (fan-out).
 
+Live HTTP-админка (`internal/live`) встроена в тот же процесс `cmd/bot`: общий адресное пространство, GC и failure domain с торговым циклом. Это осознанный trade-off (проще деплой, меньше движущихся частей). Выделение админки в отдельный бинарник — осознанный откат, если понадобится изоляция процессов.
+
 Поток данных:
 
 1. Загрузка YAML-конфига (`-config`), токен из `BCS_REFRESH_TOKEN`.
@@ -102,27 +104,29 @@ cd bcs-trading-bot
 go build -o bot ./cmd/bot
 ```
 
-Или через **Makefile** (бот, optimizer, админка):
+Или через **Makefile** (бот, optimizer):
 
 ```bash
 make help              # список команд
-make build             # bin/bot, bin/optimizer, bin/admin
-make bot               # paper trading, portfolio (5 champions)
+make build             # bin/bot, bin/optimizer
+make bot               # paper trading, portfolio (5 champions); админка на http://127.0.0.1:8091
 make sync-history      # догрузить CSV-историю для optimizer (9 акций)
 make optimizer-orc     # ORC (FROZEN — только по запросу)
 ```
 
 Переменные optimizer: `OPTIMIZER_PARALLEL`, `OPTIMIZER_TWO_PHASE=1`, `SEARCH_SPACE`. Документация: [`cmd/optimizer/README.md`](cmd/optimizer/README.md) · режимы solo/portfolio: [`docs/optimizer-modes.md`](docs/optimizer-modes.md).
 
-Требуется `export BCS_REFRESH_TOKEN=...` (см. ниже).
+Требуется `export BCS_REFRESH_TOKEN=...` (см. ниже). Для публичного HTTP-доступа к админке — ещё `ADMIN_TOKEN`.
 
-### 2. Токен (единственная переменная окружения)
+### 2. Токены окружения
 
 ```bash
 export BCS_REFRESH_TOKEN="ваш_refresh_token"
+# опционально: защита HTTP-админки (обязателен при -http-listen не на localhost)
+export ADMIN_TOKEN="случайная_строка"
 ```
 
-Токен **не хранится в конфиге** — только в env.
+Токены **не хранятся в конфиге** — только в env.
 
 ### 3. Paper trading — portfolio (рекомендуется)
 
@@ -398,21 +402,37 @@ go run ./cmd/bot
 
 ## Веб-админка и экспорт для ИИ
 
-Отдельный процесс читает `data/trades.db` (бот может работать параллельно).
+Админка встроена в бот: статичный UI + HTTP API на одном порту (по умолчанию `127.0.0.1:8091`).
 
 ```bash
-go run ./cmd/admin -db data/trades.db -listen 127.0.0.1:8090
+export BCS_REFRESH_TOKEN=...
+# локально токен админки не обязателен
+make bot
+# открыть http://127.0.0.1:8091
 ```
 
-Откройте http://127.0.0.1:8090
+На облачной VM с публичным IP (тот же `make bot`):
+
+```bash
+export BCS_REFRESH_TOKEN=...
+export ADMIN_TOKEN=$(openssl rand -hex 32)
+export HTTP_LISTEN=0.0.0.0:8091
+make bot
+# браузер: http://PUBLIC_IP:8091 → ввести ADMIN_TOKEN
+```
+
+Без `ADMIN_TOKEN` публичный bind (`0.0.0.0`, `:8091` и т.п.) не стартует. `GET /healthz` без авторизации; остальные API — `Authorization: Bearer <ADMIN_TOKEN>` (или `?access_token=`).
 
 | Страница / endpoint | Назначение |
 |---|---|
 | `/` | Дашборд, сравнение experiment_id |
+| `/open` | Открытые позиции и график |
 | `/trades` | Таблица сделок |
 | `/export` | Экспорт для ИИ: промпт + JSON с данными |
 | `GET /api/prompt?mode=summary\|detailed` | Текст промпта для копирования |
 | `GET /api/export/data?mode=summary\|detailed` | JSON с данными (`data-summary.json` / `data-trades.json`) |
+
+Флаги: `-http-listen` (пустая строка — выключить HTTP), `-archives` (по умолчанию `data/archives.json`).
 
 ### Как анализировать с ИИ
 
@@ -512,9 +532,8 @@ type OrderExecutor interface {
 ```
 bcs-trading-bot/
 ├── cmd/
-│   ├── bot/main.go                    # Точка входа, оркестрация, fan-out
-│   ├── optimizer/                     # Walk-forward optimizer
-│   └── admin/main.go                  # Веб-админка и экспорт для ИИ
+│   ├── bot/main.go                    # Точка входа, оркестрация, fan-out, HTTP-админка
+│   └── optimizer/                     # Walk-forward optimizer
 ├── configs/
 │   ├── champions/                     # FROZEN snapshot параметров
 │   ├── runs/                          # Профили запуска бота
@@ -537,7 +556,8 @@ bcs-trading-bot/
 │   ├── engine/
 │   │   ├── worker.go
 │   │   └── session.go
-│   ├── admin/                         # HTTP UI, export AI
+│   ├── live/                          # HTTP UI/API админки (embed web/)
+│   ├── api/                           # Архивы периодов, сборка экспорта для ИИ
 │   ├── storage/sqlite/                # Миграции, аналитика
 │   ├── risk/manager.go
 │   └── strategy/                      # Реестр стратегий (см. docs/strategies.md)

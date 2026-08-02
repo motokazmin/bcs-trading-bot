@@ -56,13 +56,23 @@ func (rm *RiskManager) CalculatePositionSize(entryPrice, stopLossPrice float64) 
 	return int(riskAmount / riskPerLot)
 }
 
-// CapQuantityByCash ограничивает объём доступным кэшем (BUY notional = price × qty).
-// Если price <= 0 или cash <= 0 — возвращает 0.
-func CapQuantityByCash(qty int, price, cash float64) int {
+// CapQuantityByCash ограничивает объём доступным кэшем.
+// notional на лот = price × stepPriceValue (шаг цены инструмента), а не просто price —
+// иначе для тикеров со stepPriceValue != 1 кап занижает/завышает реальную стоимость лота
+// относительно того, что уже резервирует VirtualExecutor/брокер.
+// Если price <= 0, cash <= 0 или stepPriceValue <= 0 — возвращает 0.
+func CapQuantityByCash(qty int, price, cash, stepPriceValue float64) int {
+	if stepPriceValue <= 0 {
+		stepPriceValue = 1.0
+	}
 	if qty <= 0 || price <= 0 || cash <= 0 {
 		return 0
 	}
-	maxQty := int(math.Floor(cash / price))
+	notionalPerLot := price * stepPriceValue
+	if notionalPerLot <= 0 {
+		return 0
+	}
+	maxQty := int(math.Floor(cash / notionalPerLot))
 	if maxQty < qty {
 		return maxQty
 	}

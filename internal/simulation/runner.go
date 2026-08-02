@@ -133,7 +133,7 @@ func (r *Runner) processCandle(ctx context.Context, executor interfaces.OrderExe
 		return
 	}
 	if bal, err := executor.GetBalance(ctx); err == nil {
-		qty = risk.CapQuantityByCash(qty, signal.Price, bal)
+		qty = risk.CapQuantityByCash(qty, signal.Price, bal, r.cfg.StepPriceValue)
 		if qty <= 0 {
 			return
 		}

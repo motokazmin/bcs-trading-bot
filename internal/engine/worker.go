@@ -9,7 +9,6 @@ import (
 
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/costs"
-	"bcs-trading-bot/internal/live"
 	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/strategy"
@@ -18,6 +17,8 @@ import (
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
 )
+
+var _ interfaces.PositionSource = (*TickerWorker)(nil)
 
 // TickerWorker инкапсулирует торговый цикл для одного тикера (в рамках одного эксперимента).
 type TickerWorker struct {
@@ -129,8 +130,8 @@ func (w *TickerWorker) Ticker() string                   { return w.ticker }
 func (w *TickerWorker) ExperimentID() string             { return w.experimentID }
 func (w *TickerWorker) Label() string                    { return w.label }
 
-// SnapshotPosition возвращает копию открытой позиции для live API (или nil).
-func (w *TickerWorker) SnapshotPosition() *live.OpenPosition {
+// SnapshotPosition возвращает копию открытой позиции (или nil).
+func (w *TickerWorker) SnapshotPosition() *models.PositionSnapshot {
 	w.posMu.RLock()
 	defer w.posMu.RUnlock()
 	if w.position == nil {
@@ -142,7 +143,7 @@ func (w *TickerWorker) SnapshotPosition() *live.OpenPosition {
 	if step <= 0 {
 		step = 1
 	}
-	return &live.OpenPosition{
+	return &models.PositionSnapshot{
 		ID:            fmt.Sprintf("%s/%s", w.experimentID, w.ticker),
 		ExperimentID:  w.experimentID,
 		Ticker:        w.ticker,
@@ -256,7 +257,7 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 
 	// Risk-sizing не знает свободный кэш — режем notional до GetBalance (BUY и SELL как на реале).
 	if bal, err := executor.GetBalance(ctx); err == nil {
-		quantity = risk.CapQuantityByCash(quantity, signal.Price, bal)
+		quantity = risk.CapQuantityByCash(quantity, signal.Price, bal, w.stepPriceValue)
 		if quantity <= 0 {
 			logx.SignalRejected(w.label, signal.Direction, "недостаточно средств")
 			return

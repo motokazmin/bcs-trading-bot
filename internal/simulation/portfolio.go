@@ -214,7 +214,7 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces
 		return
 	}
 	if bal, err := executor.GetBalance(ctx); err == nil {
-		qty = risk.CapQuantityByCash(qty, signal.Price, bal)
+		qty = risk.CapQuantityByCash(qty, signal.Price, bal, st.cfg.StepPriceValue)
 		if qty <= 0 {
 			return
 		}

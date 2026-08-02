@@ -32,7 +32,7 @@ func StrategyContextFromConfig(cfg *config.Config) models.StrategyContext {
 	}
 }
 
-// DefaultLiveStrategyContext — контекст для paper trading из веб-админки.
+// DefaultLiveStrategyContext — контекст для paper trading из HTTP-админки бота.
 func DefaultLiveStrategyContext() models.StrategyContext {
 	return models.StrategyContext{
 		Name:           "Momentum Breakout (Неидеальный агент)",

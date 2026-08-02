@@ -2,14 +2,20 @@ package live
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"strings"
 	"time"
 
+	"bcs-trading-bot/internal/api"
 	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/models"
 )
+
+//go:embed web/*
+var webFS embed.FS
 
 // AccountInfo — снимок единого счёта для админки.
 type AccountInfo struct {
@@ -18,38 +24,110 @@ type AccountInfo struct {
 	Updated time.Time `json:"updated_at"`
 }
 
-// Server — HTTP API для админки (открытые позиции + свечи дня + счёт).
-type Server struct {
-	hub     *Hub
-	listen  string
-	deposit float64
-	exec    interfaces.OrderExecutor
+// Options — параметры HTTP-сервера бота (UI + API).
+type Options struct {
+	Listen   string
+	Token    string
+	Deposit  float64
+	Exec     interfaces.OrderExecutor
+	Reader   interfaces.TradeReader
+	Archives *api.ArchiveStore
 }
 
-func NewServer(hub *Hub, listen string, deposit float64, exec interfaces.OrderExecutor) *Server {
+// Server — HTTP UI и API (live + аналитика + экспорт).
+type Server struct {
+	hub      *Hub
+	listen   string
+	token    string
+	deposit  float64
+	exec     interfaces.OrderExecutor
+	reader   interfaces.TradeReader
+	archives *api.ArchiveStore
+	export   *api.ExportService
+}
+
+func NewServer(hub *Hub, opts Options) (*Server, error) {
+	listen := opts.Listen
 	if listen == "" {
 		listen = "127.0.0.1:8091"
 	}
-	return &Server{hub: hub, listen: listen, deposit: deposit, exec: exec}
+	if err := ValidateHTTPListen(listen, opts.Token); err != nil {
+		return nil, err
+	}
+	s := &Server{
+		hub:      hub,
+		listen:   listen,
+		token:    strings.TrimSpace(opts.Token),
+		deposit:  opts.Deposit,
+		exec:     opts.Exec,
+		reader:   opts.Reader,
+		archives: opts.Archives,
+	}
+	if opts.Reader != nil {
+		s.export = api.NewExportService(opts.Reader)
+	}
+	return s, nil
 }
 
 func (s *Server) ListenAddr() string { return s.listen }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /account", s.handleAccount)
-	mux.HandleFunc("GET /positions", s.handlePositions)
-	mux.HandleFunc("GET /candles", s.handleCandles)
-	mux.HandleFunc("GET /chart", s.handleChart)
-	mux.HandleFunc("GET /live/account", s.handleAccount)
-	mux.HandleFunc("GET /live/positions", s.handlePositions)
-	mux.HandleFunc("GET /live/candles", s.handleCandles)
-	mux.HandleFunc("GET /live/chart", s.handleChart)
+
+	webRoot, err := fs.Sub(webFS, "web")
+	if err != nil {
+		panic(err)
+	}
+	staticFS, err := fs.Sub(webRoot, "static")
+	if err != nil {
+		panic(err)
+	}
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+
+	mux.HandleFunc("GET /{$}", servePage(webRoot, "index.html"))
+	mux.HandleFunc("GET /open", servePage(webRoot, "open.html"))
+	mux.HandleFunc("GET /trades", servePage(webRoot, "trades.html"))
+	mux.HandleFunc("GET /export", servePage(webRoot, "export.html"))
+
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+
+	mux.HandleFunc("GET /account", s.withAuth(s.handleAccount))
+	mux.HandleFunc("GET /positions", s.withAuth(s.handlePositions))
+	mux.HandleFunc("GET /candles", s.withAuth(s.handleCandles))
+	mux.HandleFunc("GET /chart", s.withAuth(s.handleChart))
+	mux.HandleFunc("GET /live/account", s.withAuth(s.handleAccount))
+	mux.HandleFunc("GET /live/positions", s.withAuth(s.handlePositions))
+	mux.HandleFunc("GET /live/candles", s.withAuth(s.handleCandles))
+	mux.HandleFunc("GET /live/chart", s.withAuth(s.handleChart))
+
+	mux.HandleFunc("GET /api/summary", s.withAuth(s.handleAPISummary))
+	mux.HandleFunc("GET /api/comparison", s.withAuth(s.handleAPIComparison))
+	mux.HandleFunc("GET /api/trades", s.withAuth(s.handleAPITrades))
+	mux.HandleFunc("GET /api/account-equity", s.withAuth(s.handleAPIAccountEquity))
+	mux.HandleFunc("GET /api/date-range", s.withAuth(s.handleAPIDateRange))
+	mux.HandleFunc("GET /api/experiments", s.withAuth(s.handleAPIExperiments))
+	mux.HandleFunc("GET /api/prompt", s.withAuth(s.handleAPIPrompt))
+	mux.HandleFunc("GET /api/export/data", s.withAuth(s.handleExportData))
+	mux.HandleFunc("GET /api/archives", s.withAuth(s.handleAPIArchivesList))
+	mux.HandleFunc("POST /api/archives", s.withAuth(s.handleAPIArchivesCreate))
+	mux.HandleFunc("DELETE /api/archives/{id}", s.withAuth(s.handleAPIArchivesDelete))
+
 	return mux
+}
+
+func servePage(fsys fs.FS, name string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		data, err := fs.ReadFile(fsys, name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(data)
+	}
 }
 
 func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +171,7 @@ func (s *Server) handleChart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var pos *OpenPosition
+	var pos *models.PositionSnapshot
 	for _, p := range s.hub.Positions() {
 		pp := p
 		if id != "" && pp.ID == id {
@@ -119,7 +197,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 // BuildOpenChartPayload — контракт как у optimizer/charts (candles/markers/trades).
-func BuildOpenChartPayload(candles []models.Candle, pos *OpenPosition) map[string]any {
+func BuildOpenChartPayload(candles []models.Candle, pos *models.PositionSnapshot) map[string]any {
 	outCandles := make([]map[string]any, len(candles))
 	for i, c := range candles {
 		outCandles[i] = map[string]any{
@@ -189,7 +267,7 @@ func candlesOrEmpty(c []map[string]any) []map[string]any {
 	return c
 }
 
-// FetchAccount запрашивает /account у live API бота.
+// FetchAccount запрашивает /account у HTTP API бота.
 func FetchAccount(ctx context.Context, baseURL string) (AccountInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/account", nil)
 	if err != nil {

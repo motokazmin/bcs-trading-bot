@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Экспорт для ИИ — BCS Admin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="page-export" data-nav="export">
+  <header class="topbar">
+    <div class="brand">BCS Trading Bot</div>
+    <nav>
+      <a href="/">Дашборд</a>
+      <a href="/open">Открытые</a>
+      <a href="/trades">Сделки</a>
+      <a href="/export" class="active">Экспорт для ИИ</a>
+    </nav>
+  </header>
+  <main class="container">
+    <h1>Экспорт для ИИ</h1>
+    <div id="filters-root"></div>
+    <section class="export-hero">
+      <p>Два шага: <strong>скопируйте промпт</strong> → вставьте в ChatGPT / Claude → <strong>прикрепите JSON с данными</strong>. Промпт и файл не дублируют друг друга.</p>
+    </section>
+    <div class="export-variants">
+      <section class="export-variant" data-mode="summary">
+        <div class="export-variant-header">
+          <h2>Краткий — по метрикам</h2>
+          <p class="muted">Сравнение экспериментов, win rate, profit factor. Без списка сделок. Файл: <code>data-summary.json</code></p>
+        </div>
+        <div class="export-variant-actions">
+          <button type="button" class="btn primary download-data-btn" data-mode="summary">Скачать data-summary.json</button>
+          <button type="button" class="btn copy-prompt-btn" data-mode="summary">Копировать промпт</button>
+        </div>
+        <textarea class="prompt-box prompt-preview" data-mode="summary" readonly spellcheck="false">Загрузка…</textarea>
+      </section>
+      <section class="export-variant" data-mode="detailed">
+        <div class="export-variant-header">
+          <h2>Подробный — с разбором сделок</h2>
+          <p class="muted">Всё из краткого + полный список сделок в <code>experiments[].trades</code>. Файл: <code>data-trades.json</code></p>
+        </div>
+        <div class="export-variant-actions">
+          <button type="button" class="btn primary download-data-btn" data-mode="detailed">Скачать data-trades.json</button>
+          <button type="button" class="btn copy-prompt-btn" data-mode="detailed">Копировать промпт</button>
+        </div>
+        <textarea class="prompt-box prompt-preview" data-mode="detailed" readonly spellcheck="false">Загрузка…</textarea>
+      </section>
+    </div>
+    <section>
+      <h2>Как использовать</h2>
+      <ol class="steps">
+        <li>Примените фильтры выше.</li>
+        <li>Выберите вариант: краткий или подробный.</li>
+        <li>Нажмите «Копировать промпт» → вставьте в чат ИИ.</li>
+        <li>Скачайте соответствующий JSON и прикрепите к тому же сообщению.</li>
+      </ol>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+  <script src="/static/filters.js"></script>
+  <script src="/static/export.js"></script>
+</body>
+</html>
