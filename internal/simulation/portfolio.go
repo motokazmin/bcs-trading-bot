@@ -241,6 +241,13 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces
 	if p.global != nil {
 		p.global.RegisterOpen(st.cfg.Ticker, st.position.RDistance*float64(st.position.Quantity)*st.cfg.StepPriceValue)
 	}
+
+	if reason := position.SameBarExitAfterFill(st.position, candle); reason != "" {
+		exitPx := position.ExitFillPrice(st.position, reason, candle.Close)
+		position.UpdateMAE(st.position, exitPx)
+		position.UpdateMFE(st.position, exitPx)
+		p.closePosition(ctx, executor, st, exitPx, reason, candle.Timestamp)
+	}
 }
 
 func (p *PortfolioRunner) processIntrabar(ctx context.Context, executor interfaces.OrderExecutor, st *tickerState, candle models.Candle) {
@@ -249,7 +256,8 @@ func (p *PortfolioRunner) processIntrabar(ctx context.Context, executor interfac
 		position.UpdateMAE(st.position, price)
 		trailing.Apply(st.position, price, st.cfg.TrailCfg)
 		if reason := position.CheckExit(st.position, price); reason != "" {
-			p.closePosition(ctx, executor, st, price, reason, candle.Timestamp)
+			exitPx := position.ExitFillPrice(st.position, reason, price)
+			p.closePosition(ctx, executor, st, exitPx, reason, candle.Timestamp)
 			return
 		}
 	}
@@ -298,6 +306,8 @@ func (p *PortfolioRunner) closePosition(ctx context.Context, executor interfaces
 
 	pos := st.position
 	st.position = nil
+
+	price = position.ExitFillPrice(pos, reason, price)
 
 	closeDir := "SELL"
 	if pos.Direction == "SELL" {

@@ -147,6 +147,13 @@ func (r *Runner) processCandle(ctx context.Context, executor interfaces.OrderExe
 
 	r.tradesToday++
 	r.position = position.NewFromSignal(*signal, candle.Timestamp)
+
+	if reason := position.SameBarExitAfterFill(r.position, candle); reason != "" {
+		exitPx := position.ExitFillPrice(r.position, reason, candle.Close)
+		position.UpdateMAE(r.position, exitPx)
+		position.UpdateMFE(r.position, exitPx)
+		r.closePosition(ctx, executor, exitPx, reason, candle.Timestamp)
+	}
 }
 
 func (r *Runner) processIntrabar(ctx context.Context, executor interfaces.OrderExecutor, candle models.Candle) {
@@ -155,7 +162,8 @@ func (r *Runner) processIntrabar(ctx context.Context, executor interfaces.OrderE
 		position.UpdateMAE(r.position, price)
 		trailing.Apply(r.position, price, r.cfg.TrailCfg)
 		if reason := position.CheckExit(r.position, price); reason != "" {
-			r.closePosition(ctx, executor, price, reason, candle.Timestamp)
+			exitPx := position.ExitFillPrice(r.position, reason, price)
+			r.closePosition(ctx, executor, exitPx, reason, candle.Timestamp)
 			return
 		}
 	}
@@ -199,6 +207,8 @@ func (r *Runner) closePosition(ctx context.Context, executor interfaces.OrderExe
 
 	pos := r.position
 	r.position = nil
+
+	price = position.ExitFillPrice(pos, reason, price)
 
 	closeDir := "SELL"
 	if pos.Direction == "SELL" {

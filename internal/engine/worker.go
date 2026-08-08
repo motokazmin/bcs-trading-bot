@@ -301,6 +301,23 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		tradeRisk := pos.RDistance * float64(pos.Quantity) * w.stepPriceValue
 		w.globalRisk.RegisterOpen(w.ticker, tradeRisk)
 	}
+
+	// Limit-fill на M5: если на том же баре уже пробит SL/TP — закрыть по уровню, не ждать adverse tick.
+	if reason := position.SameBarExitAfterFill(pos, candle); reason != "" {
+		exitPx := position.ExitFillPrice(pos, reason, candle.Close)
+		w.posMu.Lock()
+		if w.position != nil {
+			position.UpdateMAE(w.position, exitPx)
+			position.UpdateMFE(w.position, exitPx)
+		}
+		w.posMu.Unlock()
+		logx.Info("[%s] same-bar exit after fill: %s @ %.4f (bar close %.4f)", w.label, reason, exitPx, candle.Close)
+		w.closePosition(ctx, executor, exitPx, reason)
+		return
+	}
+	if w.lastPrice > 0 {
+		w.checkSLTP(ctx, executor, w.lastPrice)
+	}
 }
 
 func (w *TickerWorker) checkSLTP(ctx context.Context, executor interfaces.OrderExecutor, price float64) {
@@ -316,13 +333,17 @@ func (w *TickerWorker) checkSLTP(ctx context.Context, executor interfaces.OrderE
 	stage := w.position.TrailStage
 	sl := w.position.StopLoss
 	reason := position.CheckExit(w.position, price)
+	exitPx := price
+	if reason != "" {
+		exitPx = position.ExitFillPrice(w.position, reason, price)
+	}
 	w.posMu.Unlock()
 
 	if stage > prevStage {
 		logx.Trailing(w.label, stage, sl)
 	}
 	if reason != "" {
-		w.closePosition(ctx, executor, price, reason)
+		w.closePosition(ctx, executor, exitPx, reason)
 	}
 }
 
@@ -391,6 +412,8 @@ func (w *TickerWorker) closePosition(ctx context.Context, executor interfaces.Or
 	pos := w.position
 	w.position = nil
 	w.posMu.Unlock()
+
+	price = position.ExitFillPrice(pos, reason, price)
 
 	closeDir := "SELL"
 	if pos.Direction == "SELL" {

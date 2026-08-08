@@ -145,6 +145,50 @@ func CheckExit(pos *State, price float64) string {
 	return ""
 }
 
+// ExitFillPrice — цена исполнения выхода в paper/virtual.
+// SL/TP исполняются по уровню (без adverse tick за стопом); EOD и прочее — по marketPrice.
+func ExitFillPrice(pos *State, reason string, marketPrice float64) float64 {
+	if pos == nil {
+		return marketPrice
+	}
+	switch reason {
+	case models.CloseReasonStopLoss:
+		if pos.StopLoss > 0 {
+			return pos.StopLoss
+		}
+	case models.CloseReasonTakeProfit:
+		if pos.TakeProfit > 0 {
+			return pos.TakeProfit
+		}
+	}
+	return marketPrice
+}
+
+// SameBarExitAfterFill — после limit-fill на свече: был ли уже пробит SL/TP на OHLC бара.
+// Консервативно: при касании обоих сначала STOP_LOSS (как у TATN: High ушёл далеко за стоп).
+func SameBarExitAfterFill(pos *State, candle models.Candle) string {
+	if pos == nil || pos.EntryPrice <= 0 {
+		return ""
+	}
+	switch pos.Direction {
+	case "BUY":
+		if pos.StopLoss > 0 && candle.Low <= pos.StopLoss {
+			return models.CloseReasonStopLoss
+		}
+		if pos.TakeProfit > 0 && candle.High >= pos.TakeProfit {
+			return models.CloseReasonTakeProfit
+		}
+	case "SELL":
+		if pos.StopLoss > 0 && candle.High >= pos.StopLoss {
+			return models.CloseReasonStopLoss
+		}
+		if pos.TakeProfit > 0 && candle.Low <= pos.TakeProfit {
+			return models.CloseReasonTakeProfit
+		}
+	}
+	return ""
+}
+
 // IntrabarPrices возвращает синтетический путь цены внутри свечи для проверки SL/TP.
 func IntrabarPrices(candle models.Candle, direction string) []float64 {
 	switch direction {

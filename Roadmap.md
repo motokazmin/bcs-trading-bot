@@ -33,7 +33,7 @@
 
 ## Модель исполнения (позже)
 
-- [ ] **Проскальзывание** — backtest: close + intrabar OHLC, без slippage; live: limit in / market out; позже модель в backtest + сравнение fill vs расчёт
+- [ ] **Проскальзывание** — явная модель slippage в backtest + сравнение fill vs расчёт; paper уже: SL/TP по уровню, same-bar exit после limit-fill (не adverse tick за стопом)
 - [ ] Реальная комиссия из API брокера
 - [ ] Парсинг `broker_order_id` из ответа BCS
 
