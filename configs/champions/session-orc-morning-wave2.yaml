@@ -1,8 +1,5 @@
-# FROZEN champion: Morning Session ORC (07:00–09:50 MSK)
-# Run: wave2-morning-orc-wl (seed 1); seed2 OK (+0.41R, 13/23)
-# Solo: +0.47R, PF 1.91, 95 trades, 16/23 WF
-# Не оптимизировать без явного запроса.
-
+# Champion — Morning Session ORC (07:00–09:50 MSK).
+# Portfolio: configs/runs/portfolio-paper.yaml · docs/portfolio.md
 trading_mode: virtual
 
 tickers:

@@ -1,8 +1,5 @@
-# FROZEN champion: Evening Session ORC (19:05–23:50 MSK)
-# Run: wave2-evening-orc-wl (seed 1); seed2: +1.27R но 9/23 WF — осторожно
-# Solo: +0.90R, PF 2.53, 83 trades, 16/23 WF
-# Не оптимизировать без явного запроса.
-
+# Champion — Evening Session ORC (19:05–23:50 MSK).
+# Portfolio: configs/runs/portfolio-paper.yaml · docs/portfolio.md
 trading_mode: virtual
 
 tickers:

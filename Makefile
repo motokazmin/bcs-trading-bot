@@ -17,7 +17,7 @@ GO := go
 TICKERS_CONFIG    ?= configs/shared/tickers-orc.yaml
 # Sync всегда тянет полный universe, не whitelist стратегии.
 SYNC_TICKERS_CONFIG ?= configs/shared/tickers.yaml
-# Legacy-алиас для совместимости со старыми локальными override.
+# Алиас: UNIVERSE = TICKERS_CONFIG (локальные override).
 UNIVERSE          ?= $(TICKERS_CONFIG)
 HISTORY_DIR       ?= data/history
 SEARCH_SPACE      ?= configs/strategies/orc.yaml
@@ -47,14 +47,14 @@ help:
 	@echo ""
 	@echo "  make sync-history       — догрузить полный universe (tickers.yaml), параллельно"
 	@echo "  make optimizer-run      — sync-history + walk-forward ORC"
-	@echo "  make optimizer-orc      — ORC → results/orc/  (FROZEN — по запросу)"
+	@echo "  make optimizer-orc      — ORC → results/orc/  (champions — только по запросу)"
 	@echo "  make optimizer-or-fade  — OR Fade → results/or-fade/"
 	@echo "  make optimizer-afternoon — MF afternoon → results/afternoon/"
 	@echo "  make optimizer-focus    — alias для optimizer-orc"
 	@echo "  make charts-all         — HTML-графики по OPTIMIZER_OUT"
 	@echo ""
 	@echo "  make bot                — paper portfolio; админка HTTP_LISTEN (дефолт 127.0.0.1:8091)"
-	@echo "  make bot-futures        — paper, фьючерсы SPBFUT"
+	@echo "  make bot-futures        — paper фьючерсы (не portfolio)"
 	@echo "  make bot-real           — реальная торговля"
 	@echo "  make bot-smoke          — smoke test OAuth+WS"
 	@echo ""

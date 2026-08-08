@@ -1,7 +1,5 @@
-# FROZEN champion — Opening Range Continuation (wave2-rerun, seed 1).
-# Комиссия: 0.008% за leg (BCS «Трейдер»). См. docs/champion-orc.md
-# Backtest rerun: +0.49R, PF 1.61, 16/23 WF, 110 trades.
-
+# Champion — Opening Range Continuation (main slot).
+# Portfolio: configs/runs/portfolio-paper.yaml · docs/portfolio.md
 trading_mode: virtual
 
 tickers:

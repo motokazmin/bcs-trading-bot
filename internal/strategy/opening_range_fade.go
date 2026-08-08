@@ -16,7 +16,7 @@ func init() {
 	})
 	Register(Descriptor{
 		ID:                   IDSessionORFade,
-		DefaultSearchSpace:   "configs/legacy/extended-sessions/strategies/session-or-fade-evening.yaml",
+		DefaultSearchSpace:   "configs/strategies/session-or-fade-evening.yaml",
 		NewFromParams:        newSessionORFadeFromParams,
 		ParamsToConfigFields: orFadeConfigFields,
 	})

@@ -1,8 +1,5 @@
-# FROZEN champion — MF Afternoon (mf-longonly-narrow-ws2-seed1).
-# Честный long-only после фикса ApplyFixed (fixed.longOnly → params).
-# Solo: +0.23R, PF 1.59, 12/23 WF, 56 trades. Seed2: +0.28R, 12/23.
-# См. docs/champion-mf-afternoon.md
-
+# Champion — Momentum Filtered Afternoon (long-only).
+# Portfolio: configs/runs/portfolio-paper.yaml · docs/portfolio.md
 trading_mode: virtual
 
 tickers:
