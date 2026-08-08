@@ -8,7 +8,7 @@
 # Тесты:      make test
 # История:    make sync-history          (первый раз ~2 года, далее — догрузка)
 # Optimizer:  make optimizer-run
-# Бот:        make bot
+# Бот:        make bot / make bot-stop / make bot-status
 
 BINARY_DIR := bin
 GO := go
@@ -33,10 +33,11 @@ HTTP_LISTEN ?= 127.0.0.1:8091
 # Дублировать логи в файл (дефолт /var/log/trading-bot/bot.log). Только stdout: LOG_FILE=- make bot
 LOG_FILE ?= /var/log/trading-bot/bot.log
 LOG_FILE_FLAG := -log-file $(LOG_FILE)
+BOT_PID_FILE ?= data/bot.pid
 
 .PHONY: build build-bot build-optimizer test \
         sync-history optimizer-run optimizer-orc optimizer-momentum optimizer-or-fade optimizer-afternoon optimizer-focus strategy-matrix charts-all \
-        bot bot-futures bot-real bot-smoke help
+        bot bot-futures bot-real bot-smoke bot-stop bot-status help
 
 help:
 	@echo "BCS Trading Bot — make targets"
@@ -53,18 +54,20 @@ help:
 	@echo "  make optimizer-focus    — alias для optimizer-orc"
 	@echo "  make charts-all         — HTML-графики по OPTIMIZER_OUT"
 	@echo ""
-	@echo "  make bot                — paper portfolio; админка HTTP_LISTEN (дефолт 127.0.0.1:8091)"
-	@echo "  make bot-futures        — paper фьючерсы (не portfolio)"
-	@echo "  make bot-real           — реальная торговля"
-	@echo "  make bot-smoke          — smoke test OAuth+WS"
+	@echo "  make bot                — paper portfolio в фоне; админка HTTP_LISTEN (дефолт 127.0.0.1:8091)"
+	@echo "  make bot-futures        — paper фьючерсы в фоне (не portfolio)"
+	@echo "  make bot-real           — реальная торговля в фоне"
+	@echo "  make bot-stop           — остановить фоновый bot (PID в BOT_PID_FILE)"
+	@echo "  make bot-status         — статус фонового bot"
+	@echo "  make bot-smoke          — smoke test OAuth+WS (foreground)"
 	@echo ""
 	@echo "Облако:  export ADMIN_TOKEN=... HTTP_LISTEN=0.0.0.0:8091 && make bot"
-	@echo "Локально: make bot → http://127.0.0.1:8091"
-	@echo "Логи:     /var/log/trading-bot/bot.log по умолчанию; LOG_FILE=- (только stdout)"
+	@echo "Локально: make bot → http://127.0.0.1:8091  |  make bot-stop"
+	@echo "Логи:     /var/log/trading-bot/bot.log по умолчанию; LOG_FILE=- (только stdout → data/bot.stdout.log)"
 	@echo ""
 	@echo "Переменные: TICKERS_CONFIG (run), SYNC_TICKERS_CONFIG (sync), HISTORY_DIR, PARALLEL_TICKERS, OPTIMIZER_PARALLEL,"
 	@echo "            OPTIMIZER_TWO_PHASE=1, OPTIMIZER_STRATEGY, SEARCH_SPACE, OPTIMIZER_OUT,"
-	@echo "            BOT_CONFIG, HTTP_LISTEN, LOG_FILE, BCS_REFRESH_TOKEN, ADMIN_TOKEN"
+	@echo "            BOT_CONFIG, HTTP_LISTEN, LOG_FILE, BOT_PID_FILE, BCS_REFRESH_TOKEN, ADMIN_TOKEN"
 
 build: build-bot build-optimizer
 
@@ -132,16 +135,72 @@ charts-all: build-optimizer
 		-results-dir $(OPTIMIZER_OUT) \
 		-history-dir $(HISTORY_DIR)
 
-# --- Бот ---
+# --- Бот (фон: make bot / bot-stop / bot-status; smoke — foreground) ---
+
+# Если LOG_FILE пустой или "-", stdout/stderr → data/bot.stdout.log; иначе — /dev/null (логи пишет сам бот).
+define bot_stdout_redirect
+$(if $(filter -,$(LOG_FILE)),data/bot.stdout.log,$(if $(LOG_FILE),/dev/null,data/bot.stdout.log))
+endef
+
+define start_bot_bg
+	@if [ -f "$(BOT_PID_FILE)" ] && kill -0 $$(cat "$(BOT_PID_FILE)") 2>/dev/null; then \
+		echo "bot уже запущен pid=$$(cat $(BOT_PID_FILE)) (make bot-stop)"; \
+		exit 1; \
+	fi
+	@mkdir -p "$$(dirname "$(BOT_PID_FILE)")"
+	@nohup $(BINARY_DIR)/bot -config $(1) -http-listen $(HTTP_LISTEN) $(LOG_FILE_FLAG) \
+		> "$(bot_stdout_redirect)" 2>&1 & echo $$! > "$(BOT_PID_FILE)"
+	@sleep 0.3
+	@if ! kill -0 $$(cat "$(BOT_PID_FILE)") 2>/dev/null; then \
+		echo "bot не стартовал — смотри логи ($(LOG_FILE) / $(bot_stdout_redirect))"; \
+		rm -f "$(BOT_PID_FILE)"; \
+		exit 1; \
+	fi
+	@echo "bot started pid=$$(cat $(BOT_PID_FILE)) listen=$(HTTP_LISTEN) log=$(LOG_FILE) pidfile=$(BOT_PID_FILE)"
+endef
 
 bot: build-bot
-	$(BINARY_DIR)/bot -config $(BOT_CONFIG) -http-listen $(HTTP_LISTEN) $(LOG_FILE_FLAG)
+	$(call start_bot_bg,$(BOT_CONFIG))
 
 bot-futures: build-bot
-	$(BINARY_DIR)/bot -config configs/runs/virtual-futures.yaml -http-listen $(HTTP_LISTEN) $(LOG_FILE_FLAG)
+	$(call start_bot_bg,configs/runs/virtual-futures.yaml)
 
 bot-real: build-bot
-	$(BINARY_DIR)/bot -config configs/runs/real-stocks.yaml -http-listen $(HTTP_LISTEN) $(LOG_FILE_FLAG)
+	$(call start_bot_bg,configs/runs/real-stocks.yaml)
+
+bot-stop:
+	@if [ ! -f "$(BOT_PID_FILE)" ]; then \
+		echo "bot не запущен (нет $(BOT_PID_FILE))"; \
+	else \
+		pid=$$(cat "$(BOT_PID_FILE)"); \
+		if kill -0 $$pid 2>/dev/null; then \
+			kill $$pid; \
+			for i in 1 2 3 4 5 6 7 8 9 10; do \
+				kill -0 $$pid 2>/dev/null || break; \
+				sleep 0.3; \
+			done; \
+			if kill -0 $$pid 2>/dev/null; then \
+				echo "bot pid=$$pid не завершился, kill -9"; \
+				kill -9 $$pid 2>/dev/null || true; \
+			fi; \
+			echo "bot stopped pid=$$pid"; \
+		else \
+			echo "stale pidfile $(BOT_PID_FILE) (процесс $$pid нет)"; \
+		fi; \
+		rm -f "$(BOT_PID_FILE)"; \
+	fi
+
+bot-status:
+	@if [ ! -f "$(BOT_PID_FILE)" ]; then \
+		echo "bot: stopped"; \
+	else \
+		pid=$$(cat "$(BOT_PID_FILE)"); \
+		if kill -0 $$pid 2>/dev/null; then \
+			echo "bot: running pid=$$pid listen=$(HTTP_LISTEN) log=$(LOG_FILE)"; \
+		else \
+			echo "bot: stopped (stale pidfile $(BOT_PID_FILE))"; \
+		fi; \
+	fi
 
 bot-smoke: build-bot
 	$(BINARY_DIR)/bot -config $(BOT_CONFIG) -smoke-test $(LOG_FILE_FLAG)

@@ -31,18 +31,20 @@ export HTTP_LISTEN=0.0.0.0:8091
 ```bash
 make build
 export BCS_REFRESH_TOKEN=...
-make bot
+make bot                 # фон; PID → data/bot.pid
 # → http://127.0.0.1:8091
+make bot-status
+tail -f /var/log/trading-bot/bot.log
+make bot-stop
 ```
 
 | Команда | Что делает |
 |---|---|
-| `make bot` | Paper portfolio, 5 champions |
-| `make bot-real` | Реал (осторожно; сейчас 1 experiment) |
-| `make bot-smoke` | Smoke OAuth+WS |
-| `make bot-futures` | Paper фьючерсы (отдельный профиль) |
-
-Остановка: `Ctrl+C`.
+| `make bot` | Paper portfolio в **фоне**, 5 champions |
+| `make bot-stop` / `make bot-status` | Остановка / статус |
+| `make bot-real` | Реал в фоне (осторожно; сейчас 1 experiment) |
+| `make bot-smoke` | Smoke OAuth+WS (**foreground**) |
+| `make bot-futures` | Paper фьючерсы в фоне |
 
 ---
 
@@ -55,12 +57,13 @@ export ADMIN_TOKEN="$(openssl rand -hex 32)"
 export HTTP_LISTEN=0.0.0.0:8091
 make bot
 # с ПК: http://PUBLIC_IP:8091 → ADMIN_TOKEN
-# на VM:  tail -f /var/log/trading-bot/bot.log
+# на VM:  make bot-status; tail -f /var/log/trading-bot/bot.log
+# стоп:   make bot-stop
 ```
 
 Без `ADMIN_TOKEN` процесс не стартует с `0.0.0.0`. Firewall: TCP **8091**.
 
-Логи по умолчанию: stdout + `/var/log/trading-bot/bot.log`. Только stdout: `LOG_FILE=- make bot`.
+Логи по умолчанию: `/var/log/trading-bot/bot.log`. `LOG_FILE=-` → stdout в `data/bot.stdout.log`. PID: `data/bot.pid` (`BOT_PID_FILE`).
 
 ---
 

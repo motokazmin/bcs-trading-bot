@@ -45,12 +45,14 @@ cmd/bot
 ```bash
 export BCS_REFRESH_TOKEN=...
 make build
-make bot                 # локально → http://127.0.0.1:8091
+make bot                 # фон → http://127.0.0.1:8091
+# make bot-status / make bot-stop
 
 # облако:
 # export ADMIN_TOKEN=$(openssl rand -hex 32)
 # export HTTP_LISTEN=0.0.0.0:8091
 # make bot
+# make bot-stop
 
 make sync-history        # CSV для optimizer
 ```
