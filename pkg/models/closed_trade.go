@@ -37,6 +37,10 @@ type ClosedTrade struct {
 	RiskPerTradePct    float64
 	DepositPerTicker   float64
 	StrategyParamsJSON string `json:"strategy_params,omitempty"`
+	AuditSeverity      string `json:"audit_severity,omitempty"`
+	AuditCodes         string `json:"audit_codes,omitempty"`
+	EntryBarTime       string `json:"entry_bar_time,omitempty"`
+	EntryBarClose      float64 `json:"entry_bar_close,omitempty"`
 }
 
 func (t ClosedTrade) effectiveStepPrice() float64 {

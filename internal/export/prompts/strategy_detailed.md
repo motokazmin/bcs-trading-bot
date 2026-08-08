@@ -10,7 +10,7 @@
 - `strategy_context` — описание системы (может быть общим для портфеля слотов)
 - `date_range`, `filters` — период и фильтры выборки
 - `comparison` — сводка по `experiment_id`
-- `experiments[]` — полный отчёт: `summary` (в т.ч. `expectancy_r`), разбивки, `daily_pnl`, `equity_curve`, **`trades`** (каждая сделка: цены, SL/TP, `pnl_r`, `mfe_in_r`, `mae_in_r`, `breakout_upper`/`breakout_lower`, `close_reason`, `trail_stage`, время удержания)
+- `experiments[]` — полный отчёт: `summary` (в т.ч. `expectancy_r`), разбивки, `daily_pnl`, `equity_curve`, **`trades`** (каждая сделка: цены, SL/TP, `pnl_r`, `mfe_in_r`, `mae_in_r`, `breakout_upper`/`breakout_lower`, `close_reason`, `trail_stage`, время удержания; при наличии — `audit_severity`/`audit_codes`, `entry_bar_time`/`entry_bar_close`)
 
 Мета: версия {{EXPORT_VERSION}}, выгрузка {{EXPORTED_AT}}, период {{DATE_FROM}} — {{DATE_TO}}, сделок в выборке: {{TOTAL_TRADES}}.
 
@@ -31,7 +31,7 @@
 1. Паттерны убыточных сделок — ранние стопы, EOD-выходы, неудачные пробои; смотри `mae_in_r` и отрыв входа от `breakout_upper`/`breakout_lower`.
 2. Успешные сделки — дошли ли до TP, сработал ли трейлинг; `mfe_in_r` vs итоговый `pnl_r`.
 3. Сравнение экспериментов на уровне сделок — тикеры, сессии, параметры; `stop_mode` только при вариативности в данных.
-4. Аномалии — необычные `pnl_r`/`mae_in_r`, короткий/длинный HoldSeconds, серии убытков.
+4. Аномалии — необычные `pnl_r`/`mae_in_r`, короткий/длинный HoldSeconds, серии убытков. Если есть `audit_codes` (LIMIT_VS_CLOSE, ENTRY_PAST_STOP, SL_FILL_DRIFT, SAME_BAR_SL и т.п.) — опирайся на них как на runtime-флаги валидности, не игнорируй.
 5. **Главная метрика — `key_metrics.expectancy_r` / `summary.expectancy_r`**. Соответствуют ли сделки **фактическому** R:R из п.1, а не тексту «1:3».
 6. Ограничения выборки и virtual mode.
 

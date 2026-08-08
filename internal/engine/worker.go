@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/strategy"
+	"bcs-trading-bot/internal/tradeaudit"
 	"bcs-trading-bot/internal/trailing"
 	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/logx"
@@ -42,6 +45,7 @@ type TickerWorker struct {
 	store            interfaces.TradeStore
 	trailCfg         trailing.Config
 	costsCfg         costs.Config
+	rewardRatio      float64
 	candleChan       chan models.Candle
 	tickChan         chan models.Tick
 	position         *position.State
@@ -118,6 +122,7 @@ func NewTickerWorker(
 		store:                    store,
 		trailCfg:                 trailCfg,
 		costsCfg:                 costsCfg,
+		rewardRatio:              exp.Strategy.EffectiveRewardRatio(),
 		maxTradesPerTickerPerDay: exp.Strategy.MaxTradesPerTickerPerDay,
 		candleChan:               make(chan models.Candle, 64),
 		tickChan:                 make(chan models.Tick, 256),
@@ -295,6 +300,8 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 	w.tradesToday++
 	w.posMu.Lock()
 	w.position = position.NewFromSignal(*signal, now)
+	w.position.EntryBarTime = candle.Timestamp
+	w.position.EntryBarClose = candle.Close
 	pos := w.position
 	w.posMu.Unlock()
 	if w.globalRisk != nil {
@@ -302,11 +309,24 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		w.globalRisk.RegisterOpen(w.ticker, tradeRisk)
 	}
 
+	openAudit := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
+		Direction:   signal.Direction,
+		EntryPrice:  signal.Price,
+		StopLoss:    signal.StopLoss,
+		TakeProfit:  signal.TakeProfit,
+		RDistance:   pos.RDistance,
+		BarClose:    candle.Close,
+		LastPrice:   w.lastPrice,
+		RewardRatio: w.rewardRatio,
+	})
+	logOpenAudit(w.label, openAudit)
+
 	// Limit-fill на M5: если на том же баре уже пробит SL/TP — закрыть по уровню, не ждать adverse tick.
 	if reason := position.SameBarExitAfterFill(pos, candle); reason != "" {
 		exitPx := position.ExitFillPrice(pos, reason, candle.Close)
 		w.posMu.Lock()
 		if w.position != nil {
+			w.position.SameBarExit = true
 			position.UpdateMAE(w.position, exitPx)
 			position.UpdateMFE(w.position, exitPx)
 		}
@@ -492,10 +512,71 @@ func (w *TickerWorker) closePosition(ctx context.Context, executor interfaces.Or
 		Lookback:          w.lookback,
 		RiskPerTradePct:   w.riskPerTradePct,
 		DepositPerTicker:  w.depositPerTicker,
+		EntryBarClose:     pos.EntryBarClose,
 	}
+	if !pos.EntryBarTime.IsZero() {
+		trade.EntryBarTime = pos.EntryBarTime.UTC().Format(time.RFC3339)
+	}
+
+	openAudit := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
+		Direction:   pos.Direction,
+		EntryPrice:  pos.EntryPrice,
+		StopLoss:    pos.InitialStopLoss,
+		TakeProfit:  pos.InitialTakeProfit,
+		RDistance:   pos.RDistance,
+		BarClose:    pos.EntryBarClose,
+		RewardRatio: w.rewardRatio,
+	})
+	closeAudit := tradeaudit.ValidateClose(tradeaudit.CloseInput{
+		Direction:       pos.Direction,
+		EntryPrice:      pos.EntryPrice,
+		ExitPrice:       price,
+		FinalStopLoss:   pos.StopLoss,
+		TakeProfit:      pos.InitialTakeProfit,
+		RDistance:       pos.RDistance,
+		CloseReason:     reason,
+		PnLR:            pnlR,
+		MFEinR:          trade.MFEinR,
+		TrailStage:      pos.TrailStage,
+		TrailActivation: w.trailCfg.ActivationR,
+		HoldSeconds:     trade.HoldSeconds,
+		BarDuration:     candleBarDuration(w.candleTimeframe),
+		SameBarExit:     pos.SameBarExit,
+		EntryBarClose:   pos.EntryBarClose,
+	})
+	audit := tradeaudit.Merge(openAudit, closeAudit)
+	if !audit.Empty() {
+		trade.AuditSeverity = audit.Severity
+		trade.AuditCodes = audit.CodesCSV()
+		logx.Audit(w.label, audit.Severity, audit.CodesCSV(), formatAuditDetails(audit))
+	}
+
 	if err := w.store.SaveClosedTrade(context.Background(), trade); err != nil {
 		logx.Error("[%s] ошибка сохранения сделки в БД: %v", w.label, err)
 	}
 
 	logx.TradeClose(w.label, reason, price, pnl, pnlR)
+}
+
+func logOpenAudit(label string, r tradeaudit.Result) {
+	if r.Empty() {
+		return
+	}
+	logx.Audit(label, r.Severity, r.CodesCSV(), formatAuditDetails(r))
+}
+
+func formatAuditDetails(r tradeaudit.Result) string {
+	if len(r.Details) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(r.Details))
+	for k := range r.Details {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%.4f", k, r.Details[k]))
+	}
+	return strings.Join(parts, " ")
 }

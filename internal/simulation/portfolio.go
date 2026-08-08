@@ -11,6 +11,7 @@ import (
 	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/strategy"
+	"bcs-trading-bot/internal/tradeaudit"
 	"bcs-trading-bot/internal/trailing"
 	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/models"
@@ -238,12 +239,15 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces
 
 	st.tradesToday++
 	st.position = position.NewFromSignal(*signal, candle.Timestamp)
+	st.position.EntryBarTime = candle.Timestamp
+	st.position.EntryBarClose = candle.Close
 	if p.global != nil {
 		p.global.RegisterOpen(st.cfg.Ticker, st.position.RDistance*float64(st.position.Quantity)*st.cfg.StepPriceValue)
 	}
 
 	if reason := position.SameBarExitAfterFill(st.position, candle); reason != "" {
 		exitPx := position.ExitFillPrice(st.position, reason, candle.Close)
+		st.position.SameBarExit = true
 		position.UpdateMAE(st.position, exitPx)
 		position.UpdateMFE(st.position, exitPx)
 		p.closePosition(ctx, executor, st, exitPx, reason, candle.Timestamp)
@@ -375,7 +379,36 @@ func (p *PortfolioRunner) closePosition(ctx context.Context, executor interfaces
 		RiskPerTradePct:    st.cfg.RiskPerTradePct,
 		DepositPerTicker:   st.cfg.Deposit,
 		StrategyParamsJSON: st.cfg.StrategyParamsJSON,
+		EntryBarClose:      pos.EntryBarClose,
 	}
+	if !pos.EntryBarTime.IsZero() {
+		trade.EntryBarTime = pos.EntryBarTime.UTC().Format(time.RFC3339)
+	}
+	_ = tradeaudit.AnnotateTrade(&trade, tradeaudit.OpenInput{
+		Direction:   pos.Direction,
+		EntryPrice:  pos.EntryPrice,
+		StopLoss:    pos.InitialStopLoss,
+		TakeProfit:  pos.InitialTakeProfit,
+		RDistance:   pos.RDistance,
+		BarClose:    pos.EntryBarClose,
+		RewardRatio: st.cfg.RewardRatio,
+	}, tradeaudit.CloseInput{
+		Direction:       pos.Direction,
+		EntryPrice:      pos.EntryPrice,
+		ExitPrice:       price,
+		FinalStopLoss:   pos.StopLoss,
+		TakeProfit:      pos.InitialTakeProfit,
+		RDistance:       pos.RDistance,
+		CloseReason:     reason,
+		PnLR:            pnlR,
+		MFEinR:          trade.MFEinR,
+		TrailStage:      pos.TrailStage,
+		TrailActivation: st.cfg.TrailCfg.ActivationR,
+		HoldSeconds:     trade.HoldSeconds,
+		BarDuration:     engine.CandleBarDuration(st.cfg.CandleTimeframe),
+		SameBarExit:     pos.SameBarExit,
+		EntryBarClose:   pos.EntryBarClose,
+	})
 	_ = p.store.SaveClosedTrade(ctx, trade)
 }
 

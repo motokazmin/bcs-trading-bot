@@ -23,6 +23,9 @@ type State struct {
 	BreakoutUpper     float64
 	BreakoutLower     float64
 	OpenedAt          time.Time
+	EntryBarTime      time.Time // метка M5-бара входа
+	EntryBarClose     float64   // close бара входа (для audit)
+	SameBarExit       bool      // закрытие same-bar после limit-fill
 }
 
 // NewFromSignal создаёт состояние позиции из исполненного сигнала.

@@ -87,8 +87,9 @@ func (s *Store) SaveClosedTrade(_ context.Context, trade models.ClosedTrade) err
 			gross_pnl, pnl_r, mfe_in_r, mae_in_r, breakout_upper, breakout_lower,
 			close_reason, trail_stage, is_winner,
 			opened_at, closed_at, hold_seconds, trading_date,
-			candle_timeframe, lookback, risk_per_trade_pct, deposit_per_ticker
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			candle_timeframe, lookback, risk_per_trade_pct, deposit_per_ticker,
+			audit_severity, audit_codes, entry_bar_time, entry_bar_close
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		trade.TradingMode,
 		trade.RunID,
 		experimentID,
@@ -122,6 +123,10 @@ func (s *Store) SaveClosedTrade(_ context.Context, trade models.ClosedTrade) err
 		trade.Lookback,
 		trade.RiskPerTradePct,
 		trade.DepositPerTicker,
+		trade.AuditSeverity,
+		trade.AuditCodes,
+		trade.EntryBarTime,
+		trade.EntryBarClose,
 	)
 	if err != nil {
 		return fmt.Errorf("insert closed_trade: %w", err)

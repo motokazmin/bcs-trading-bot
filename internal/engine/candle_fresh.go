@@ -7,8 +7,12 @@ import (
 
 const staleAgeBars = 3
 
-// candleBarDuration возвращает длительность бара по строке таймфрейма BCS (M1, M5, M15, H1).
+// CandleBarDuration возвращает длительность бара по строке таймфрейма BCS (M1, M5, M15, H1).
 // Неизвестный формат → M5.
+func CandleBarDuration(tf string) time.Duration {
+	return candleBarDuration(tf)
+}
+
 func candleBarDuration(tf string) time.Duration {
 	switch strings.ToUpper(strings.TrimSpace(tf)) {
 	case "M1":

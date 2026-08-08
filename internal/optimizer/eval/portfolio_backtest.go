@@ -143,6 +143,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 				StopMode:        exp.Strategy.StopMode,
 				Lookback:        exp.Strategy.Lookback,
 				TrailCfg:        slotTrail,
+				RewardRatio:     exp.Strategy.EffectiveRewardRatio(),
 				SessionCfg:      session,
 			}
 		}

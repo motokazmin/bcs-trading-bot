@@ -248,6 +248,27 @@ func TradeClose(ticker, reason string, exitPrice, pnl, pnlR float64) {
 	)
 }
 
+// Audit — нарушение / заметка валидности сделки.
+func Audit(ticker, severity, codesCSV string, detail string) {
+	color := dim
+	switch severity {
+	case "error":
+		color = red + bold
+	case "warn":
+		color = yellow
+	case "info":
+		color = cyan
+	}
+	msg := fmt.Sprintf("severity=%s", severity)
+	if codesCSV != "" {
+		msg += " codes=" + codesCSV
+	}
+	if detail != "" {
+		msg += " " + detail
+	}
+	write(tickerLabel(ticker), tag("AUDIT", color), msg)
+}
+
 // DailyReset — сброс дневного счётчика убытков.
 func DailyReset(ticker string) {
 	write(tickerLabel(ticker), paint(dim, "новый торговый день: дневной счётчик убытков сброшен"))

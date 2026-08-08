@@ -201,6 +201,7 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 			StopMode:           e.settings.StopMode,
 			Lookback:           tc.lookback,
 			TrailCfg:           tc.trailCfg,
+			RewardRatio:        tc.stratParams.Float("rewardRatio"),
 			StrategyParamsJSON: strategy.EncodeParamsSnapshot(e.strategyID, e.settings.StopMode, tc.stratParams, tc.trailCfg),
 			SessionCfg:         e.settings.Session,
 		}
