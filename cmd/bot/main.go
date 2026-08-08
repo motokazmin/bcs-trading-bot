@@ -25,18 +25,38 @@ import (
 )
 
 func main() {
+	defaultLogFile := "/var/log/trading-bot/bot.log"
+	if v := strings.TrimSpace(os.Getenv("LOG_FILE")); v != "" {
+		defaultLogFile = v
+	}
+
 	configPath := flag.String("config", "configs/runs/portfolio-paper.yaml", "путь к YAML-конфигу")
 	noColor := flag.Bool("no-color", false, "отключить цветной вывод в терминале")
+	logFile := flag.String("log-file", defaultLogFile, "лог в файл + stdout (дефолт /var/log/trading-bot/bot.log; пустая строка или \"-\" — только stdout)")
 	smokeTest := flag.Bool("smoke-test", false, "быстрая проверка: OAuth + WebSocket + виртуальная сделка без записи в БД")
 	httpListen := flag.String("http-listen", "127.0.0.1:8091", "адрес HTTP UI/API админки (пустая строка — отключить)")
 	archivesPath := flag.String("archives", "data/archives.json", "путь к JSON с архивами периодов")
 	flag.Parse()
 
-	if *noColor {
+	logPath := strings.TrimSpace(*logFile)
+	if logPath == "-" {
+		logPath = ""
+	}
+	if logPath != "" {
+		closer, err := logx.OpenFile(logPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "log-file %s: %v\n", logPath, err)
+			os.Exit(1)
+		}
+		defer closer.Close()
+	} else if *noColor {
 		logx.SetColorEnabled(false)
 	}
 
 	logx.Info("Запуск торгового робота БКС на Go...")
+	if logPath != "" {
+		logx.Info("Лог-файл: %s (stdout + файл)", logPath)
+	}
 
 	token := os.Getenv("BCS_REFRESH_TOKEN")
 	if token == "" {

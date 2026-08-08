@@ -9,7 +9,7 @@ import (
 func init() {
 	Register(Descriptor{
 		ID:                   IDLateSessionImbalance,
-		DefaultSearchSpace:   "configs/legacy/frequency-hypotheses/strategies/late-session-imbalance.yaml",
+		DefaultSearchSpace:   "configs/strategies/late-session-imbalance.yaml",
 		NewFromParams:        newLateSessionImbalanceFromParams,
 		ParamsToConfigFields: lateSessionImbalanceConfigFields,
 	})

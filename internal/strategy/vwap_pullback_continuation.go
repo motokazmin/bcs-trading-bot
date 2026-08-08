@@ -9,7 +9,7 @@ import (
 func init() {
 	Register(Descriptor{
 		ID:                   IDVWAPPullbackContinuation,
-		DefaultSearchSpace:   "configs/legacy/frequency-hypotheses/strategies/vwap-pullback-continuation.yaml",
+		DefaultSearchSpace:   "configs/strategies/vwap-pullback-continuation.yaml",
 		NewFromParams:        newVWAPPullbackFromParams,
 		ParamsToConfigFields: vwapPullbackConfigFields,
 	})

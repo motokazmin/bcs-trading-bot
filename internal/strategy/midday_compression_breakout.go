@@ -11,7 +11,7 @@ import (
 func init() {
 	Register(Descriptor{
 		ID:                   IDMiddayCompressionBreakout,
-		DefaultSearchSpace:   "configs/legacy/frequency-hypotheses/strategies/midday-compression-breakout.yaml",
+		DefaultSearchSpace:   "configs/strategies/midday-compression-breakout.yaml",
 		NewFromParams:        newMiddayCompressionFromParams,
 		ParamsToConfigFields: middayCompressionConfigFields,
 	})

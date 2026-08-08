@@ -99,11 +99,14 @@ func TestClosePositionSavesTrade(t *testing.T) {
 	if tr.InitialStopLoss != 95 || tr.FinalStopLoss != 100 {
 		t.Fatalf("SL: initial=%.2f final=%.2f", tr.InitialStopLoss, tr.FinalStopLoss)
 	}
-	if tr.GrossPnL != 99 {
-		t.Fatalf("net pnl: got %.2f, want 99", tr.GrossPnL)
+	if tr.GrossPnL != 149 {
+		t.Fatalf("net pnl: got %.2f, want 149 (TP fill at level 115, commission 1)", tr.GrossPnL)
 	}
-	if tr.PnLR != 1.98 {
-		t.Fatalf("pnl_r: got %.2f, want 1.98", tr.PnLR)
+	if tr.PnLR != 2.98 {
+		t.Fatalf("pnl_r: got %.2f, want 2.98", tr.PnLR)
+	}
+	if tr.ExitPrice != 115 {
+		t.Fatalf("exit_price: got %.2f, want 115 (TP level)", tr.ExitPrice)
 	}
 	if tr.CloseReason != models.CloseReasonTakeProfit {
 		t.Fatalf("close_reason: got %q", tr.CloseReason)
@@ -165,5 +168,53 @@ func TestClosePositionIgnoresSecondCall(t *testing.T) {
 	}
 	if worker.position != nil {
 		t.Fatal("position should stay nil after successful close")
+	}
+}
+
+func TestCheckSLTPStopLossFillsAtStopLevel(t *testing.T) {
+	store := &recordingTradeStore{}
+	exp := config.ResolvedExperiment{
+		ID:       "orc-wave2",
+		Strategy: config.StrategyConfig{Lookback: 20, StopMode: strategy.StopModeATR},
+		Risk:     config.RiskConfig{Deposit: 200_000, MaxDailyLoss: 4_000, RiskPerTradePercent: 0.5},
+	}
+	worker, err := NewTickerWorker(
+		"TATN", exp, 1.0, costs.Config{},
+		config.SessionConfig{Timezone: "Europe/Moscow", EODCloseTime: "18:40", SessionOpenTime: "10:00"},
+		config.TradingModeVirtual, "test-run", "TQBR", "M5", store, nil,
+	)
+	if err != nil {
+		t.Fatalf("NewTickerWorker: %v", err)
+	}
+	worker.position = &position.State{
+		Direction:         "SELL",
+		Quantity:          407,
+		EntryPrice:        484.7,
+		InitialStopLoss:   485.84,
+		InitialTakeProfit: 482.83,
+		StopLoss:          485.84,
+		TakeProfit:        482.83,
+		RDistance:         1.14,
+		MFEPrice:          484.7,
+		MAEPrice:          484.7,
+		OpenedAt:          time.Now(),
+	}
+
+	worker.checkSLTP(context.Background(), stubExecutor{}, 491.7)
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.trades) != 1 {
+		t.Fatalf("trades: got %d, want 1", len(store.trades))
+	}
+	tr := store.trades[0]
+	if tr.CloseReason != models.CloseReasonStopLoss {
+		t.Fatalf("reason: %q", tr.CloseReason)
+	}
+	if tr.ExitPrice != 485.84 {
+		t.Fatalf("exit: got %.2f, want stop 485.84 (not tick 491.7)", tr.ExitPrice)
+	}
+	if tr.PnLR >= 0 || tr.PnLR < -1.2 {
+		t.Fatalf("pnl_r: got %.3f, want about -1R (filled at stop)", tr.PnLR)
 	}
 }

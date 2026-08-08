@@ -23,6 +23,9 @@ type State struct {
 	BreakoutUpper     float64
 	BreakoutLower     float64
 	OpenedAt          time.Time
+	EntryBarTime      time.Time // метка M5-бара входа
+	EntryBarClose     float64   // close бара входа (для audit)
+	SameBarExit       bool      // закрытие same-bar после limit-fill
 }
 
 // NewFromSignal создаёт состояние позиции из исполненного сигнала.
@@ -143,6 +146,64 @@ func CheckExit(pos *State, price float64) string {
 		}
 	}
 	return ""
+}
+
+// ExitFillPrice — цена исполнения выхода в paper/virtual.
+// SL/TP исполняются по уровню (без adverse tick за стопом); EOD и прочее — по marketPrice.
+func ExitFillPrice(pos *State, reason string, marketPrice float64) float64 {
+	if pos == nil {
+		return marketPrice
+	}
+	switch reason {
+	case models.CloseReasonStopLoss:
+		if pos.StopLoss > 0 {
+			return pos.StopLoss
+		}
+	case models.CloseReasonTakeProfit:
+		if pos.TakeProfit > 0 {
+			return pos.TakeProfit
+		}
+	}
+	return marketPrice
+}
+
+// SameBarExitAfterFill — после limit-fill внутри бара (entry ≠ close): пробит ли SL/TP по OHLC.
+// Для входа по close (fade/MF и т.п.) возвращает "" — wick до закрытия бара ещё не «в позиции».
+// Консервативно: при касании обоих сначала STOP_LOSS (как у TATN: High ушёл далеко за стоп).
+func SameBarExitAfterFill(pos *State, candle models.Candle) string {
+	if pos == nil || pos.EntryPrice <= 0 {
+		return ""
+	}
+	// Вход по цене закрытия бара — same-bar OHLC до entry не применяем.
+	if pricesEqual(pos.EntryPrice, candle.Close) {
+		return ""
+	}
+	switch pos.Direction {
+	case "BUY":
+		if pos.StopLoss > 0 && candle.Low <= pos.StopLoss {
+			return models.CloseReasonStopLoss
+		}
+		if pos.TakeProfit > 0 && candle.High >= pos.TakeProfit {
+			return models.CloseReasonTakeProfit
+		}
+	case "SELL":
+		if pos.StopLoss > 0 && candle.High >= pos.StopLoss {
+			return models.CloseReasonStopLoss
+		}
+		if pos.TakeProfit > 0 && candle.Low <= pos.TakeProfit {
+			return models.CloseReasonTakeProfit
+		}
+	}
+	return ""
+}
+
+func pricesEqual(a, b float64) bool {
+	d := math.Abs(a - b)
+	if d < 1e-9 {
+		return true
+	}
+	scale := math.Max(math.Abs(a), math.Abs(b))
+	return scale > 0 && d/scale < 1e-12
 }
 
 // IntrabarPrices возвращает синтетический путь цены внутри свечи для проверки SL/TP.

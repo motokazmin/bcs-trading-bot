@@ -10,7 +10,7 @@ import (
 func init() {
 	Register(Descriptor{
 		ID:                   IDAfternoonRangeFade,
-		DefaultSearchSpace:   "configs/legacy/frequency-hypotheses/strategies/afternoon-range-fade.yaml",
+		DefaultSearchSpace:   "configs/strategies/afternoon-range-fade.yaml",
 		NewFromParams:        newAfternoonRangeFadeFromParams,
 		ParamsToConfigFields: afternoonRangeFadeConfigFields,
 	})

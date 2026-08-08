@@ -9,7 +9,7 @@ import (
 func init() {
 	Register(Descriptor{
 		ID:                   IDPrevDayLevelBreakout,
-		DefaultSearchSpace:   "configs/legacy/frequency-hypotheses/strategies/prev-day-level-breakout.yaml",
+		DefaultSearchSpace:   "configs/strategies/prev-day-level-breakout.yaml",
 		NewFromParams:        newPrevDayLevelBreakoutFromParams,
 		ParamsToConfigFields: prevDayLevelBreakoutConfigFields,
 	})

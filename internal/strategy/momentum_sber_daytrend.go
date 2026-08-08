@@ -9,7 +9,7 @@ import (
 func init() {
 	Register(Descriptor{
 		ID:                   IDMomentumSberDaytrend,
-		DefaultSearchSpace:   "configs/legacy/frequency-hypotheses/strategies/momentum-sber-daytrend.yaml",
+		DefaultSearchSpace:   "configs/strategies/momentum-sber-daytrend.yaml",
 		NewFromParams:        newMomentumSberDaytrendFromParams,
 		ParamsToConfigFields: momentumSberDaytrendConfigFields,
 	})

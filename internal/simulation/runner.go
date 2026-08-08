@@ -10,6 +10,7 @@ import (
 	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/strategy"
+	"bcs-trading-bot/internal/tradeaudit"
 	"bcs-trading-bot/internal/trailing"
 	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/models"
@@ -33,6 +34,7 @@ type RunnerConfig struct {
 	StopMode        string
 	Lookback             int
 	TrailCfg             trailing.Config
+	RewardRatio          float64
 	StrategyParamsJSON   string
 	SessionCfg           config.SessionConfig
 }
@@ -147,6 +149,16 @@ func (r *Runner) processCandle(ctx context.Context, executor interfaces.OrderExe
 
 	r.tradesToday++
 	r.position = position.NewFromSignal(*signal, candle.Timestamp)
+	r.position.EntryBarTime = candle.Timestamp
+	r.position.EntryBarClose = candle.Close
+
+	if reason := position.SameBarExitAfterFill(r.position, candle); reason != "" {
+		exitPx := position.ExitFillPrice(r.position, reason, candle.Close)
+		r.position.SameBarExit = true
+		position.UpdateMAE(r.position, exitPx)
+		position.UpdateMFE(r.position, exitPx)
+		r.closePosition(ctx, executor, exitPx, reason, candle.Timestamp)
+	}
 }
 
 func (r *Runner) processIntrabar(ctx context.Context, executor interfaces.OrderExecutor, candle models.Candle) {
@@ -155,7 +167,8 @@ func (r *Runner) processIntrabar(ctx context.Context, executor interfaces.OrderE
 		position.UpdateMAE(r.position, price)
 		trailing.Apply(r.position, price, r.cfg.TrailCfg)
 		if reason := position.CheckExit(r.position, price); reason != "" {
-			r.closePosition(ctx, executor, price, reason, candle.Timestamp)
+			exitPx := position.ExitFillPrice(r.position, reason, price)
+			r.closePosition(ctx, executor, exitPx, reason, candle.Timestamp)
 			return
 		}
 	}
@@ -199,6 +212,8 @@ func (r *Runner) closePosition(ctx context.Context, executor interfaces.OrderExe
 
 	pos := r.position
 	r.position = nil
+
+	price = position.ExitFillPrice(pos, reason, price)
 
 	closeDir := "SELL"
 	if pos.Direction == "SELL" {
@@ -263,6 +278,35 @@ func (r *Runner) closePosition(ctx context.Context, executor interfaces.OrderExe
 		RiskPerTradePct:      r.cfg.RiskPerTradePct,
 		DepositPerTicker:     r.cfg.Deposit,
 		StrategyParamsJSON:   r.cfg.StrategyParamsJSON,
+		EntryBarClose:        pos.EntryBarClose,
 	}
+	if !pos.EntryBarTime.IsZero() {
+		trade.EntryBarTime = pos.EntryBarTime.UTC().Format(time.RFC3339)
+	}
+	_ = tradeaudit.AnnotateTrade(&trade, tradeaudit.OpenInput{
+		Direction:   pos.Direction,
+		EntryPrice:  pos.EntryPrice,
+		StopLoss:    pos.InitialStopLoss,
+		TakeProfit:  pos.InitialTakeProfit,
+		RDistance:   pos.RDistance,
+		BarClose:    pos.EntryBarClose,
+		RewardRatio: r.cfg.RewardRatio,
+	}, tradeaudit.CloseInput{
+		Direction:       pos.Direction,
+		EntryPrice:      pos.EntryPrice,
+		ExitPrice:       price,
+		FinalStopLoss:   pos.StopLoss,
+		TakeProfit:      pos.InitialTakeProfit,
+		RDistance:       pos.RDistance,
+		CloseReason:     reason,
+		PnLR:            pnlR,
+		MFEinR:          trade.MFEinR,
+		TrailStage:      pos.TrailStage,
+		TrailActivation: r.cfg.TrailCfg.ActivationR,
+		HoldSeconds:     trade.HoldSeconds,
+		BarDuration:     engine.CandleBarDuration(r.cfg.CandleTimeframe),
+		SameBarExit:     pos.SameBarExit,
+		EntryBarClose:   pos.EntryBarClose,
+	})
 	_ = r.store.SaveClosedTrade(ctx, trade)
 }

@@ -9,7 +9,7 @@ import (
 func init() {
 	Register(Descriptor{
 		ID:                   IDSessionGapDrive,
-		DefaultSearchSpace:   "configs/legacy/extended-sessions/strategies/session-gap-drive-evening.yaml",
+		DefaultSearchSpace:   "configs/strategies/session-gap-drive-evening.yaml",
 		NewFromParams:        newSessionGapDriveFromParams,
 		ParamsToConfigFields: sessionGapDriveConfigFields,
 	})

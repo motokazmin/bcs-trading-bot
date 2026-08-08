@@ -12,7 +12,8 @@ lean_tickers:
   - ROSN
   - NVTK
 
-# Полный universe акций MOEX (как в configs/runs/legacy/experiments-all.yaml)
+# Полный universe акций MOEX для sync-history и широкого поиска
+# (portfolio-paper + session liquid; AFKS — OR Fade champion).
 tickers:
   - SBER
   - GAZP
@@ -23,3 +24,4 @@ tickers:
   - CHMF
   - TATN
   - MOEX
+  - AFKS

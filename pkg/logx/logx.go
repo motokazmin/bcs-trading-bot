@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -53,9 +54,30 @@ func SetColorEnabled(enabled bool) {
 	mu.Unlock()
 }
 
-// SetOutput задаёт writer для логов (тесты).
+// SetOutput задаёт writer для логов. nil → os.Stdout (как при старте).
 func SetOutput(w io.Writer) {
+	if w == nil {
+		w = os.Stdout
+	}
+	mu.Lock()
 	out = log.New(w, "", 0)
+	mu.Unlock()
+}
+
+// OpenFile открывает path (append/create), пишет одновременно в stdout и файл.
+// Цвета отключаются — в файле ANSI не нужны. Создаёт родительские каталоги.
+// Закройте возвращённый Closer при завершении процесса.
+func OpenFile(path string) (io.Closer, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, fmt.Errorf("log dir: %w", err)
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	SetColorEnabled(false)
+	SetOutput(io.MultiWriter(os.Stdout, f))
+	return f, nil
 }
 
 func paint(color, s string) string {
@@ -129,7 +151,11 @@ func write(parts ...string) {
 		}
 		msg += p
 	}
-	out.Println(paint(dim, time.Now().In(moscowLoc).Format("2006-01-02 15:04:05")) + " " + msg)
+	line := paint(dim, time.Now().In(moscowLoc).Format("2006-01-02 15:04:05")) + " " + msg
+	mu.RLock()
+	l := out
+	mu.RUnlock()
+	l.Println(line)
 }
 
 // Info — обычное системное сообщение.
@@ -220,6 +246,27 @@ func TradeClose(ticker, reason string, exitPrice, pnl, pnlR float64) {
 		fmt.Sprintf("PnL=%s", PnL(pnl)),
 		PnLR(pnlR),
 	)
+}
+
+// Audit — нарушение / заметка валидности сделки.
+func Audit(ticker, severity, codesCSV string, detail string) {
+	color := dim
+	switch severity {
+	case "error":
+		color = red + bold
+	case "warn":
+		color = yellow
+	case "info":
+		color = cyan
+	}
+	msg := fmt.Sprintf("severity=%s", severity)
+	if codesCSV != "" {
+		msg += " codes=" + codesCSV
+	}
+	if detail != "" {
+		msg += " " + detail
+	}
+	write(tickerLabel(ticker), tag("AUDIT", color), msg)
 }
 
 // DailyReset — сброс дневного счётчика убытков.

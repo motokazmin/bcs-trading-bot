@@ -403,7 +403,8 @@ func printChartsResult(result *charts.ChartsResult) {
 
 func syncHistoryCmd(args []string) {
 	fs := flag.NewFlagSet("sync-history", flag.ExitOnError)
-	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
+	// Всегда полный universe по умолчанию — не whitelist стратегии (tickers-orc и т.п.).
+	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML полного списка тикеров для догрузки истории")
 	tickers := fs.String("tickers", "", "override тикеров через запятую")
 	outputDir := fs.String("output-dir", "data/history", "директория для CSV")
 	initialYears := fs.Int("initial-years", 0, "глубина первичной загрузки (0 = из tickers-config)")

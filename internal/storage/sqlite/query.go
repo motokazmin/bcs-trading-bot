@@ -56,7 +56,9 @@ const closedTradeSelectCols = `
 	gross_pnl, pnl_r, mfe_in_r, mae_in_r, breakout_upper, breakout_lower,
 	close_reason, trail_stage, is_winner,
 	opened_at, closed_at, hold_seconds, trading_date,
-	candle_timeframe, lookback, risk_per_trade_pct, deposit_per_ticker
+	candle_timeframe, lookback, risk_per_trade_pct, deposit_per_ticker,
+	COALESCE(audit_severity, ''), COALESCE(audit_codes, ''),
+	COALESCE(entry_bar_time, ''), COALESCE(entry_bar_close, 0)
 `
 
 func scanClosedTrade(scanner interface {
@@ -97,6 +99,10 @@ func scanClosedTrade(scanner interface {
 		lookback         int
 		riskPerTradePct  float64
 		depositPerTicker float64
+		auditSeverity    string
+		auditCodes       string
+		entryBarTime     string
+		entryBarClose    float64
 	)
 
 	err := scanner.Scan(
@@ -109,6 +115,7 @@ func scanClosedTrade(scanner interface {
 		&closeReason, &trailStage, &isWinner,
 		&openedAt, &closedAt, &holdSeconds, &tradingDate,
 		&candleTimeframe, &lookback, &riskPerTradePct, &depositPerTicker,
+		&auditSeverity, &auditCodes, &entryBarTime, &entryBarClose,
 	)
 	if err != nil {
 		return models.ClosedTrade{}, err
@@ -156,6 +163,10 @@ func scanClosedTrade(scanner interface {
 		Lookback:          lookback,
 		RiskPerTradePct:   riskPerTradePct,
 		DepositPerTicker:  depositPerTicker,
+		AuditSeverity:     auditSeverity,
+		AuditCodes:        auditCodes,
+		EntryBarTime:      entryBarTime,
+		EntryBarClose:     entryBarClose,
 	}, nil
 }
 

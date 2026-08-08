@@ -22,6 +22,9 @@ func applyMigrations(db *sql.DB) error {
 	if err := applyMigration005(db); err != nil {
 		return fmt.Errorf("миграция 005: %w", err)
 	}
+	if err := applyMigration006(db); err != nil {
+		return fmt.Errorf("миграция 006: %w", err)
+	}
 	// Идемпотентно: подхватывает новые строки, если старый бинарник снова записал closed_at в Local.
 	if err := normalizeClosedAtSkew(db); err != nil {
 		return fmt.Errorf("normalize closed_at: %w", err)
@@ -78,6 +81,19 @@ func applyMigration005(db *sql.DB) error {
 		return fmt.Errorf("migration marker: %w", err)
 	}
 	return nil
+}
+
+func applyMigration006(db *sql.DB) error {
+	if err := addColumnIfMissing(db, "closed_trades", "audit_severity", `TEXT NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(db, "closed_trades", "audit_codes", `TEXT NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(db, "closed_trades", "entry_bar_time", `TEXT NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	return addColumnIfMissing(db, "closed_trades", "entry_bar_close", `REAL NOT NULL DEFAULT 0`)
 }
 
 // normalizeClosedAtSkew выравнивает closed_at/recorded_at по hold_seconds, если они разъехались

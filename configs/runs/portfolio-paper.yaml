@@ -1,14 +1,7 @@
-# Paper trading: пять FROZEN champions на ОДНОМ virtual-счёте 200k.
-# Общий депозит, общий CB, one-position-per-ticker.
-#
-# Слоты: morning ORC 07:00–09:50 | main ORC/Fade/MF 10:00–18:40 | evening ORC 19:05–23:50
-# Baseline: docs/champion-baseline.md § C
+# Paper portfolio: 5 champions, один virtual-счёт 200k.
+# docs/portfolio.md · docs/baseline.md
+# Запуск: make bot
 # Проверка: go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
-#
-# Запуск: go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
-#
-# Champions: configs/champions/{orc-wave2,or-fade-wave3-afks,mf-afternoon-longonly-narrow-ws2,
-#   session-orc-morning-wave2,session-orc-evening-wave2}.yaml
 
 trading_mode: virtual
 

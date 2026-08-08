@@ -1,8 +1,5 @@
-# FROZEN champion — Opening Range Fade (wave3-narrow-afks, seed 1).
-# Discovery v2 + wave3 portfolio backtest. Комиссия: 0.008% за leg (BCS «Трейдер»).
-# Backtest: +0.50R, PF 1.99, 18/23 WF, 89 trades, +44 514 ₽ / ~2 года / 200k.
-# См. docs/champion-or-fade.md, docs/discovery-v2.md (research branch)
-
+# Champion — Opening Range Fade.
+# Portfolio: configs/runs/portfolio-paper.yaml · docs/portfolio.md
 trading_mode: virtual
 
 tickers:

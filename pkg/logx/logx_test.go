@@ -2,6 +2,8 @@ package logx
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -35,7 +37,7 @@ func TestTradeCloseOutput(t *testing.T) {
 
 	var buf bytes.Buffer
 	SetOutput(&buf)
-	defer SetOutput(nil)
+	defer SetOutput(os.Stdout)
 
 	TradeClose("SBER", "TAKE_PROFIT", 305.0, 150.25, 3.0)
 	line := buf.String()
@@ -50,5 +52,36 @@ func TestTradeCloseOutput(t *testing.T) {
 	}
 	if !strings.Contains(line, "+3.00R") {
 		t.Fatalf("missing PnL R: %q", line)
+	}
+}
+
+func TestOpenFileTeesAndDisablesColor(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bot.log")
+
+	closer, err := OpenFile(path)
+	if err != nil {
+		t.Fatalf("OpenFile: %v", err)
+	}
+	defer func() {
+		SetOutput(os.Stdout)
+		SetColorEnabled(detectColor())
+	}()
+
+	Info("hello-file-log")
+	if err := closer.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "hello-file-log") {
+		t.Fatalf("file missing message: %q", got)
+	}
+	if strings.Contains(got, "\033[") {
+		t.Fatalf("ANSI codes in file: %q", got)
 	}
 }
