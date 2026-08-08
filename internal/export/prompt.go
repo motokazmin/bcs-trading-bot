@@ -15,7 +15,7 @@ var strategySummaryPromptTemplate string
 //go:embed prompts/strategy_detailed.md
 var strategyDetailedPromptTemplate string
 
-const Version = "2.3"
+const Version = "2.4"
 
 // Mode — вариант выгрузки для ИИ.
 type Mode string

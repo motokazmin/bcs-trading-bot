@@ -164,10 +164,15 @@ func ExitFillPrice(pos *State, reason string, marketPrice float64) float64 {
 	return marketPrice
 }
 
-// SameBarExitAfterFill — после limit-fill на свече: был ли уже пробит SL/TP на OHLC бара.
+// SameBarExitAfterFill — после limit-fill внутри бара (entry ≠ close): пробит ли SL/TP по OHLC.
+// Для входа по close (fade/MF и т.п.) возвращает "" — wick до закрытия бара ещё не «в позиции».
 // Консервативно: при касании обоих сначала STOP_LOSS (как у TATN: High ушёл далеко за стоп).
 func SameBarExitAfterFill(pos *State, candle models.Candle) string {
 	if pos == nil || pos.EntryPrice <= 0 {
+		return ""
+	}
+	// Вход по цене закрытия бара — same-bar OHLC до entry не применяем.
+	if pricesEqual(pos.EntryPrice, candle.Close) {
 		return ""
 	}
 	switch pos.Direction {
@@ -187,6 +192,15 @@ func SameBarExitAfterFill(pos *State, candle models.Candle) string {
 		}
 	}
 	return ""
+}
+
+func pricesEqual(a, b float64) bool {
+	d := math.Abs(a - b)
+	if d < 1e-9 {
+		return true
+	}
+	scale := math.Max(math.Abs(a), math.Abs(b))
+	return scale > 0 && d/scale < 1e-12
 }
 
 // IntrabarPrices возвращает синтетический путь цены внутри свечи для проверки SL/TP.

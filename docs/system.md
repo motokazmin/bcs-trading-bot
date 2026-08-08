@@ -65,7 +65,7 @@ Win rate **~40–55%** (зависит от стратегии).
 1. **Сигнал** — M5, стратегии ORC / OR Fade / MF ([strategy-research.md](strategy-research.md)). Без второй позиции на тикер. ORC/Fade/Session ORC — вход после `orb_minutes`; MF — после `entry_delay` и накопленного `lookback`.
 2. **Риск** — Circuit Breaker → SL/TP (`reward_ratio`, ATR/range) → лот 0,5%.
 3. **Трейлинг** — по котировкам (live) или intrabar (backtest). Параметры: `trail_activation_r`, `trail_breakeven_r`, `trail_discrete_step_r`, `trail_stage_max`. После max stage: MFE − 1R. Стоп только в сторону прибыли.
-4. **Исполнение SL/TP (paper)** — выход по уровню стопа/тейка (не по adverse tick за ним). После limit-fill на M5 — same-bar проверка OHLC: если стоп уже пробит на баре входа, закрытие сразу по SL (~−1R), без сценария TATN −6R.
+4. **Исполнение SL/TP (paper)** — выход по уровню стопа/тейка (не по adverse tick за ним). После **limit-fill** (вход ≠ close бара, ORC retest) — same-bar проверка OHLC; вход по close (fade/MF) same-bar не применяет.
 5. **EOD** — принудительное закрытие в `eod_close_time`.
 
 Код: `internal/engine/worker.go`, `internal/position` (`ExitFillPrice`, `SameBarExitAfterFill`), `internal/simulation/portfolio.go`, `internal/trailing/`.

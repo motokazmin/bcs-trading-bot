@@ -49,7 +49,7 @@ func DefaultLiveStrategyContext() models.StrategyContext {
 		RiskPerTrade:   "Размер лота из 0.5% депозита на сделку при срабатывании начального SL; общий virtual-счёт и circuit breaker.",
 		TrailingStop:   "Параметры trail_activation_r / trail_breakeven_r / trail_stage_max — per experiment. Если activation дальше TP, trail_stage останется 0 до тейка.",
 		CircuitBreaker: "2% дневного убытка на счёт → блокировка новых входов до следующего дня.",
-		PnLNote:        "В virtual-режиме бота gross_pnl в БД — уже net (комиссия учтена). Главная метрика — expectancy_r. mfe_in_r / mae_in_r — экскурсии в R. SL по тику может дать mae/pnl хуже −1R.",
+		PnLNote:        "В virtual-режиме бота gross_pnl в БД — уже net (комиссия учтена). Главная метрика — expectancy_r. mfe_in_r / mae_in_r — экскурсии в R. Paper: SL/TP по уровню стопа/тейка; same-bar exit после limit-fill на M5.",
 		ExperimentNote: "Параллельные experiment_id — слоты на одном virtual-счёте (разные params / тикеры / сессии). Сравнивай stop_mode только если в данных есть вариативность.",
 	}
 }

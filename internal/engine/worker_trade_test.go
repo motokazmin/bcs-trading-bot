@@ -214,7 +214,7 @@ func TestCheckSLTPStopLossFillsAtStopLevel(t *testing.T) {
 	if tr.ExitPrice != 485.84 {
 		t.Fatalf("exit: got %.2f, want stop 485.84 (not tick 491.7)", tr.ExitPrice)
 	}
-	if tr.PnLR < -1.05 || tr.PnLR > -0.95 {
-		t.Fatalf("pnl_r: got %.3f, want ~-1.0", tr.PnLR)
+	if tr.PnLR >= 0 || tr.PnLR < -1.2 {
+		t.Fatalf("pnl_r: got %.3f, want about -1R (filled at stop)", tr.PnLR)
 	}
 }

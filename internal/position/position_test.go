@@ -47,6 +47,20 @@ func TestSameBarExitAfterFillNoHit(t *testing.T) {
 	}
 }
 
+func TestSameBarExitSkipsCloseBasedEntry(t *testing.T) {
+	// Fade/MF: вход по close; Low до close не должен дать мгновенный SL.
+	pos := &position.State{
+		Direction:  "BUY",
+		EntryPrice: 100,
+		StopLoss:   95,
+		TakeProfit: 110,
+	}
+	candle := models.Candle{Open: 102, High: 103, Low: 94, Close: 100}
+	if got := position.SameBarExitAfterFill(pos, candle); got != "" {
+		t.Fatalf("close entry must not same-bar exit on pre-entry wick, got %q", got)
+	}
+}
+
 func TestCalcMFEinR(t *testing.T) {
 	pos := &position.State{
 		Direction:  "BUY",
