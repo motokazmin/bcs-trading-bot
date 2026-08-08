@@ -60,10 +60,11 @@ Momentum breakout + SMA-тренд, **long-only**, входы с 12:30 (`entry_d
 
 | | |
 |---|---|
-| Snapshot | `configs/champions/mf-afternoon-longonly-narrow-ws2.yaml` |
-| Lookback / SMA | 36 / 28 |
-| `reward_ratio` | ≈1,27 |
-| Max entries/day | 3 |
+| Snapshot | `configs/champions/mf-afternoon-reopt-s2.yaml` |
+| Lookback / SMA | 39 / 37 |
+| `reward_ratio` | ≈1,39 |
+| Max entries/day | 2 |
+| Notes | reopt-s2 (2026-08-08) на обновлённой истории; previous: `mf-afternoon-longonly-narrow-ws2.yaml` |
 
 ---
 

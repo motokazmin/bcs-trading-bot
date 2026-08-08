@@ -119,19 +119,19 @@ experiments:
       type: momentum_filtered
       stop_mode: atr
       atr_period: 14
-      lookback: 36
-      breakout_threshold: 0.006326656218747925
-      reward_ratio: 1.2727417282001618
-      volume_filter: true
-      volume_min_ratio: 1.4113866145561835
+      lookback: 39
+      breakout_threshold: 0.007659168048723002
+      reward_ratio: 1.3941295334576287
+      volume_filter: false
+      volume_min_ratio: 1.2806021030773282
       long_only: true
-      trend_sma_period: 28
-      strategy_entry_delay_minutes: 24
-      atr_multiplier: 2.8507513131208873
-      trail_activation_r: 2.919057423904974
-      trail_discrete_step_r: 0.37290554637395923
-      trail_stage_max: 1
-      max_trades_per_ticker_per_day: 3
+      trend_sma_period: 37
+      strategy_entry_delay_minutes: 26
+      atr_multiplier: 2.656226764423858
+      trail_activation_r: 2.517382593826568
+      trail_discrete_step_r: 0.29059433907203625
+      trail_stage_max: 2
+      max_trades_per_ticker_per_day: 2
 
   - id: session-orc-evening
     name: "Evening Session ORC (19:05–23:50)"
