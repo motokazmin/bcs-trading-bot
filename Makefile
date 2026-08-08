@@ -13,8 +13,10 @@
 BINARY_DIR := bin
 GO := go
 
-# Основной путь к shared-списку тикеров для optimizer.
+# Основной путь к shared-списку тикеров для optimizer run (strategy-specific).
 TICKERS_CONFIG    ?= configs/shared/tickers-orc.yaml
+# Sync всегда тянет полный universe, не whitelist стратегии.
+SYNC_TICKERS_CONFIG ?= configs/shared/tickers.yaml
 # Legacy-алиас для совместимости со старыми локальными override.
 UNIVERSE          ?= $(TICKERS_CONFIG)
 HISTORY_DIR       ?= data/history
@@ -43,7 +45,7 @@ help:
 	@echo "  make build              — собрать bot, optimizer"
 	@echo "  make test               — go test ./..."
 	@echo ""
-	@echo "  make sync-history       — догрузить историю (9 акций, параллельно)"
+	@echo "  make sync-history       — догрузить полный universe (tickers.yaml), параллельно"
 	@echo "  make optimizer-run      — sync-history + walk-forward ORC"
 	@echo "  make optimizer-orc      — ORC → results/orc/  (FROZEN — по запросу)"
 	@echo "  make optimizer-or-fade  — OR Fade → results/or-fade/"
@@ -60,7 +62,7 @@ help:
 	@echo "Локально: make bot → http://127.0.0.1:8091"
 	@echo "Логи:     /var/log/trading-bot/bot.log по умолчанию; LOG_FILE=- (только stdout)"
 	@echo ""
-	@echo "Переменные: TICKERS_CONFIG, HISTORY_DIR, PARALLEL_TICKERS, OPTIMIZER_PARALLEL,"
+	@echo "Переменные: TICKERS_CONFIG (run), SYNC_TICKERS_CONFIG (sync), HISTORY_DIR, PARALLEL_TICKERS, OPTIMIZER_PARALLEL,"
 	@echo "            OPTIMIZER_TWO_PHASE=1, OPTIMIZER_STRATEGY, SEARCH_SPACE, OPTIMIZER_OUT,"
 	@echo "            BOT_CONFIG, HTTP_LISTEN, LOG_FILE, BCS_REFRESH_TOKEN, ADMIN_TOKEN"
 
@@ -81,7 +83,7 @@ test:
 
 sync-history: build-optimizer
 	$(BINARY_DIR)/optimizer sync-history \
-		-tickers-config $(TICKERS_CONFIG) \
+		-tickers-config $(SYNC_TICKERS_CONFIG) \
 		-parallel-tickers $(PARALLEL_TICKERS) \
 		-output-dir $(HISTORY_DIR)
 

@@ -109,7 +109,7 @@ Champion snapshots: `configs/champions/*.yaml` · Paper: `configs/runs/portfolio
 
 | Target | Описание |
 |--------|----------|
-| `make sync-history` | Догрузка CSV (`TICKERS_CONFIG`, default ORC whitelist) |
+| `make sync-history` | Догрузка CSV (`SYNC_TICKERS_CONFIG` → `tickers.yaml`, полный universe) |
 | `make optimizer-run` | sync + `optimizer run` (ORC defaults) |
 | `make optimizer-orc` | `scripts/run-orc-optimizer.sh` → `results/orc/<run_id>/` |
 | `make optimizer-or-fade` | → `results/or-fade/` |
@@ -123,7 +123,8 @@ Champion snapshots: `configs/champions/*.yaml` · Paper: `configs/runs/portfolio
 
 | Переменная | Default | Назначение |
 |------------|---------|------------|
-| `TICKERS_CONFIG` | `tickers-orc-no-sber.yaml` | Universe для sync / run |
+| `TICKERS_CONFIG` | `tickers-orc-no-sber.yaml` | Universe для `optimizer run` |
+| `SYNC_TICKERS_CONFIG` | `tickers.yaml` | Universe только для `sync-history` |
 | `SEARCH_SPACE` | `configs/strategies/orc.yaml` | Search space |
 | `OPTIMIZER_STRATEGY` | `opening_range_continuation` | `-strategy` |
 | `OPTIMIZER_OUT` | `results/orc/` | `-output` |

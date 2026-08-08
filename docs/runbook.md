@@ -155,7 +155,7 @@ tail -f /var/log/trading-bot/bot.log
 ```bash
 export BCS_REFRESH_TOKEN=...
 make build-optimizer
-make sync-history          # 9 акций TQBR → data/history/*.csv
+make sync-history          # полный universe (tickers.yaml) → data/history/*.csv
 ```
 
 ### Solo walk-forward (поиск params)
