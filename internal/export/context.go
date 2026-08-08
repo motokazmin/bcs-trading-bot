@@ -19,30 +19,37 @@ func StrategyContextFromConfig(cfg *config.Config) models.StrategyContext {
 	}
 
 	commission := cfg.CostsConfig().Description(cfg.ClassCode)
+	trail := fmt.Sprintf("trail_activation_r=%.2f, trail_stage_max=%d", s.TrailActivationR, s.TrailStageMax)
+	if s.TrailBreakevenR > 0 {
+		trail += fmt.Sprintf(", trail_breakeven_r=%.3f", s.TrailBreakevenR)
+	}
+	trail += "."
+
 	return models.StrategyContext{
 		Name:           s.TypeOrDefault(),
-		Philosophy:     "Рынок непредсказуем; управляем риском. Оценка edge по walk-forward backtest на истории.",
-		SignalLogic:    fmt.Sprintf("Стратегия %s на M5; stop_mode=%s, lookback=%d.", s.TypeOrDefault(), stopMode, s.Lookback),
-		RiskReward:     fmt.Sprintf("ATR/range стоп; reward_ratio=%.2f (эффективный R:R).", s.EffectiveRewardRatio()),
+		Philosophy:     "Рынок непредсказуем; управляем риском. Оценка edge по walk-forward backtest на истории. Champions: reward_ratio обычно ~1.2–1.8, не фиксированное 1:3.",
+		SignalLogic:    fmt.Sprintf("Стратегия %s на M5; stop_mode=%s, lookback=%d. Вход по закрытию свечи; SL/TP/трейлинг — по котировкам (тики).", s.TypeOrDefault(), stopMode, s.Lookback),
+		RiskReward:     fmt.Sprintf("ATR/range стоп; reward_ratio=%.2f (эффективный R:R). Фактический R:R по сделке = |TP−entry|/RDistance.", s.EffectiveRewardRatio()),
 		RiskPerTrade:   fmt.Sprintf("%.2f%% депозита %d ₽ на сделку.", cfg.Risk.RiskPerTradePercent, int(cfg.Risk.Deposit)),
-		TrailingStop:   fmt.Sprintf("trail_activation_r=%.2f, trail_stage_max=%d.", s.TrailActivationR, s.TrailStageMax),
+		TrailingStop:   trail,
 		CircuitBreaker: fmt.Sprintf("%.1f%% дневного убытка на счёт.", cfg.Risk.MaxDailyLossPercent),
-		PnLNote:        fmt.Sprintf("Главная метрика прибыльности — expectancy_r (средний PnL в R на сделку): >0 edge, <0 убыток. PnL в ₽ net (комиссия: %s). avg_pnl_r = expectancy_r.", commission),
+		PnLNote:        fmt.Sprintf("Главная метрика — expectancy_r (средний PnL в R на сделку): >0 edge, <0 убыток. PnL в ₽ net (комиссия: %s). avg_pnl_r = expectancy_r.", commission),
 		ExperimentNote: "Параллельные experiment_id — слоты стратегий на одном virtual-счёте.",
 	}
 }
 
-// DefaultLiveStrategyContext — контекст для paper trading из HTTP-админки бота.
+// DefaultLiveStrategyContext — контекст для paper trading из HTTP-админки бота
+// (портфель FROZEN champions; per-slot params в YAML, не momentum 1:3).
 func DefaultLiveStrategyContext() models.StrategyContext {
 	return models.StrategyContext{
-		Name:           "Momentum Breakout (Неидеальный агент)",
-		Philosophy:     "Рынок непредсказуем; управляем только риском. Прибыльность при win rate 30–40% за счёт R:R 1:3.",
-		SignalLogic:    "Пробой high/low за lookback-1 свечей M5; вход лимитным ордером. В сделке: breakout_upper/breakout_lower — уровни окна на входе.",
-		RiskReward:     "Stop-Loss и Take-Profit в соотношении 1:3 (1R риск, 3R цель).",
-		RiskPerTrade:   "Размер лота из 0.5% депозита на тикер при срабатывании начального SL.",
-		TrailingStop:   "+1R → безубыток; +2R → фиксация +1R; далее SL = MFE − 1R на каждом тике; выход по SL/TP/EOD.",
+		Name:           "Portfolio paper (FROZEN champions)",
+		Philosophy:     "Рынок непредсказуем; управляем риском. Edge оценивается по expectancy_r и walk-forward. У champions reward_ratio обычно ~1.2–1.8 — это норма, не баг.",
+		SignalLogic:    "Несколько слотов (session ORC morning/evening, ORC, OR Fade, MF Afternoon) на M5. Вход по закрытию свечи; SL/TP/трейлинг — по WebSocket-котировкам (не раз в 5 минут). Холд <5 мин штатен.",
+		RiskReward:     "R:R задаётся reward_ratio слота (~1.2–1.8). Фактический R:R по сделке: |InitialTakeProfit−EntryPrice|/RDistance. Не эталон 1:3.",
+		RiskPerTrade:   "Размер лота из 0.5% депозита на сделку при срабатывании начального SL; общий virtual-счёт и circuit breaker.",
+		TrailingStop:   "Параметры trail_activation_r / trail_breakeven_r / trail_stage_max — per experiment. Если activation дальше TP, trail_stage останется 0 до тейка.",
 		CircuitBreaker: "2% дневного убытка на счёт → блокировка новых входов до следующего дня.",
-		PnLNote:        "gross_pnl в рублях, комиссия брокера не вычтена. Главная метрика — expectancy_r (средний pnl_r на сделку). mfe_in_r / mae_in_r — экскурсии внутри позиции в R.",
-		ExperimentNote: "Параллельные experiment_id — слоты стратегий на одном virtual-счёте (разные params / тикеры / сессии).",
+		PnLNote:        "В virtual-режиме бота gross_pnl в БД — уже net (комиссия учтена). Главная метрика — expectancy_r. mfe_in_r / mae_in_r — экскурсии в R. SL по тику может дать mae/pnl хуже −1R.",
+		ExperimentNote: "Параллельные experiment_id — слоты на одном virtual-счёте (разные params / тикеры / сессии). Сравнивай stop_mode только если в данных есть вариативность.",
 	}
 }
