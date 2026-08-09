@@ -18,6 +18,7 @@ const (
 	IDSessionORC                  = "session_orc"
 	IDSessionORFade               = "session_or_fade"
 	IDSessionGapDrive             = "session_gap_drive"
+	IDRandomEntry                 = "random_entry"
 )
 
 // CandleStrategy принимает свечу и возвращает сигнал на вход или nil.
@@ -57,6 +58,8 @@ func DefaultRewardRatio(typeID string) float64 {
 	case IDPrevDayLevelBreakout:
 		return 2.0
 	case IDAfternoonRangeFade:
+		return 1.5
+	case IDRandomEntry:
 		return 1.5
 	default:
 		return 3.0

@@ -1,0 +1,35 @@
+# Random entry — null-модель для проверки edge входа (research).
+# Не для production / paper champions.
+strategy: random_entry
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+search_space:
+  lookback:
+    min: 15
+    max: 40
+  atrMultiplier:
+    min: 0.8
+    max: 2.5
+  rewardRatio:
+    min: 1.2
+    max: 2.0
+  entryProbability:
+    min: 0.005
+    max: 0.05
+  seed:
+    min: 1
+    max: 100
+  maxEntriesPerTickerPerDay:
+    min: 1
+    max: 2
+  strategyEntryDelayMinutes:
+    min: 0
+    max: 30
+  longOnly:
+    min: 0
+    max: 1
