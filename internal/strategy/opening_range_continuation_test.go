@@ -39,6 +39,44 @@ func TestORCBlacklistIgnoresTicker(t *testing.T) {
 	}
 }
 
+func TestORCAllowAllTickersOverridesWhitelist(t *testing.T) {
+	s, err := NewFromParams(IDOpeningRangeContinuation, Params{
+		"orbMinutes": 30, "breakoutThreshold": 0, "rewardRatio": 2.60, "atrMultiplier": 2,
+		"allowAllTickers": 1,
+	}, BuildContext{
+		StopMode: StopModeATR,
+		Session: SessionTimes{
+			Timezone: "Europe/Moscow", SessionOpenTime: "10:00",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := time.LoadLocation("Europe/Moscow")
+	base := time.Date(2024, 6, 3, 10, 0, 0, 0, loc)
+
+	for m := 0; m < 6; m++ {
+		_ = s.OnCandle(models.Candle{
+			Ticker: "LKOH",
+			Open: 100, High: 101, Low: 99, Close: 100, Volume: 1000,
+			Timestamp: base.Add(time.Duration(m*5) * time.Minute),
+		})
+	}
+	_ = s.OnCandle(models.Candle{
+		Ticker: "LKOH",
+		Open: 102, High: 105, Low: 102, Close: 104, Volume: 5000,
+		Timestamp: base.Add(35 * time.Minute),
+	})
+	fill := models.Candle{
+		Ticker: "LKOH",
+		Open: 103, High: 104, Low: 100, Close: 101, Volume: 2000,
+		Timestamp: base.Add(40 * time.Minute),
+	}
+	if o := s.OnCandle(fill); o == nil {
+		t.Fatal("allow_all_tickers: expected LKOH signal despite ORCBlacklist")
+	}
+}
+
 func TestORCRetestLimitFill(t *testing.T) {
 	s, err := NewFromParams(IDOpeningRangeContinuation, Params{
 		"orbMinutes": 30, "breakoutThreshold": 0, "rewardRatio": 2.60, "atrMultiplier": 2,

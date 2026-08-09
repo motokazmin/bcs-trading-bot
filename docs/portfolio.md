@@ -1,6 +1,7 @@
 # Portfolio
 
-Production paper-портфель: **5 champions** на одном virtual-счёте 200 000 ₽.
+Production paper-портфель: **6 слотов** на одном virtual-счёте 200 000 ₽
+(5 legacy champions + ORC complement на тикерах вне Main ORC).
 
 Конфиг запуска: `configs/runs/portfolio-paper.yaml`.  
 Снапшоты параметров: `configs/champions/*.yaml`.  
@@ -15,6 +16,7 @@ Production paper-портфель: **5 champions** на одном virtual-сч�
 |------|---------------|-----------|--------|------|
 | Утро | `session-orc-morning` | `session_orc` | ROSN, NVTK, MOEX, CHMF, TATN, SBER | 07:00–09:50 |
 | Main ORC | `orc-wave2` | `opening_range_continuation` | MGNT, ROSN, TATN | ~10:00–10:30 |
+| ORC Complement | `orc-complement` | `opening_range_continuation` | SBER, GAZP, LKOH, NVTK, CHMF, MOEX, AFKS | ~10:00–10:30 |
 | Fade | `or-fade-conservative` | `opening_range_fade` | LKOH, CHMF, MOEX, AFKS | ~10:15–12:30 |
 | Afternoon | `mf-afternoon` | `momentum_filtered` | MGNT, TATN | 12:30–18:40 |
 | Вечер | `session-orc-evening` | `session_orc` | NVTK, GAZP, ROSN, CHMF, MOEX, TATN, MGNT | 19:05–23:50 |
@@ -36,12 +38,13 @@ Champions **не переоптимизировать** без явного за
 
 Пробой opening range → вход **лимитом на ретесте** уровня. Session-варианты — тот же принцип в утреннем/вечернем окне.
 
-| | Main ORC | Morning | Evening |
-|---|---|---|---|
-| Snapshot | `configs/champions/orc-wave2.yaml` | `session-orc-morning-wave2.yaml` | `session-orc-evening-wave2.yaml` |
-| ORB | 15 мин | 14 мин | 11 мин |
-| `reward_ratio` | ≈1,64 | ≈1,67 | ≈1,58 |
-| Max entries/day | 1 | 1 | 2 |
+| | Main ORC | ORC Complement | Morning | Evening |
+|---|---|---|---|---|
+| Snapshot | `configs/champions/orc-wave2.yaml` | `orc-complement-rolling.yaml` | `session-orc-morning-wave2.yaml` | `session-orc-evening-wave2.yaml` |
+| ORB | 15 мин | 12 мин | 14 мин | 11 мин |
+| `reward_ratio` | ≈1,64 | ≈1,64 | ≈1,67 | ≈1,58 |
+| Max entries/day | 1 | 1 | 1 | 2 |
+| Notes | whitelist MGNT/ROSN/TATN | rolling 2026-08-09; тикеры **вне** Main ORC; `allow_all_tickers` | | |
 
 ### Opening Range Fade (`opening_range_fade`)
 
@@ -60,10 +63,11 @@ Momentum breakout + SMA-тренд, **long-only**, входы с 12:30 (`entry_d
 
 | | |
 |---|---|
-| Snapshot | `configs/champions/mf-afternoon-longonly-narrow-ws2.yaml` |
-| Lookback / SMA | 36 / 28 |
-| `reward_ratio` | ≈1,27 |
-| Max entries/day | 3 |
+| Snapshot | `configs/champions/mf-afternoon-reopt-s2.yaml` |
+| Lookback / SMA | 39 / 37 |
+| `reward_ratio` | ≈1,39 |
+| Max entries/day | 2 |
+| Notes | reopt-s2 (2026-08-08) на обновлённой истории; previous: `mf-afternoon-longonly-narrow-ws2.yaml` |
 
 ---
 
@@ -91,6 +95,7 @@ Solo walk-forward ищет параметры **одной** стратегии.
 | Документ | [`optimizer-modes.md`](optimizer-modes.md) | этот файл + [`baseline.md`](baseline.md) |
 
 Команды: `make optimizer-orc`, `make optimizer-or-fade`, `make optimizer-afternoon`.  
+Research (wide + rolling, не paper): `make optimizer-orc-research` — см. [`research-rolling.md`](research-rolling.md).
 Выход: `results/<name>/` (локально, в git не коммитится).
 
 Главная метрика решений — **`expectancy_r`** и net PnL в ₽, не только Calmar score.

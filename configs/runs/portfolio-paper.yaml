@@ -1,5 +1,5 @@
-# Paper portfolio: 5 champions, один virtual-счёт 200k.
-# docs/portfolio.md · docs/baseline.md
+# Paper portfolio: 6 slots (5 legacy champions + ORC complement), один virtual-счёт 200k.
+# docs/portfolio.md · docs/baseline.md · docs/research-rolling.md
 # Запуск: make bot
 # Проверка: go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
 
@@ -86,6 +86,30 @@ experiments:
       trail_stage_max: 1
       max_trades_per_ticker_per_day: 1
 
+  - id: orc-complement
+    name: "ORC Complement rolling (excl. MGNT/ROSN/TATN)"
+    tickers:
+      - SBER
+      - GAZP
+      - LKOH
+      - NVTK
+      - CHMF
+      - MOEX
+      - AFKS
+    strategy:
+      type: opening_range_continuation
+      stop_mode: atr
+      atr_period: 14
+      orb_minutes: 12
+      atr_multiplier: 0.8481945297174166
+      breakout_threshold: 0.003393790484079248
+      reward_ratio: 1.6410674740062587
+      trail_activation_r: 1.5150736483279235
+      trail_breakeven_r: 0.01394552332498874
+      trail_stage_max: 1
+      max_trades_per_ticker_per_day: 1
+      allow_all_tickers: true
+
   - id: or-fade-conservative
     name: "OR Fade Champion (10:15–12:30)"
     tickers:
@@ -119,19 +143,19 @@ experiments:
       type: momentum_filtered
       stop_mode: atr
       atr_period: 14
-      lookback: 36
-      breakout_threshold: 0.006326656218747925
-      reward_ratio: 1.2727417282001618
-      volume_filter: true
-      volume_min_ratio: 1.4113866145561835
+      lookback: 39
+      breakout_threshold: 0.007659168048723002
+      reward_ratio: 1.3941295334576287
+      volume_filter: false
+      volume_min_ratio: 1.2806021030773282
       long_only: true
-      trend_sma_period: 28
-      strategy_entry_delay_minutes: 24
-      atr_multiplier: 2.8507513131208873
-      trail_activation_r: 2.919057423904974
-      trail_discrete_step_r: 0.37290554637395923
-      trail_stage_max: 1
-      max_trades_per_ticker_per_day: 3
+      trend_sma_period: 37
+      strategy_entry_delay_minutes: 26
+      atr_multiplier: 2.656226764423858
+      trail_activation_r: 2.517382593826568
+      trail_discrete_step_r: 0.29059433907203625
+      trail_stage_max: 2
+      max_trades_per_ticker_per_day: 2
 
   - id: session-orc-evening
     name: "Evening Session ORC (19:05–23:50)"

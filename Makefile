@@ -36,7 +36,7 @@ LOG_FILE_FLAG := -log-file $(LOG_FILE)
 BOT_PID_FILE ?= data/bot.pid
 
 .PHONY: build build-bot build-optimizer test \
-        sync-history optimizer-run optimizer-orc optimizer-momentum optimizer-or-fade optimizer-afternoon optimizer-focus strategy-matrix charts-all \
+        sync-history optimizer-run optimizer-orc optimizer-orc-research optimizer-momentum optimizer-or-fade optimizer-afternoon optimizer-focus strategy-matrix charts-all \
         bot bot-futures bot-real bot-smoke bot-stop bot-status help
 
 help:
@@ -49,6 +49,7 @@ help:
 	@echo "  make sync-history       — догрузить полный universe (tickers.yaml), параллельно"
 	@echo "  make optimizer-run      — sync-history + walk-forward ORC"
 	@echo "  make optimizer-orc      — ORC → results/orc/  (champions — только по запросу)"
+	@echo "  make optimizer-orc-research — ORC rolling wide → results/research/orc-rolling/"
 	@echo "  make optimizer-or-fade  — OR Fade → results/or-fade/"
 	@echo "  make optimizer-afternoon — MF afternoon → results/afternoon/"
 	@echo "  make optimizer-focus    — alias для optimizer-orc"
@@ -111,6 +112,11 @@ optimizer-orc: build-optimizer
 	chmod +x scripts/run-orc-optimizer.sh
 	mkdir -p results/orc
 	bash scripts/run-orc-optimizer.sh 2>&1 | tee results/orc/last-run.log
+
+optimizer-orc-research: build-optimizer
+	chmod +x scripts/run-orc-research-rolling.sh
+	mkdir -p results/research/orc-rolling
+	bash scripts/run-orc-research-rolling.sh 2>&1 | tee results/research/orc-rolling/last-run.log
 
 optimizer-focus: optimizer-orc
 

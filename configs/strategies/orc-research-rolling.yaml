@@ -1,0 +1,79 @@
+# ORC research rolling — узкий search на полном universe, без whitelist/blacklist.
+# Risk-слой зафиксирован (как у champion orc-wave2); крутим только вход.
+# Протокол: docs/research-rolling.md
+#
+# Запуск:
+#   make optimizer-orc-research
+# или:
+#   bin/optimizer run -strategy opening_range_continuation \
+#     -search-space configs/strategies/orc-research-rolling.yaml \
+#     -tickers-config configs/shared/tickers.yaml \
+#     -date-from 2025-05-08 -date-to 2026-05-08 \
+#     -window-months 3 -step-months 1 -trials 200 -seed 1 \
+#     -output results/research/orc-rolling/
+
+trading_mode: virtual
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: opening_range_continuation
+  stop_mode: atr
+  atr_period: 14
+  # Seed = current champion; после optimizer заменить из best-config
+  orb_minutes: 15
+  atr_multiplier: 0.841239838255675
+  breakout_threshold: 0.008381572367285477
+  reward_ratio: 1.6410674740062587
+  trail_activation_r: 1.5150736483279235
+  trail_breakeven_r: 0.01394552332498874
+  trail_stage_max: 1
+  max_trades_per_ticker_per_day: 1
+  allow_all_tickers: true
+
+search_space:
+  strategy: opening_range_continuation
+  parameters:
+    orbMinutes:
+      type: int
+      min: 12
+      max: 22
+    breakoutThreshold:
+      type: float
+      min: 0.003
+      max: 0.015
+    atrMultiplier:
+      type: float
+      min: 0.8
+      max: 1.3
+  fixed:
+    # Без ORCWhitelist/Blacklist
+    allowAllTickers: 1
+    # Risk-каркас как у orc-wave2 champion — не крутим в research
+    rewardRatio: 1.6410674740062587
+    trailActivationR: 1.5150736483279235
+    trailBreakevenR: 0.01394552332498874
+    trailStageMax: 1
+    maxEntriesPerTickerPerDay: 1
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+    maxParallelTrades: 2
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000

@@ -1,0 +1,53 @@
+# Research — random_entry null vs Main ORC risk-skeleton (same session/RR/trail/max).
+# Universe задаётся списком tickers ниже (без hardcoded ORC whitelist).
+# entry_probability: калибровка N≈432 на in-sample 2024-07-04→2026-05-08 (seed 42).
+trading_mode: virtual
+
+tickers:
+  - SBER
+  - GAZP
+  - LKOH
+  - NVTK
+  - ROSN
+  - MGNT
+  - CHMF
+  - TATN
+  - MOEX
+  - AFKS
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: random_entry
+  stop_mode: atr
+  atr_period: 14
+  lookback: 20
+  atr_multiplier: 0.841239838255675
+  reward_ratio: 1.6410674740062587
+  trail_activation_r: 1.5150736483279235
+  trail_breakeven_r: 0.01394552332498874
+  trail_stage_max: 1
+  max_trades_per_ticker_per_day: 1
+  long_only: false
+  strategy_entry_delay_minutes: 15
+  entry_probability: 0.00087
+  seed: 42
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000

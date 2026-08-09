@@ -9,8 +9,8 @@ import (
 
 func TestRegistryListsAllStrategies(t *testing.T) {
 	ids := ListIDs()
-	if len(ids) != 15 {
-		t.Fatalf("registered: got %d, want 15: %v", len(ids), ids)
+	if len(ids) != 16 {
+		t.Fatalf("registered: got %d, want 16: %v", len(ids), ids)
 	}
 }
 

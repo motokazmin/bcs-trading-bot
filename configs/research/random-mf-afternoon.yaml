@@ -1,0 +1,52 @@
+# Research — random_entry null vs MF Afternoon risk-skeleton (long-only afternoon slot).
+# Universe = tickers ниже. entry_probability: калибровка N≈111 на in-sample (seed 42).
+trading_mode: virtual
+
+tickers:
+  - SBER
+  - GAZP
+  - LKOH
+  - NVTK
+  - ROSN
+  - MGNT
+  - CHMF
+  - TATN
+  - MOEX
+  - AFKS
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 150
+
+strategy:
+  type: random_entry
+  stop_mode: atr
+  atr_period: 14
+  lookback: 39
+  reward_ratio: 1.3941295334576287
+  long_only: true
+  strategy_entry_delay_minutes: 26
+  atr_multiplier: 2.656226764423858
+  trail_activation_r: 2.517382593826568
+  trail_discrete_step_r: 0.29059433907203625
+  trail_stage_max: 2
+  max_trades_per_ticker_per_day: 2
+  entry_probability: 0.00028
+  seed: 42
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
