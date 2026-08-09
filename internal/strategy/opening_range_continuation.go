@@ -274,6 +274,10 @@ func newORCFromParamsExt(params Params, ctx BuildContext, allowAll bool) (Candle
 	if rewardRatio <= 0 {
 		rewardRatio = 2.60
 	}
+	// YAML allow_all_tickers перекрывает дефолт типа (orc=false, session_orc=true).
+	if _, ok := params["allowAllTickers"]; ok {
+		allowAll = params.Bool("allowAllTickers")
+	}
 	opts := orcOpts{
 		ORBMinutes:        orbMin,
 		BreakoutThreshold: params.Float("breakoutThreshold"),
@@ -327,5 +331,6 @@ func orcConfigFields(params Params, ctx BuildContext) map[string]interface{} {
 		"trail_activation_r":            params.Float("trailActivationR"),
 		"trail_stage_max":               params.Int("trailStageMax"),
 		"trail_breakeven_r":             params.Float("trailBreakevenR"),
+		"allow_all_tickers":             params.Bool("allowAllTickers"),
 	}
 }

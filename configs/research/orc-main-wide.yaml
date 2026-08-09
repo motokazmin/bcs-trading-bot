@@ -1,0 +1,53 @@
+# Research snapshot — Main ORC wide после rolling reopt 2026-08-09.
+# Источник: results/research/orc-rolling/20260809/best-config-20260809-103332.yaml
+# (atr_period: 14 — в best-config был 0, нормализуем)
+# Paper champions не трогаем. Протокол: docs/research-rolling.md
+
+trading_mode: virtual
+
+tickers:
+  - SBER
+  - GAZP
+  - LKOH
+  - NVTK
+  - ROSN
+  - MGNT
+  - CHMF
+  - TATN
+  - MOEX
+  - AFKS
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: opening_range_continuation
+  stop_mode: atr
+  atr_period: 14
+  orb_minutes: 12
+  atr_multiplier: 0.8481945297174166
+  breakout_threshold: 0.003393790484079248
+  reward_ratio: 1.6410674740062587
+  trail_activation_r: 1.5150736483279235
+  trail_breakeven_r: 0.01394552332498874
+  trail_stage_max: 1
+  max_trades_per_ticker_per_day: 1
+  allow_all_tickers: true
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000

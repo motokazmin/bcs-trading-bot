@@ -1,5 +1,5 @@
-# Paper portfolio: 5 champions, один virtual-счёт 200k.
-# docs/portfolio.md · docs/baseline.md
+# Paper portfolio: 6 slots (5 legacy champions + ORC complement), один virtual-счёт 200k.
+# docs/portfolio.md · docs/baseline.md · docs/research-rolling.md
 # Запуск: make bot
 # Проверка: go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
 
@@ -85,6 +85,30 @@ experiments:
       trail_breakeven_r: 0.01394552332498874
       trail_stage_max: 1
       max_trades_per_ticker_per_day: 1
+
+  - id: orc-complement
+    name: "ORC Complement rolling (excl. MGNT/ROSN/TATN)"
+    tickers:
+      - SBER
+      - GAZP
+      - LKOH
+      - NVTK
+      - CHMF
+      - MOEX
+      - AFKS
+    strategy:
+      type: opening_range_continuation
+      stop_mode: atr
+      atr_period: 14
+      orb_minutes: 12
+      atr_multiplier: 0.8481945297174166
+      breakout_threshold: 0.003393790484079248
+      reward_ratio: 1.6410674740062587
+      trail_activation_r: 1.5150736483279235
+      trail_breakeven_r: 0.01394552332498874
+      trail_stage_max: 1
+      max_trades_per_ticker_per_day: 1
+      allow_all_tickers: true
 
   - id: or-fade-conservative
     name: "OR Fade Champion (10:15–12:30)"

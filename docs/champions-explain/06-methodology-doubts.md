@@ -228,6 +228,9 @@ Trailing / тонкий RR / delay часто улучшают backtest, не у
 6. Есть ли смысл оставлять несколько слотов ORC (утро/день/вечер)
    при одной логике, или сначала доказать один ORC-edge на одном слоте?
 
+**Research rolling (wide + недавнее окно) рядом с champions:**  
+см. [`docs/research-rolling.md`](../research-rolling.md).
+
 ---
 
 ## 7. Чего этот документ не утверждает

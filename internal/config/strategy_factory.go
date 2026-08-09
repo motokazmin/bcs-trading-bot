@@ -29,7 +29,7 @@ func (s StrategyConfig) toStrategyParams(session SessionConfig) (strategy.Params
 		}
 		pk := paramKeyForYAML(key)
 		switch key {
-		case "volume_filter", "long_only", "require_inside_range":
+		case "volume_filter", "long_only", "require_inside_range", "allow_all_tickers":
 			if b, ok := toBool(val); ok {
 				if b {
 					p[pk] = 1
