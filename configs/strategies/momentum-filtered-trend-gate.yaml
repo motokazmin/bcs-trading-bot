@@ -1,0 +1,96 @@
+# Research: H1 trend-gate поверх champion MF Afternoon (reopt-s2).
+# Базовые params зафиксированы; крутим только trend-gate.
+# Baseline champions / portfolio-paper не трогаем.
+# Данные: существующий data/history/*.csv (M5→H1 ресэмпл), sync-history не обязателен.
+trading_mode: virtual
+
+tickers:
+  - ticker: MGNT
+    step_price_value: 1.0
+  - ticker: TATN
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 150
+
+strategy:
+  type: momentum_filtered
+  stop_mode: atr
+  atr_period: 14
+  lookback: 39
+  breakout_threshold: 0.007659168048723002
+  reward_ratio: 1.3941295334576287
+  volume_filter: false
+  volume_min_ratio: 1.2806021030773282
+  long_only: true
+  trend_sma_period: 37
+  strategy_entry_delay_minutes: 26
+  atr_multiplier: 2.656226764423858
+  trail_activation_r: 2.517382593826568
+  trail_discrete_step_r: 0.29059433907203625
+  trail_stage_max: 2
+  max_trades_per_ticker_per_day: 2
+  trend_gate_enabled: true
+  trend_fast_period: 8
+  trend_slow_period: 21
+  trend_gate_mode: 0
+  trend_gate_against_multiplier: 1.5
+
+search_space:
+  strategy: momentum_filtered
+  parameters:
+    trendFastPeriod:
+      type: int
+      min: 5
+      max: 13
+    trendSlowPeriod:
+      type: int
+      min: 21
+      max: 55
+    trendGateMode:
+      type: int
+      min: 0
+      max: 1
+    trendGateAgainstMultiplier:
+      type: float
+      min: 1.25
+      max: 2.5
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+    lookback: 39
+    breakoutThreshold: 0.007659168048723002
+    rewardRatio: 1.3941295334576287
+    volumeFilter: 0
+    volumeMinRatio: 1.2806021030773282
+    longOnly: 1
+    trendSMAPeriod: 37
+    strategyEntryDelayMinutes: 26
+    atrMultiplier: 2.656226764423858
+    trailActivationR: 2.517382593826568
+    trailDiscreteStepR: 0.29059433907203625
+    trailStageMax: 2
+    maxEntriesPerTickerPerDay: 2
+    trendGateEnabled: 1
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-mf-trend-gate.db

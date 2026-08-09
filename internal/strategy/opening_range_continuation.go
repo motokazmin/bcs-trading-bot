@@ -47,6 +47,7 @@ type OpeningRangeContinuation struct {
 	buffer          *candleBuffer
 	session         SessionTimes
 	allowAllTickers bool
+	trend           *TrendProvider
 
 	day         string
 	orbHigh     float64
@@ -65,6 +66,7 @@ type orcOpts struct {
 	ATRMultiplier     float64
 	RewardRatio       float64
 	RangeUseCap       bool
+	TrendGate         TrendGateOpts
 }
 
 type orcPendingLimit struct {
@@ -96,6 +98,9 @@ func (s *OpeningRangeContinuation) OnCandle(candle models.Candle) *models.Order 
 
 	if s.buffer.isDuplicateUpdate(candle) {
 		return nil
+	}
+	if s.trend != nil {
+		s.trend.Observe(candle)
 	}
 
 	day := s.session.tradingDate(candle.Timestamp)
@@ -162,6 +167,11 @@ func (s *OpeningRangeContinuation) OnCandle(candle models.Candle) *models.Order 
 		entry = s.orbLow
 	}
 
+	allow, widen := applyTrendGate(s.opts.TrendGate, s.trend, candle.Ticker, direction)
+	if !allow {
+		return nil
+	}
+
 	stopCfg := stopConfig{
 		StopMode: s.opts.StopMode, ATRPeriod: s.opts.ATRPeriod,
 		ATRMultiplier: s.opts.ATRMultiplier, RangeUseCap: s.opts.RangeUseCap,
@@ -170,6 +180,9 @@ func (s *OpeningRangeContinuation) OnCandle(candle models.Candle) *models.Order 
 	sl, tp := calcStopTP(direction, entry, s.orbHigh, s.orbLow, s.buffer.history, stopCfg)
 	if sl == 0 {
 		return nil
+	}
+	if widen {
+		sl, tp = widenStopTP(direction, entry, sl, tp, s.opts.TrendGate.AgainstMultiplier)
 	}
 
 	s.pending = &orcPendingLimit{
@@ -286,13 +299,18 @@ func newORCFromParamsExt(params Params, ctx BuildContext, allowAll bool) (Candle
 		ATRMultiplier:     params.Float("atrMultiplier"),
 		RewardRatio:       rewardRatio,
 		RangeUseCap:       paramsBoolDefault(params, "rangeUseCap", true),
+		TrendGate:         trendGateOptsFromParams(params),
 	}.normalized()
-	return &OpeningRangeContinuation{
+	s := &OpeningRangeContinuation{
 		opts:            opts,
 		buffer:          newCandleBuffer(50),
 		session:         ctx.Session,
 		allowAllTickers: allowAll,
-	}, nil
+	}
+	if opts.TrendGate.Enabled {
+		s.trend = NewTrendProvider(opts.TrendGate.SlowPeriod * 3)
+	}
+	return s, nil
 }
 
 func (o orcOpts) normalized() orcOpts {
@@ -312,6 +330,7 @@ func (o orcOpts) normalized() orcOpts {
 	if out.RewardRatio <= 0 {
 		out.RewardRatio = 2.60
 	}
+	out.TrendGate = out.TrendGate.normalized()
 	return out
 }
 
@@ -320,7 +339,7 @@ func orcConfigFields(params Params, ctx BuildContext) map[string]interface{} {
 	if rewardRatio <= 0 {
 		rewardRatio = 2.60
 	}
-	return map[string]interface{}{
+	m := map[string]interface{}{
 		"stop_mode":                     ctx.StopMode,
 		"orb_minutes":                   params.Int("orbMinutes"),
 		"breakout_threshold":            params.Float("breakoutThreshold"),
@@ -333,4 +352,6 @@ func orcConfigFields(params Params, ctx BuildContext) map[string]interface{} {
 		"trail_breakeven_r":             params.Float("trailBreakevenR"),
 		"allow_all_tickers":             params.Bool("allowAllTickers"),
 	}
+	mergeTrendGateConfigFields(m, params)
+	return m
 }

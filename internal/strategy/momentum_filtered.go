@@ -22,6 +22,7 @@ type MomentumFiltered struct {
 	opts    momentumFilteredOpts
 	buffer  *candleBuffer
 	session SessionTimes
+	trend   *TrendProvider
 }
 
 type momentumFilteredOpts struct {
@@ -29,6 +30,7 @@ type momentumFilteredOpts struct {
 	LongOnly                  bool
 	TrendSMAPeriod            int
 	StrategyEntryDelayMinutes int
+	TrendGate                 TrendGateOpts
 }
 
 func (s *MomentumFiltered) ID() string { return IDMomentumFiltered }
@@ -41,6 +43,9 @@ func (s *MomentumFiltered) OnCandle(candle models.Candle) *models.Order {
 		return nil
 	}
 	s.buffer.push(candle)
+	if s.trend != nil {
+		s.trend.Observe(candle)
+	}
 	if len(s.buffer.history) < s.opts.Lookback {
 		return nil
 	}
@@ -88,6 +93,11 @@ func (s *MomentumFiltered) OnCandle(candle models.Candle) *models.Order {
 		return nil
 	}
 
+	allow, widen := applyTrendGate(s.opts.TrendGate, s.trend, candle.Ticker, direction)
+	if !allow {
+		return nil
+	}
+
 	entry := close
 	stopCfg := stopConfig{
 		StopMode: s.opts.StopMode, ATRPeriod: s.opts.ATRPeriod,
@@ -95,6 +105,9 @@ func (s *MomentumFiltered) OnCandle(candle models.Candle) *models.Order {
 		RewardRatio: s.opts.RewardRatio,
 	}
 	sl, tp := calcStopTP(direction, entry, upper, lower, s.buffer.history, stopCfg)
+	if widen {
+		sl, tp = widenStopTP(direction, entry, sl, tp, s.opts.TrendGate.AgainstMultiplier)
+	}
 	order := buildOrder(candle, direction, entry, sl, tp, upper, lower)
 	if order == nil {
 		return nil
@@ -110,6 +123,7 @@ func newMomentumFilteredFromParams(params Params, ctx BuildContext) (CandleStrat
 		LongOnly:                  params.Bool("longOnly"),
 		TrendSMAPeriod:            params.Int("trendSMAPeriod"),
 		StrategyEntryDelayMinutes: params.Int("strategyEntryDelayMinutes"),
+		TrendGate:                 trendGateOptsFromParams(params),
 	}
 	if opts.RewardRatio <= 0 {
 		opts.RewardRatio = params.Float("rewardRatio")
@@ -119,16 +133,22 @@ func newMomentumFilteredFromParams(params Params, ctx BuildContext) (CandleStrat
 	}
 	volFilter := paramsBoolDefault(params, "volumeFilter", true)
 	opts.VolumeFilter = volFilter
-	return &MomentumFiltered{
-		opts:    opts.normalized(),
+	opts = opts.normalized()
+	s := &MomentumFiltered{
+		opts:    opts,
 		buffer:  newCandleBuffer(opts.Lookback),
 		session: ctx.Session,
-	}, nil
+	}
+	if opts.TrendGate.Enabled {
+		s.trend = NewTrendProvider(opts.TrendGate.SlowPeriod * 3)
+	}
+	return s, nil
 }
 
 func (o momentumFilteredOpts) normalized() momentumFilteredOpts {
 	out := o
 	out.momentumBreakoutOpts = out.momentumBreakoutOpts.normalized()
+	out.TrendGate = out.TrendGate.normalized()
 	return out
 }
 
@@ -140,5 +160,6 @@ func momentumFilteredConfigFields(params Params, ctx BuildContext) map[string]in
 	if rr := params.Float("rewardRatio"); rr > 0 {
 		m["reward_ratio"] = rr
 	}
+	mergeTrendGateConfigFields(m, params)
 	return m
 }

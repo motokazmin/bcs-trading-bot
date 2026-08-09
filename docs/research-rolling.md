@@ -3,6 +3,9 @@
 Поиск params на **полном universe** и **недавнем окне** (~1 год), затем promote
 комплементарного слота (тикеры **вне** Main ORC whitelist) в paper.
 
+Смежный negative result: H1 EMA trend-gate не улучшил MF/ORC —
+см. [`research-h1-trend-gate.md`](research-h1-trend-gate.md).
+
 ## Зачем
 
 Старый подход: params на длинной истории + узкий whitelist в коде/YAML.  

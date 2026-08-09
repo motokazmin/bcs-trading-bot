@@ -1,0 +1,89 @@
+# Research: H1 trend-gate поверх champion ORC wave2.
+# Базовые params зафиксированы; крутим только trend-gate.
+# Baseline champions / portfolio-paper не трогаем.
+# Данные: существующий data/history/*.csv (M5→H1 ресэмпл).
+trading_mode: virtual
+
+tickers:
+  - ticker: MGNT
+    step_price_value: 1.0
+  - ticker: ROSN
+    step_price_value: 1.0
+  - ticker: TATN
+    step_price_value: 1.0
+
+class_code: TQBR
+candle_timeframe: M5
+
+costs:
+  commission_rate_per_leg: 0.00008
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: opening_range_continuation
+  stop_mode: atr
+  atr_period: 14
+  orb_minutes: 15
+  atr_multiplier: 0.841239838255675
+  breakout_threshold: 0.008381572367285477
+  reward_ratio: 1.6410674740062587
+  trail_activation_r: 1.5150736483279235
+  trail_breakeven_r: 0.01394552332498874
+  trail_stage_max: 1
+  max_trades_per_ticker_per_day: 1
+  trend_gate_enabled: true
+  trend_fast_period: 8
+  trend_slow_period: 21
+  trend_gate_mode: 0
+  trend_gate_against_multiplier: 1.5
+
+search_space:
+  strategy: opening_range_continuation
+  parameters:
+    trendFastPeriod:
+      type: int
+      min: 5
+      max: 13
+    trendSlowPeriod:
+      type: int
+      min: 21
+      max: 55
+    trendGateMode:
+      type: int
+      min: 0
+      max: 1
+    trendGateAgainstMultiplier:
+      type: float
+      min: 1.25
+      max: 2.5
+  fixed:
+    riskPerTradePercent: 0.5
+    dailyLossLimitPercent: 2.0
+    maxParallelTrades: 2
+    orbMinutes: 15
+    breakoutThreshold: 0.008381572367285477
+    rewardRatio: 1.6410674740062587
+    atrMultiplier: 0.841239838255675
+    trailActivationR: 1.5150736483279235
+    trailBreakevenR: 0.01394552332498874
+    trailStageMax: 1
+    maxEntriesPerTickerPerDay: 1
+    trendGateEnabled: 1
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.5
+  max_parallel_trades: 2
+
+virtual:
+  balance: 200000
+
+storage:
+  enabled: true
+  path: data/trades-orc-trend-gate.db
