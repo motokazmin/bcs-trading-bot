@@ -88,11 +88,47 @@ func (g *GlobalRiskController) CanOpenTicker(ticker string) error {
 	}
 	return nil
 }
+
+// TryOpen атомарно проверяет CB + max parallel + ticker busy и резервирует слот.
+// При ошибке исполнения ордера вызывающий обязан ReleaseOpen.
+func (g *GlobalRiskController) TryOpen(ticker string, newTradeRisk float64) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.blocked {
+		return ErrCircuitBreakerTriggered
+	}
+	if len(g.openPositions) >= g.maxParallelTrades {
+		return ErrMaxParallelTrades
+	}
+	if _, ok := g.openPositions[ticker]; ok {
+		return ErrTickerBusy
+	}
+
+	totalOpenRisk := g.sumOpenRiskLocked()
+	exposure := g.realizedPnL - totalOpenRisk - newTradeRisk
+	if exposure <= -g.maxDailyLoss {
+		g.blocked = true
+		return ErrCircuitBreakerTriggered
+	}
+
+	g.openPositions[ticker] = newTradeRisk
+	return nil
+}
+
 // RegisterOpen регистрирует открытие позиции.
+// Предпочтительно TryOpen (атомарный check+register); RegisterOpen оставлен для тестов/бэктеста.
 func (g *GlobalRiskController) RegisterOpen(ticker string, riskAmount float64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.openPositions[ticker] = riskAmount
+}
+
+// ReleaseOpen снимает резерв без учёта PnL (откат после неудачного ExecuteOrder).
+func (g *GlobalRiskController) ReleaseOpen(ticker string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	delete(g.openPositions, ticker)
 }
 
 // RegisterClose снимает позицию и учитывает реализованный PnL.

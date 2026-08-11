@@ -2,6 +2,7 @@ package simulation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -38,7 +39,7 @@ type tickerState struct {
 
 // PortfolioRunner симулирует несколько слотов с общим глобальным риск-контроллером.
 // Несколько стратегий на одном тикере допустимы (разные slot keys); одна позиция на тикер —
-// через GlobalRisk.CanOpenTicker.
+// через GlobalRisk.TryOpen.
 type PortfolioRunner struct {
 	cfg             PortfolioRunnerConfig
 	states          map[string]*tickerState
@@ -200,16 +201,6 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces
 	if err := st.riskMgr.CheckCircuitBreaker(); err != nil {
 		return
 	}
-	if p.global != nil {
-		if err := p.global.CanOpenPosition(); err != nil {
-			return
-		}
-		if err := p.global.CanOpenTicker(st.cfg.Ticker); err != nil {
-			p.TickerBusySkips++
-			return
-		}
-	}
-
 	qty := st.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if qty <= 0 {
 		return
@@ -228,12 +219,18 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces
 
 	tradeRisk := abs(signal.Price-signal.StopLoss) * float64(qty) * st.cfg.StepPriceValue
 	if p.global != nil {
-		if err := p.global.PreTradeCheck(tradeRisk); err != nil {
+		if err := p.global.TryOpen(st.cfg.Ticker, tradeRisk); err != nil {
+			if errors.Is(err, risk.ErrTickerBusy) {
+				p.TickerBusySkips++
+			}
 			return
 		}
 	}
 
 	if err := executor.ExecuteOrder(ctx, *signal); err != nil {
+		if p.global != nil {
+			p.global.ReleaseOpen(st.cfg.Ticker)
+		}
 		return
 	}
 
@@ -241,9 +238,6 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces
 	st.position = position.NewFromSignal(*signal, candle.Timestamp)
 	st.position.EntryBarTime = candle.Timestamp
 	st.position.EntryBarClose = candle.Close
-	if p.global != nil {
-		p.global.RegisterOpen(st.cfg.Ticker, st.position.RDistance*float64(st.position.Quantity)*st.cfg.StepPriceValue)
-	}
 
 	if reason := position.SameBarExitAfterFill(st.position, candle); reason != "" {
 		exitPx := position.ExitFillPrice(st.position, reason, candle.Close)

@@ -47,6 +47,45 @@ func TestGlobalRiskController_CanOpenTicker(t *testing.T) {
 		t.Fatalf("expected free after close, got %v", err)
 	}
 }
+
+func TestGlobalRiskController_TryOpenAtomic(t *testing.T) {
+	g := NewGlobalRiskController(200_000, 2.0, 4)
+	if err := g.TryOpen("CHMF", 1000); err != nil {
+		t.Fatalf("first TryOpen: %v", err)
+	}
+	if err := g.TryOpen("CHMF", 500); err != ErrTickerBusy {
+		t.Fatalf("second TryOpen: got %v, want ErrTickerBusy", err)
+	}
+	g.ReleaseOpen("CHMF")
+	if err := g.TryOpen("CHMF", 500); err != nil {
+		t.Fatalf("after ReleaseOpen: %v", err)
+	}
+}
+
+func TestGlobalRiskController_TryOpenRace(t *testing.T) {
+	g := NewGlobalRiskController(200_000, 2.0, 8)
+	var wg sync.WaitGroup
+	var okCount int
+	var mu sync.Mutex
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := g.TryOpen("CHMF", 100); err == nil {
+				mu.Lock()
+				okCount++
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	if okCount != 1 {
+		t.Fatalf("concurrent TryOpen wins: got %d, want 1", okCount)
+	}
+	if g.OpenPositionCount() != 1 {
+		t.Fatalf("open count: %d", g.OpenPositionCount())
+	}
+}
 func TestGlobalRiskController_ThreadSafe(t *testing.T) {
 	g := NewGlobalRiskController(200_000, 2.0, 2)
 	var wg sync.WaitGroup

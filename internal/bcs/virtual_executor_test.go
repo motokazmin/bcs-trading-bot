@@ -2,9 +2,11 @@ package bcs
 
 import (
 	"context"
+	"errors"
 	"math"
 	"testing"
 
+	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/models"
 )
 
@@ -108,5 +110,37 @@ func TestVirtualExecutorShortDoesNotInflateCashForBuy(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected reject: buy after short must not use inflated cash")
+	}
+}
+
+func TestVirtualExecutorRejectsSecondOpenSameTicker(t *testing.T) {
+	v := NewVirtualExecutor(200_000)
+	if err := v.ExecuteOrder(context.Background(), models.Order{
+		Ticker: "CHMF", Direction: "SELL", Quantity: 10, Price: 600,
+	}); err != nil {
+		t.Fatalf("first open: %v", err)
+	}
+	err := v.ExecuteOrder(context.Background(), models.Order{
+		Ticker: "CHMF", Direction: "BUY", Quantity: 5, Price: 610,
+	})
+	if err == nil {
+		t.Fatal("expected reject on second open for same ticker")
+	}
+	if !errors.Is(err, ErrTickerAlreadyOpen) {
+		t.Fatalf("got %v, want ErrTickerAlreadyOpen", err)
+	}
+}
+
+func TestVirtualExecutorCloseMissingWrapsErrNoOpenPosition(t *testing.T) {
+	v := NewVirtualExecutor(100_000)
+	err := v.ExecuteOrder(context.Background(), models.Order{
+		Ticker: "CHMF", Direction: "SELL", Quantity: 1, Price: 100,
+		CloseReason: models.CloseReasonStopLoss,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, interfaces.ErrNoOpenPosition) {
+		t.Fatalf("got %v, want ErrNoOpenPosition", err)
 	}
 }

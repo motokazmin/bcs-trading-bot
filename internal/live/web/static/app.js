@@ -132,6 +132,21 @@
     return dd + '.' + mm + ' ' + hh + ':' + mi;
   }
 
+  // Всегда Europe/Moscow (как ось графика сделок / open-chart), без зависимости от TZ браузера.
+  function fmtTimeMSK(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('ru-RU', {
+      timeZone: 'Europe/Moscow',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+
   function syncNavLinks() {
     const qs = window.location.search;
     document.querySelectorAll('.topbar nav a').forEach((a) => {
@@ -165,6 +180,7 @@
     fmtPct,
     fmtHold,
     fmtTime,
+    fmtTimeMSK,
     syncNavLinks,
     downloadJSON,
   };

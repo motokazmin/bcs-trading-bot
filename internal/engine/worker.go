@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -252,17 +253,6 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 		return
 	}
 
-	if w.globalRisk != nil {
-		if err := w.globalRisk.CanOpenPosition(); err != nil {
-			logx.SignalRejected(w.label, signal.Direction, err.Error())
-			return
-		}
-		if err := w.globalRisk.CanOpenTicker(w.ticker); err != nil {
-			logx.SignalRejected(w.label, signal.Direction, err.Error())
-			return
-		}
-	}
-
 	quantity := w.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if quantity <= 0 {
 		logx.SignalRejected(w.label, signal.Direction, "нулевой объём позиции")
@@ -280,7 +270,7 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 
 	tradeRisk := math.Abs(signal.Price-signal.StopLoss) * float64(quantity) * w.stepPriceValue
 	if w.globalRisk != nil {
-		if err := w.globalRisk.PreTradeCheck(tradeRisk); err != nil {
+		if err := w.globalRisk.TryOpen(w.ticker, tradeRisk); err != nil {
 			logx.SignalRejected(w.label, signal.Direction, err.Error())
 			return
 		}
@@ -290,6 +280,9 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 	signal.OrderType = models.OrderTypeLimit
 
 	if err := executor.ExecuteOrder(ctx, *signal); err != nil {
+		if w.globalRisk != nil {
+			w.globalRisk.ReleaseOpen(w.ticker)
+		}
 		logx.Error("[%s] ошибка исполнения ордера: %v", w.label, err)
 		return
 	}
@@ -304,10 +297,6 @@ func (w *TickerWorker) processCandle(ctx context.Context, executor interfaces.Or
 	w.position.EntryBarClose = candle.Close
 	pos := w.position
 	w.posMu.Unlock()
-	if w.globalRisk != nil {
-		tradeRisk := pos.RDistance * float64(pos.Quantity) * w.stepPriceValue
-		w.globalRisk.RegisterOpen(w.ticker, tradeRisk)
-	}
 
 	openAudit := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
 		Direction:   signal.Direction,
@@ -457,6 +446,13 @@ func (w *TickerWorker) closePosition(ctx context.Context, executor interfaces.Or
 
 	if err := executor.ExecuteOrder(ctx, order); err != nil {
 		logx.Error("[%s] ошибка закрытия позиции (%s): %v", w.label, reason, err)
+		if errors.Is(err, interfaces.ErrNoOpenPosition) {
+			// Ghost: локальная позиция есть, у исполнителя уже нет — не восстанавливаем (иначе spam).
+			if w.globalRisk != nil {
+				w.globalRisk.ReleaseOpen(w.ticker)
+			}
+			return
+		}
 		w.posMu.Lock()
 		w.position = pos
 		w.posMu.Unlock()
