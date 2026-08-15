@@ -9,7 +9,9 @@ import (
 	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/position"
+	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/strategy"
+	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/models"
 )
 
@@ -170,6 +172,57 @@ func TestClosePositionIgnoresSecondCall(t *testing.T) {
 		t.Fatal("position should stay nil after successful close")
 	}
 }
+
+func TestClosePositionGhostDropsWithoutRestore(t *testing.T) {
+	store := &recordingTradeStore{}
+	exp := config.ResolvedExperiment{
+		ID:       "or-fade",
+		Strategy: config.StrategyConfig{Lookback: 20, StopMode: strategy.StopModeRange},
+		Risk:     config.RiskConfig{Deposit: 100_000, MaxDailyLoss: 2_000, RiskPerTradePercent: 0.5},
+	}
+	globalRisk := risk.NewGlobalRiskController(200_000, 2.0, 4)
+	worker, err := NewTickerWorker(
+		"CHMF", exp, 1.0, costs.Config{},
+		config.SessionConfig{Timezone: "Europe/Moscow", EODCloseTime: "23:40", SessionOpenTime: "10:00"},
+		config.TradingModeVirtual, "test-run", "TQBR", "M5", store, globalRisk,
+	)
+	if err != nil {
+		t.Fatalf("NewTickerWorker: %v", err)
+	}
+	if err := globalRisk.TryOpen("CHMF", 1000); err != nil {
+		t.Fatalf("TryOpen: %v", err)
+	}
+	worker.position = &position.State{
+		Direction:  "BUY",
+		Quantity:   1,
+		EntryPrice: 680,
+		StopLoss:   677,
+		TakeProfit: 684,
+		RDistance:  3,
+		OpenedAt:   time.Now(),
+	}
+
+	worker.closePosition(context.Background(), missingPosExecutor{}, 677, models.CloseReasonStopLoss)
+
+	if worker.position != nil {
+		t.Fatal("ghost close must drop local position (no restore/spam)")
+	}
+	if globalRisk.OpenPositionCount() != 0 {
+		t.Fatalf("global risk must release ticker, count=%d", globalRisk.OpenPositionCount())
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.trades) != 0 {
+		t.Fatalf("ghost close must not save trade, got %d", len(store.trades))
+	}
+}
+
+type missingPosExecutor struct{}
+
+func (missingPosExecutor) ExecuteOrder(context.Context, models.Order) error {
+	return interfaces.ErrNoOpenPosition
+}
+func (missingPosExecutor) GetBalance(context.Context) (float64, error) { return 0, nil }
 
 func TestCheckSLTPStopLossFillsAtStopLevel(t *testing.T) {
 	store := &recordingTradeStore{}

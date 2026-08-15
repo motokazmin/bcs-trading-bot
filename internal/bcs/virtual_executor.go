@@ -9,6 +9,9 @@ import (
 	"bcs-trading-bot/pkg/models"
 )
 
+// ErrTickerAlreadyOpen — повторный open по занятому тикеру (one-position-per-ticker).
+var ErrTickerAlreadyOpen = fmt.Errorf("ticker already has open position")
+
 var _ interfaces.OrderExecutor = (*VirtualExecutor)(nil)
 
 const defaultVirtualBalance = 100_000
@@ -56,6 +59,9 @@ func (v *VirtualExecutor) openPosition(order models.Order) error {
 
 	switch order.Direction {
 	case "BUY", "SELL":
+		if _, exists := v.positions[order.Ticker]; exists {
+			return fmt.Errorf("[VIRTUAL] %w: %s", ErrTickerAlreadyOpen, order.Ticker)
+		}
 		// Как на кэш/марже 1:1: и лонг, и шорт резервируют notional из свободных средств.
 		// Шорт больше не раздувает balance (иначе следующий BUY уходит за депозит).
 		if v.balance < notional {
@@ -79,7 +85,7 @@ func (v *VirtualExecutor) openPosition(order models.Order) error {
 func (v *VirtualExecutor) closePosition(order models.Order) error {
 	pos, ok := v.positions[order.Ticker]
 	if !ok {
-		return fmt.Errorf("[VIRTUAL] нет открытой позиции по %s", order.Ticker)
+		return fmt.Errorf("[VIRTUAL] нет открытой позиции по %s: %w", order.Ticker, interfaces.ErrNoOpenPosition)
 	}
 
 	closePrice := order.Price

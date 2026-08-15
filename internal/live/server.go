@@ -239,7 +239,7 @@ func BuildOpenChartPayload(candles []models.Candle, pos *models.PositionSnapshot
 			"entryPrice":       pos.EntryPrice,
 			"exitPrice":        pos.LastPrice,
 			"pnl":              pos.UnrealizedPnL,
-			"entryLabel":       pos.OpenedAt.Format("15:04"),
+			"entryLabel":       formatOpenTimeMSK(pos.OpenedAt),
 			"exitLabel":        "open",
 			"closeReason":      "OPEN",
 			"closeReasonLabel": "открыта",
@@ -258,6 +258,12 @@ func BuildOpenChartPayload(candles []models.Candle, pos *models.PositionSnapshot
 		"levels":   levels,
 		"position": pos,
 	}
+}
+
+var openChartMSK = time.FixedZone("MSK", 3*3600)
+
+func formatOpenTimeMSK(t time.Time) string {
+	return t.In(openChartMSK).Format("15:04")
 }
 
 func candlesOrEmpty(c []map[string]any) []map[string]any {

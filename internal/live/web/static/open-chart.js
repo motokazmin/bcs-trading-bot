@@ -7,6 +7,8 @@
   const titleEl = document.getElementById('open-chart-title');
   const metaEl = document.getElementById('open-chart-meta');
 
+  const MSK = 'Europe/Moscow';
+
   let selectedId = null;
   let chart = null;
   let series = null;
@@ -15,6 +17,52 @@
   function setStatus(text, ok) {
     statusEl.textContent = text;
     statusEl.className = 'open-status ' + (ok ? 'ok' : 'error');
+  }
+
+  function toUnix(time) {
+    if (typeof time === 'number') return time;
+    if (!time || typeof time !== 'object') return 0;
+    if ('timestamp' in time) return time.timestamp;
+    if ('year' in time && 'month' in time && 'day' in time) {
+      return Math.floor(Date.UTC(time.year, time.month - 1, time.day) / 1000);
+    }
+    return 0;
+  }
+
+  function formatMSKTime(timestamp) {
+    return new Date(timestamp * 1000).toLocaleTimeString('ru-RU', {
+      timeZone: MSK,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+
+  function formatMSKDateTime(timestamp) {
+    return new Date(timestamp * 1000).toLocaleString('ru-RU', {
+      timeZone: MSK,
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+
+  function formatMSKTick(time, tickMarkType) {
+    const ts = toUnix(time);
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    if (tickMarkType === LightweightCharts.TickMarkType.Year) {
+      return d.toLocaleDateString('ru-RU', { timeZone: MSK, year: 'numeric' });
+    }
+    if (tickMarkType === LightweightCharts.TickMarkType.Month) {
+      return d.toLocaleDateString('ru-RU', { timeZone: MSK, month: 'short' });
+    }
+    if (tickMarkType === LightweightCharts.TickMarkType.DayOfMonth) {
+      return d.toLocaleDateString('ru-RU', { timeZone: MSK, day: '2-digit', month: '2-digit' });
+    }
+    return formatMSKTime(ts);
   }
 
   function ensureChart() {
@@ -29,7 +77,16 @@
         horzLines: { color: '#2d3a4f' },
       },
       rightPriceScale: { borderColor: '#2d3a4f' },
-      timeScale: { borderColor: '#2d3a4f', timeVisible: true, secondsVisible: false },
+      timeScale: {
+        borderColor: '#2d3a4f',
+        timeVisible: true,
+        secondsVisible: false,
+        tickMarkFormatter: formatMSKTick,
+      },
+      localization: {
+        locale: 'ru-RU',
+        timeFormatter: (time) => formatMSKDateTime(toUnix(time)),
+      },
     });
     series = chart.addCandlestickSeries({
       upColor: '#3dd68c',
@@ -71,6 +128,7 @@
       const dirClass = p.direction === 'BUY' ? 'dir-buy' : 'dir-sell';
       const pnlClass = p.unrealized_pnl >= 0 ? 'positive' : 'negative';
       const active = p.id === selectedId ? 'active' : '';
+      const opened = App.fmtTimeMSK(p.opened_at || p.OpenedAt);
       return `
         <button type="button" class="open-item ${active}" data-id="${p.id}" data-ticker="${p.ticker}">
           <div class="open-item-header">
@@ -82,6 +140,7 @@
             · last ${Number(p.last_price).toFixed(2)}
             · uPnL <span class="${pnlClass}">${Number(p.unrealized_pnl).toFixed(2)}</span>
             <br>SL ${Number(p.stop_loss).toFixed(2)} · TP ${Number(p.take_profit).toFixed(2)}
+            · вход ${opened}
           </div>
         </button>`;
     }).join('');
@@ -120,7 +179,8 @@
       const pos = payload.position;
       if (pos) {
         titleEl.textContent = `${pos.experiment_id} / ${pos.ticker} · ${pos.direction}`;
-        metaEl.textContent = `вход ${Number(pos.entry_price).toFixed(2)} · uPnL ${Number(pos.unrealized_pnl).toFixed(2)} ₽`;
+        const opened = App.fmtTimeMSK(pos.opened_at || pos.OpenedAt);
+        metaEl.textContent = `вход ${Number(pos.entry_price).toFixed(2)} · ${opened} · uPnL ${Number(pos.unrealized_pnl).toFixed(2)} ₽`;
       }
     } catch (e) {
       setStatus('График: ' + e.message, false);

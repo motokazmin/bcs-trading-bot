@@ -34,7 +34,7 @@ func TestHubCandlesResetOnNewDay(t *testing.T) {
 }
 
 func TestBuildOpenChartPayload(t *testing.T) {
-	opened := time.Date(2026, 7, 22, 8, 0, 0, 0, time.UTC)
+	opened := time.Date(2026, 7, 22, 8, 0, 0, 0, time.UTC) // 11:00 MSK
 	pos := &models.PositionSnapshot{
 		ID: "a/SBER", ExperimentID: "a", Ticker: "SBER", Direction: "BUY",
 		Quantity: 1, EntryPrice: 100, StopLoss: 95, TakeProfit: 110,
@@ -51,6 +51,13 @@ func TestBuildOpenChartPayload(t *testing.T) {
 	levels, _ := payload["levels"].([]map[string]any)
 	if len(levels) != 3 {
 		t.Fatalf("levels: %d", len(levels))
+	}
+	trades, _ := payload["trades"].([]map[string]any)
+	if len(trades) != 1 {
+		t.Fatalf("trades: %d", len(trades))
+	}
+	if got := trades[0]["entryLabel"]; got != "11:00" {
+		t.Fatalf("entryLabel MSK: got %v, want 11:00", got)
 	}
 }
 
