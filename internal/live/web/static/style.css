@@ -425,7 +425,7 @@ code { background: #243044; padding: 0.1rem 0.35rem; border-radius: 3px; }
   color: var(--muted);
   font-size: 0.9rem;
 }
-#open-chart { flex: 1; min-height: 420px; width: 100%; }
+#open-chart, #day-chart, #strategy-chart { flex: 1; min-height: 420px; width: 100%; }
 .open-status.error { color: var(--negative); }
 .open-status.ok { color: var(--positive); }
 .dir-buy { color: var(--positive); }
@@ -460,13 +460,13 @@ code { background: #243044; padding: 0.1rem 0.35rem; border-radius: 3px; }
   gap: 1rem;
 }
 .day-chart-panel { min-height: 480px; }
-#day-chart { flex: 1; min-height: 420px; width: 100%; }
 .day-trades-panel {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
 }
+.day-trades-panel .table-scroll { max-height: 360px; }
 .day-trades-panel h2 {
   margin: 0;
   padding: 0.75rem 1rem;

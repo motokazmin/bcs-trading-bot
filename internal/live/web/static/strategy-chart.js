@@ -79,6 +79,18 @@
     return formatMSKTime(ts);
   }
 
+  function tradeIdOf(t) {
+    const id = t.tradeId ?? t.trade_id;
+    if (id != null && id !== '') return String(id);
+    const et = t.entryTime ?? t.entry_time;
+    if (et != null) return String(et);
+    return '';
+  }
+
+  function tickerOf(t) {
+    return String(t.ticker ?? t.Ticker ?? '').toUpperCase();
+  }
+
   function ensureChart() {
     if (chart) return;
     chart = LightweightCharts.createChart(chartEl, {
@@ -153,40 +165,43 @@
       return;
     }
 
-    if (selectedTradeId && !trades.some((t) => t.tradeId === selectedTradeId)) {
-      selectedTradeId = trades[0].tradeId;
-      selectedTicker = trades[0].ticker;
+    if (selectedTradeId && !trades.some((t) => tradeIdOf(t) === selectedTradeId)) {
+      selectedTradeId = tradeIdOf(trades[0]);
+      selectedTicker = tickerOf(trades[0]);
     }
     if (!selectedTradeId) {
-      selectedTradeId = trades[0].tradeId;
-      selectedTicker = trades[0].ticker;
+      selectedTradeId = tradeIdOf(trades[0]);
+      selectedTicker = tickerOf(trades[0]);
     }
 
     itemsEl.innerHTML = trades.map((t) => {
+      const tid = tradeIdOf(t);
+      const tk = tickerOf(t);
       const dirClass = t.direction === 'BUY' ? 'dir-buy' : 'dir-sell';
-      const pnl = Number(t.pnl || 0);
+      const pnl = Number(t.pnl ?? t.PnL ?? 0);
       const pnlClass = pnl >= 0 ? 'positive' : 'negative';
-      const active = t.tradeId === selectedTradeId ? 'active' : '';
-      const date = t.tradingDate || '';
+      const active = tid === selectedTradeId ? 'active' : '';
+      const date = t.tradingDate ?? t.trading_date ?? '';
+      const pnlR = Number(t.pnlR ?? t.pnl_r ?? 0);
       return `
-        <button type="button" class="open-item ${active}" data-trade-id="${t.tradeId}" data-ticker="${t.ticker}">
+        <button type="button" class="open-item ${active}" data-trade-id="${tid}" data-ticker="${tk}">
           <div class="open-item-header">
             <span>#${t.index} · ${t.ticker}</span>
             <span class="${dirClass}">${t.direction}</span>
           </div>
           <div class="open-item-meta">
             ${date} · ${t.entryLabel} → ${t.exitLabel}
-            · <span class="${pnlClass}">${App.fmtMoney(pnl)}</span> (${Number(t.pnlR || 0).toFixed(2)} R)
+            · <span class="${pnlClass}">${App.fmtMoney(pnl)}</span> (${pnlR.toFixed(2)} R)
             <br>${t.closeReasonLabel || t.closeReason || ''}
           </div>
         </button>`;
     }).join('');
 
     itemsEl.querySelectorAll('.open-item').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         selectedTradeId = btn.dataset.tradeId;
         selectedTicker = btn.dataset.ticker;
-        loadTradeChart();
+        await loadTradeChart();
         renderTrades();
       });
     });
@@ -215,7 +230,9 @@
     summaryEl.className = 'muted ' + (pnl >= 0 ? 'positive' : 'negative');
     renderTrades();
     setStatus(`Стратегия ${experimentId} · сделок: ${trades.length}`, true);
-    if (selectedTradeId) await loadTradeChart();
+    if (trades.length) {
+      await loadTradeChart();
+    }
   }
 
   async function loadTradeChart() {
@@ -233,12 +250,19 @@
       const res = await App.api(`/api/strategy-trade-chart?${qs}`);
       if (!res.ok) throw new Error(await res.text());
       const payload = await res.json();
-      series.setData(payload.candles || []);
+      const candleData = (payload.candles || []).map((c) => ({
+        time: Number(c.time),
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+      }));
+      series.setData(candleData);
       series.setMarkers(payload.markers || []);
       clearLevels();
       (payload.levels || []).forEach((lvl) => {
         priceLines.push(series.createPriceLine({
-          price: lvl.price,
+          price: Number(lvl.price),
           color: lvl.color,
           lineWidth: 1,
           lineStyle: LightweightCharts.LineStyle.Dashed,
@@ -246,12 +270,18 @@
           title: lvl.title,
         }));
       });
-      if (payload.candles && payload.candles.length) {
+      chart.applyOptions({ width: chartEl.clientWidth, height: chartEl.clientHeight });
+      const trade = payload.trade || {};
+      titleEl.textContent = `${payload.ticker || selectedTicker} · #${trade.index || ''} · ${trade.direction || ''}`;
+      let meta = `${payload.timeframe || 'M5'} · ${payload.trading_date || ''} · PnL ${App.fmtMoney(Number(trade.pnl || 0))} · свечей: ${candleData.length}`;
+      if (!candleData.length) {
+        meta += ' · BCS не вернул свечи для окна сделки';
+      }
+      metaEl.textContent = meta;
+      if (candleData.length) {
         chart.timeScale().fitContent();
       }
-      const trade = payload.trade || {};
-      titleEl.textContent = `${payload.ticker} · #${trade.index || ''} · ${trade.direction || ''}`;
-      metaEl.textContent = `${payload.timeframe || 'M5'} · ${payload.trading_date || ''} · PnL ${App.fmtMoney(Number(trade.pnl || 0))}`;
+      showError('');
     } catch (e) {
       showError(String(e.message || e));
       setStatus('График: ' + (e.message || e), false);

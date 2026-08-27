@@ -38,9 +38,12 @@ func (s *Server) handleAPIStrategyTrades(w http.ResponseWriter, r *http.Request)
 	trades := sortTradesByOpen(result.Trades)
 	spans := closedTradesToSpans(trades)
 	for i := range spans {
-		spans[i]["tradeId"] = tradeSpanID(trades[i])
+		id := tradeSpanID(trades[i])
+		spans[i]["tradeId"] = id
+		spans[i]["trade_id"] = id
 		spans[i]["ticker"] = strings.ToUpper(trades[i].Ticker)
 		spans[i]["tradingDate"] = trades[i].TradingDate
+		spans[i]["trading_date"] = trades[i].TradingDate
 	}
 
 	summary, err := reader.GetSummary(r.Context(), f)
@@ -112,8 +115,18 @@ func (s *Server) handleAPIStrategyTradeChart(w http.ResponseWriter, r *http.Requ
 	from, to := singleTradeChartRange(*trade)
 	candles, err := s.candles.RangeCandles(r.Context(), ticker, tf, from, to)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("свечи: %v", err), http.StatusBadGateway)
-		return
+		if trade.TradingDate != "" {
+			candles, err = s.candles.DayCandles(r.Context(), ticker, tf, trade.TradingDate)
+		}
+		if err != nil {
+			http.Error(w, fmt.Sprintf("свечи: %v", err), http.StatusBadGateway)
+			return
+		}
+	}
+	if len(candles) == 0 && trade.TradingDate != "" {
+		if dayCandles, dayErr := s.candles.DayCandles(r.Context(), ticker, tf, trade.TradingDate); dayErr == nil {
+			candles = dayCandles
+		}
 	}
 
 	writeJSON(w, BuildStrategyTradeChartPayload(experimentID, tf, candles, *trade))
