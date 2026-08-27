@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>День — BCS Admin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="page-day" data-nav="day">
+  <header class="topbar">
+    <div class="brand">BCS Trading Bot</div>
+    <nav>
+      <a href="/">Дашборд</a>
+      <a href="/open">Открытые</a>
+      <a href="/day" class="active">День</a>
+      <a href="/trades">Сделки</a>
+      <a href="/export">Экспорт для ИИ</a>
+    </nav>
+  </header>
+  <main class="container">
+    <h1>График дня</h1>
+    <p class="muted">Свечи за день с BCS API · маркеры входа/выхода из истории сделок</p>
+    <div class="day-controls">
+      <label>Дата
+        <input type="date" id="day-date">
+      </label>
+      <label>Тикер
+        <select id="day-ticker"></select>
+      </label>
+      <button type="button" class="btn primary" id="day-load">Показать</button>
+      <span id="day-summary" class="muted"></span>
+    </div>
+    <p id="day-status" class="open-status">Выберите дату</p>
+    <p id="page-error" class="muted" hidden></p>
+    <div class="day-layout">
+      <section class="open-chart-panel day-chart-panel">
+        <div class="open-chart-toolbar">
+          <span id="day-chart-title">График</span>
+          <span id="day-chart-meta" class="muted"></span>
+        </div>
+        <div id="day-chart"></div>
+      </section>
+      <aside class="day-trades-panel">
+        <h2>Сделки (<span id="day-trade-count">0</span>)</h2>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="num">№</th>
+                <th>Эксп.</th>
+                <th>Напр.</th>
+                <th>Вход</th>
+                <th>Выход</th>
+                <th class="num">Цена вх.</th>
+                <th class="num">Цена вых.</th>
+                <th class="num">PnL</th>
+                <th>Причина</th>
+              </tr>
+            </thead>
+            <tbody id="day-trades-body"></tbody>
+          </table>
+        </div>
+      </aside>
+    </div>
+  </main>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="/static/app.js"></script>
+  <script src="/static/day-chart.js"></script>
+</body>
+</html>

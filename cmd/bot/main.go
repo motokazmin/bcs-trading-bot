@@ -225,6 +225,7 @@ func main() {
 			Exec:     executor,
 			Reader:   tradeReader,
 			Archives: api.NewArchiveStore(*archivesPath),
+			Candles:  live.NewCachedDayCandles(&live.BCSCandleFetcher{Client: client}, cfg.ClassCode, 0),
 		})
 		if err != nil {
 			logx.Fatalf("HTTP UI/API: %v", err)
