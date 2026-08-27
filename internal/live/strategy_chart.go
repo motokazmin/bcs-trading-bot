@@ -133,7 +133,7 @@ func (s *Server) handleAPIStrategyTradeChart(w http.ResponseWriter, r *http.Requ
 }
 
 func tradeSpanID(t models.ClosedTrade) string {
-	return fmt.Sprintf("%d", t.OpenedAt.Unix())
+	return fmt.Sprintf("%s-%d", strings.ToUpper(t.Ticker), t.OpenedAt.Unix())
 }
 
 func singleTradeChartRange(t models.ClosedTrade) (from, to time.Time) {
@@ -184,17 +184,7 @@ func candlesToPayload(candles []models.Candle) []map[string]any {
 }
 
 func closedTradeLevels(t models.ClosedTrade) []map[string]any {
-	levels := []map[string]any{
+	return []map[string]any{
 		{"price": t.EntryPrice, "title": "Entry", "color": "#90caf9"},
 	}
-	if t.InitialStopLoss > 0 {
-		levels = append(levels, map[string]any{"price": t.InitialStopLoss, "title": "SL init", "color": "#ef5350"})
-	}
-	if t.FinalStopLoss > 0 && t.FinalStopLoss != t.InitialStopLoss {
-		levels = append(levels, map[string]any{"price": t.FinalStopLoss, "title": "SL final", "color": "#f48fb1"})
-	}
-	if t.InitialTakeProfit > 0 {
-		levels = append(levels, map[string]any{"price": t.InitialTakeProfit, "title": "TP", "color": "#66bb6a"})
-	}
-	return levels
 }
