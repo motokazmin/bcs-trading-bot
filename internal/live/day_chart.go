@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"bcs-trading-bot/pkg/models"
@@ -180,7 +181,7 @@ func closedTradesToMarkers(trades []models.ClosedTrade) []map[string]any {
 			"position": entryPos,
 			"color":    entryColor,
 			"shape":    entryShape,
-			"text":     fmt.Sprintf("%d ВХ", n),
+			"text":     fmt.Sprintf("%d ВХ %s", n, formatMarkerPrice(t.EntryPrice)),
 			"size":     2,
 		})
 		exitColor := "#e57373"
@@ -192,7 +193,7 @@ func closedTradesToMarkers(trades []models.ClosedTrade) []map[string]any {
 			"position": exitPos,
 			"color":    exitColor,
 			"shape":    "square",
-			"text":     fmt.Sprintf("%d ВЫХ %s", n, closeReasonShort(t.CloseReason)),
+			"text":     fmt.Sprintf("%d ВЫХ %s %s", n, closeReasonShort(t.CloseReason), formatMarkerPrice(t.ExitPrice)),
 			"size":     2,
 		})
 	}
@@ -202,6 +203,10 @@ func closedTradesToMarkers(trades []models.ClosedTrade) []map[string]any {
 		return ti < tj
 	})
 	return markers
+}
+
+func formatMarkerPrice(price float64) string {
+	return strconv.FormatFloat(price, 'f', -1, 64)
 }
 
 func closedTradesToSpans(trades []models.ClosedTrade) []map[string]any {

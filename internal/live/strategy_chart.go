@@ -183,8 +183,11 @@ func candlesToPayload(candles []models.Candle) []map[string]any {
 	return out
 }
 
+// closedTradeLevels больше не используется для отрисовки горизонтальных
+// линий: точки входа/выхода уже явно показаны маркерами (стрелка/квадрат)
+// на своих свечах в closedTradesToMarkers. Горизонтальная линия Entry через
+// весь график только путала (у правого края дня визуально читалась как
+// «цена на конец дня»).
 func closedTradeLevels(t models.ClosedTrade) []map[string]any {
-	return []map[string]any{
-		{"price": t.EntryPrice, "title": "Entry", "color": "#90caf9"},
-	}
+	return []map[string]any{}
 }
