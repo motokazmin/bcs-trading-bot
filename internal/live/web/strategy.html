@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Стратегия — BCS Admin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="page-strategy" data-nav="strategy">
+  <header class="topbar">
+    <div class="brand">BCS Trading Bot</div>
+    <nav>
+      <a href="/">Дашборд</a>
+      <a href="/open">Открытые</a>
+      <a href="/day">День</a>
+      <a href="/strategy" class="active">Стратегия</a>
+      <a href="/trades">Сделки</a>
+      <a href="/export">Экспорт для ИИ</a>
+    </nav>
+  </header>
+  <main class="container">
+    <h1>Анализ стратегии</h1>
+    <p class="muted">Выберите experiment_id · список сделок · график одной сделки с контекстом (BCS API)</p>
+    <div class="day-controls strategy-controls">
+      <label>Стратегия (experiment_id)
+        <select id="strategy-select"></select>
+      </label>
+      <span id="strategy-summary" class="muted"></span>
+    </div>
+    <p id="strategy-status" class="open-status">Выберите стратегию</p>
+    <p id="page-error" class="muted" hidden></p>
+    <div class="open-layout strategy-layout">
+      <aside class="open-list strategy-list">
+        <h2>Сделки (<span id="strategy-trade-count">0</span>)</h2>
+        <div id="strategy-items"></div>
+      </aside>
+      <section class="open-chart-panel">
+        <div class="open-chart-toolbar">
+          <span id="strategy-chart-title">Выберите сделку</span>
+          <span id="strategy-chart-meta" class="muted"></span>
+        </div>
+        <div id="strategy-chart"></div>
+      </section>
+    </div>
+  </main>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="/static/app.js"></script>
+  <script src="/static/strategy-chart.js"></script>
+</body>
+</html>

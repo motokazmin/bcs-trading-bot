@@ -32,7 +32,7 @@ type Options struct {
 	Exec     interfaces.OrderExecutor
 	Reader   interfaces.TradeReader
 	Archives *api.ArchiveStore
-	Candles  DayCandleProvider
+	Candles  CandleProvider
 }
 
 // Server — HTTP UI и API (live + аналитика + экспорт).
@@ -45,7 +45,7 @@ type Server struct {
 	reader   interfaces.TradeReader
 	archives *api.ArchiveStore
 	export   *api.ExportService
-	candles  DayCandleProvider
+	candles  CandleProvider
 }
 
 func NewServer(hub *Hub, opts Options) (*Server, error) {
@@ -90,6 +90,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", servePage(webRoot, "index.html"))
 	mux.HandleFunc("GET /open", servePage(webRoot, "open.html"))
 	mux.HandleFunc("GET /day", servePage(webRoot, "day.html"))
+	mux.HandleFunc("GET /strategy", servePage(webRoot, "strategy.html"))
 	mux.HandleFunc("GET /trades", servePage(webRoot, "trades.html"))
 	mux.HandleFunc("GET /export", servePage(webRoot, "export.html"))
 
@@ -112,6 +113,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/trades", s.withAuth(s.handleAPITrades))
 	mux.HandleFunc("GET /api/day-trades", s.withAuth(s.handleAPIDayTrades))
 	mux.HandleFunc("GET /api/day-chart", s.withAuth(s.handleAPIDayChart))
+	mux.HandleFunc("GET /api/strategy-trades", s.withAuth(s.handleAPIStrategyTrades))
+	mux.HandleFunc("GET /api/strategy-trade-chart", s.withAuth(s.handleAPIStrategyTradeChart))
 	mux.HandleFunc("GET /api/account-equity", s.withAuth(s.handleAPIAccountEquity))
 	mux.HandleFunc("GET /api/date-range", s.withAuth(s.handleAPIDateRange))
 	mux.HandleFunc("GET /api/experiments", s.withAuth(s.handleAPIExperiments))

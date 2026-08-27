@@ -14,7 +14,7 @@ func TestStaticUIEmbedded(t *testing.T) {
 	}
 	h := srv.Handler()
 
-	for _, path := range []string{"/", "/open", "/trades", "/export", "/static/style.css", "/static/app.js"} {
+	for _, path := range []string{"/", "/open", "/day", "/strategy", "/trades", "/export", "/static/style.css", "/static/app.js"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)

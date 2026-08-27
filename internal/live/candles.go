@@ -14,9 +14,10 @@ import (
 
 const defaultCandleCacheTTL = 15 * time.Minute
 
-// DayCandleProvider загружает свечи за торговый день (MSK).
-type DayCandleProvider interface {
+// CandleProvider загружает исторические свечи (день MSK или произвольный диапазон).
+type CandleProvider interface {
 	DayCandles(ctx context.Context, ticker, timeFrame, dateYYYYMMDD string) ([]models.Candle, error)
+	RangeCandles(ctx context.Context, ticker, timeFrame string, from, to time.Time) ([]models.Candle, error)
 }
 
 // CandleFetcher — низкоуровневая загрузка свечей (BCS или мок в тестах).
@@ -41,7 +42,7 @@ type candleCacheEntry struct {
 	expires time.Time
 }
 
-// CachedDayCandles — DayCandleProvider с in-memory TTL-кэшем.
+// CachedDayCandles — CandleProvider с in-memory TTL-кэшем.
 type CachedDayCandles struct {
 	Fetcher   CandleFetcher
 	ClassCode string
@@ -82,6 +83,49 @@ func (p *CachedDayCandles) DayCandles(ctx context.Context, ticker, timeFrame, da
 	}
 
 	key := ticker + "|" + dateYYYYMMDD + "|" + timeFrame
+	now := time.Now()
+	p.mu.Lock()
+	if ent, ok := p.cache[key]; ok && now.Before(ent.expires) {
+		out := append([]models.Candle(nil), ent.candles...)
+		p.mu.Unlock()
+		return out, nil
+	}
+	p.mu.Unlock()
+
+	candles, err := p.Fetcher.FetchCandles(ctx, p.ClassCode, ticker, timeFrame, from, to)
+	if err != nil {
+		return nil, err
+	}
+	if candles == nil {
+		candles = []models.Candle{}
+	}
+
+	p.mu.Lock()
+	p.cache[key] = candleCacheEntry{
+		candles: append([]models.Candle(nil), candles...),
+		expires: now.Add(p.TTL),
+	}
+	p.mu.Unlock()
+	return candles, nil
+}
+
+func (p *CachedDayCandles) RangeCandles(ctx context.Context, ticker, timeFrame string, from, to time.Time) ([]models.Candle, error) {
+	if p == nil || p.Fetcher == nil {
+		return nil, fmt.Errorf("провайдер свечей не настроен")
+	}
+	ticker = strings.ToUpper(strings.TrimSpace(ticker))
+	timeFrame = strings.ToUpper(strings.TrimSpace(timeFrame))
+	if ticker == "" {
+		return nil, fmt.Errorf("ticker обязателен")
+	}
+	if timeFrame == "" {
+		timeFrame = "M5"
+	}
+	if !from.Before(to) {
+		return nil, fmt.Errorf("некорректный диапазон свечей")
+	}
+
+	key := fmt.Sprintf("%s|%s|%d|%d", ticker, timeFrame, from.Unix(), to.Unix())
 	now := time.Now()
 	p.mu.Lock()
 	if ent, ok := p.cache[key]; ok && now.Before(ent.expires) {

@@ -144,16 +144,7 @@ func sortTradesByOpen(trades []models.ClosedTrade) []models.ClosedTrade {
 
 // BuildDayChartPayload — candles/markers/trades для графика дня.
 func BuildDayChartPayload(date, ticker, timeframe string, candles []models.Candle, trades []models.ClosedTrade) map[string]any {
-	outCandles := make([]map[string]any, len(candles))
-	for i, c := range candles {
-		outCandles[i] = map[string]any{
-			"time":  c.Timestamp.Unix(),
-			"open":  c.Open,
-			"high":  c.High,
-			"low":   c.Low,
-			"close": c.Close,
-		}
-	}
+	outCandles := candlesToPayload(candles)
 
 	sorted := sortTradesByOpen(trades)
 	markers := closedTradesToMarkers(sorted)
