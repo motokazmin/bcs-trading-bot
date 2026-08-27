@@ -192,7 +192,7 @@ func closedTradesToMarkers(trades []models.ClosedTrade) []map[string]any {
 			"time":     t.ClosedAt.Unix(),
 			"position": exitPos,
 			"color":    exitColor,
-			"shape":    "square",
+			"shape":    "circle",
 			"text":     fmt.Sprintf("%d ВЫХ %s %s", n, closeReasonShort(t.CloseReason), formatMarkerPrice(t.ExitPrice)),
 			"size":     2,
 		})
@@ -206,7 +206,7 @@ func closedTradesToMarkers(trades []models.ClosedTrade) []map[string]any {
 }
 
 func formatMarkerPrice(price float64) string {
-	return strconv.FormatFloat(price, 'f', -1, 64)
+	return strconv.FormatFloat(price, 'f', 2, 64)
 }
 
 func closedTradesToSpans(trades []models.ClosedTrade) []map[string]any {
