@@ -180,7 +180,7 @@ func TestClosePositionGhostDropsWithoutRestore(t *testing.T) {
 		Strategy: config.StrategyConfig{Lookback: 20, StopMode: strategy.StopModeRange},
 		Risk:     config.RiskConfig{Deposit: 100_000, MaxDailyLoss: 2_000, RiskPerTradePercent: 0.5},
 	}
-	globalRisk := risk.NewGlobalRiskController(200_000, 2.0, 4)
+	globalRisk := risk.NewGlobalRiskController(200_000, 2.0, 0.5, 4)
 	worker, err := NewTickerWorker(
 		"CHMF", exp, 1.0, costs.Config{},
 		config.SessionConfig{Timezone: "Europe/Moscow", EODCloseTime: "23:40", SessionOpenTime: "10:00"},

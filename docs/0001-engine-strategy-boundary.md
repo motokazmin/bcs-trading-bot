@@ -90,3 +90,34 @@ exits и без).
 - BCS API: отдаёт ли H1 нативно по WebSocket или нужна локальная агрегация
   из M5 — техническое исследование в начале Фазы 1, не архитектурное
   решение.
+
+## Прогресс миграции
+
+| Фаза | Статус | Коммит / заметка |
+|------|--------|------------------|
+| 0 — ADR | ✅ | `8c27019` |
+| 1 — DataFeed | ✅ | `f67ae5a` |
+| 2 — risk-budget | ✅ | см. ниже |
+| 3 — Strategy | — | |
+| 4 — пилот | — | |
+| 5 — чемпионы | — | |
+
+### Фаза 2 — risk-budget вместо count (реализовано)
+
+`GlobalRiskController` (`internal/risk/global.go`) больше не ограничивает
+портфель числом одновременных позиций (`len(openPositions)`). Лимит —
+**суммарный открытый риск в рублях** (SL-notional по каждой позиции):
+
+```
+maxOpenRiskBudget = deposit × risk_per_trade_percent / 100 × max_parallel_trades
+```
+
+- `TryOpen` / `CanOpenPosition(newTradeRisk)` отклоняют сделку, если
+  `sumOpenRisk + newTradeRisk > maxOpenRiskBudget` (`ErrMaxRiskBudgetExceeded`).
+- Поле `max_parallel_trades` в YAML **сохранено**: задаёт размер бюджета,
+  не count-проверку. При стандартном сайзинге (~0.5% на сделку) поведение
+  эквивалентно прежней count-модели.
+- Блокировка per-ticker (`ErrTickerBusy`) без изменений (Решение 2).
+- `ErrMaxParallelTrades` — алиас `ErrMaxRiskBudgetExceeded` для обратной
+  совместимости.
+- Геттеры для логов/дашборда: `OpenRiskUsed()`, `MaxOpenRiskBudgetLimit()`.

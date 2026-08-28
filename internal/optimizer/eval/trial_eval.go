@@ -168,6 +168,7 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 	globalRisk := risk.NewGlobalRiskController(
 		e.settings.Deposit,
 		e.fixedValue("dailyLossLimitPercent", 2.0),
+		tc.riskPct,
 		maxParallel,
 	)
 

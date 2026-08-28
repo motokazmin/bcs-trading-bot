@@ -132,14 +132,22 @@ func main() {
 	if maxParallel <= 0 {
 		maxParallel = 5
 	}
+	riskPct := accountRisk.RiskPerTradePercent
+	if riskPct <= 0 {
+		riskPct = 0.5
+	}
 	pct := accountRisk.MaxDailyLossPercent
 	if pct <= 0 {
 		pct = 2.0
 	}
-	globalRisk := risk.NewGlobalRiskController(accountRisk.Deposit, pct, maxParallel)
+	globalRisk := risk.NewGlobalRiskController(accountRisk.Deposit, pct, riskPct, maxParallel)
 	logx.Info(
-		"Единый счёт: депозит %.0f | CB %.1f%% | max_parallel=%d | one-position-per-ticker",
-		accountRisk.Deposit, pct, maxParallel,
+		"Единый счёт: депозит %.0f | CB %.1f%% | open_risk_budget=%.0f ₽ (%.1f%%×%d слотов) | one-position-per-ticker",
+		accountRisk.Deposit,
+		pct,
+		globalRisk.MaxOpenRiskBudgetLimit(),
+		riskPct,
+		maxParallel,
 	)
 
 	var executor interfaces.OrderExecutor

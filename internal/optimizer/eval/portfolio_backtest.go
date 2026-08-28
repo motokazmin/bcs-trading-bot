@@ -151,7 +151,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 
 	store := memory.NewTradeStore()
 	executor := bcs.NewVirtualExecutor(deposit)
-	globalRisk := risk.NewGlobalRiskController(deposit, dailyLossPct, maxParallel)
+	globalRisk := risk.NewGlobalRiskController(deposit, dailyLossPct, riskPerTrade, maxParallel)
 
 	portfolio, err := simulation.NewPortfolioRunner(simulation.PortfolioRunnerConfig{
 		Tickers:    runnerCfgs,

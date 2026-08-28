@@ -8,8 +8,11 @@ import (
 // ErrCircuitBreakerTriggered — дневной лимит убытков (2%) исчерпан, новые сделки запрещены.
 var ErrCircuitBreakerTriggered = errors.New("circuit breaker triggered: daily loss limit reached")
 
-// ErrMaxParallelTrades — превышен лимит одновременных позиций по портфелю.
-var ErrMaxParallelTrades = errors.New("max parallel trades limit reached")
+// ErrMaxRiskBudgetExceeded — превышен лимит суммарного открытого риска по портфелю.
+var ErrMaxRiskBudgetExceeded = errors.New("max open risk budget exceeded")
+
+// ErrMaxParallelTrades — устаревшее имя ErrMaxRiskBudgetExceeded (обратная совместимость).
+var ErrMaxParallelTrades = ErrMaxRiskBudgetExceeded
 
 // ErrTickerBusy — по тикеру уже есть открытая позиция (одна позиция на тикер).
 var ErrTickerBusy = errors.New("ticker busy: position already open")
@@ -20,30 +23,43 @@ type OpenPosition struct {
 	Risk   float64 // максимальный риск в рублях при срабатывании SL
 }
 
-// GlobalRiskController — портфельный контроллер риска (circuit breaker + лимит позиций).
+// GlobalRiskController — портфельный контроллер риска (circuit breaker + лимит открытого риска).
 type GlobalRiskController struct {
 	mu                sync.RWMutex
 	deposit           float64
 	maxDailyLoss      float64
-	maxParallelTrades int
+	maxOpenRiskBudget float64 // суммарный риск открытых позиций в рублях (SL-notional)
 	realizedPnL       float64
 	openPositions     map[string]float64 // ticker -> risk amount
 	blocked           bool
 	tradingDate       string
 }
 
-// NewGlobalRiskController создаёт глобальный риск-контроллер.
-func NewGlobalRiskController(deposit, maxDailyLossPercent float64, maxParallelTrades int) *GlobalRiskController {
+// MaxOpenRiskBudget вычисляет лимит открытого риска из депозита, % на сделку и числа слотов.
+// maxParallelTrades в конфиге задаёт не count-проверку, а размер бюджета: N × risk%.
+func MaxOpenRiskBudget(deposit, riskPerTradePercent float64, maxParallelTrades int) float64 {
 	if maxParallelTrades <= 0 {
 		maxParallelTrades = 2
 	}
+	if riskPerTradePercent <= 0 {
+		riskPerTradePercent = 0.5
+	}
+	if deposit <= 0 {
+		return 0
+	}
+	perTrade := deposit * riskPerTradePercent / 100
+	return perTrade * float64(maxParallelTrades)
+}
+
+// NewGlobalRiskController создаёт глобальный риск-контроллер.
+func NewGlobalRiskController(deposit, maxDailyLossPercent, riskPerTradePercent float64, maxParallelTrades int) *GlobalRiskController {
 	if maxDailyLossPercent <= 0 {
 		maxDailyLossPercent = 2.0
 	}
 	return &GlobalRiskController{
 		deposit:           deposit,
 		maxDailyLoss:      deposit * maxDailyLossPercent / 100,
-		maxParallelTrades: maxParallelTrades,
+		maxOpenRiskBudget: MaxOpenRiskBudget(deposit, riskPerTradePercent, maxParallelTrades),
 		openPositions:     make(map[string]float64),
 	}
 }
@@ -67,13 +83,13 @@ func (g *GlobalRiskController) PreTradeCheck(newTradeRisk float64) error {
 	return nil
 }
 
-// CanOpenPosition проверяет лимит одновременных позиций.
-func (g *GlobalRiskController) CanOpenPosition() error {
+// CanOpenPosition проверяет, что новая сделка с риском newTradeRisk укладывается в бюджет.
+func (g *GlobalRiskController) CanOpenPosition(newTradeRisk float64) error {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	if len(g.openPositions) >= g.maxParallelTrades {
-		return ErrMaxParallelTrades
+	if g.sumOpenRiskLocked()+newTradeRisk > g.maxOpenRiskBudget {
+		return ErrMaxRiskBudgetExceeded
 	}
 	return nil
 }
@@ -89,7 +105,7 @@ func (g *GlobalRiskController) CanOpenTicker(ticker string) error {
 	return nil
 }
 
-// TryOpen атомарно проверяет CB + max parallel + ticker busy и резервирует слот.
+// TryOpen атомарно проверяет CB + risk budget + ticker busy и резервирует риск.
 // При ошибке исполнения ордера вызывающий обязан ReleaseOpen.
 func (g *GlobalRiskController) TryOpen(ticker string, newTradeRisk float64) error {
 	g.mu.Lock()
@@ -98,8 +114,8 @@ func (g *GlobalRiskController) TryOpen(ticker string, newTradeRisk float64) erro
 	if g.blocked {
 		return ErrCircuitBreakerTriggered
 	}
-	if len(g.openPositions) >= g.maxParallelTrades {
-		return ErrMaxParallelTrades
+	if g.sumOpenRiskLocked()+newTradeRisk > g.maxOpenRiskBudget {
+		return ErrMaxRiskBudgetExceeded
 	}
 	if _, ok := g.openPositions[ticker]; ok {
 		return ErrTickerBusy
@@ -171,6 +187,20 @@ func (g *GlobalRiskController) OpenPositionCount() int {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	return len(g.openPositions)
+}
+
+// OpenRiskUsed возвращает суммарный риск открытых позиций в рублях.
+func (g *GlobalRiskController) OpenRiskUsed() float64 {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.sumOpenRiskLocked()
+}
+
+// MaxOpenRiskBudgetLimit возвращает лимит суммарного открытого риска в рублях.
+func (g *GlobalRiskController) MaxOpenRiskBudgetLimit() float64 {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.maxOpenRiskBudget
 }
 
 func (g *GlobalRiskController) sumOpenRiskLocked() float64 {

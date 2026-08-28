@@ -5,8 +5,16 @@ import (
 	"testing"
 )
 
+func TestMaxOpenRiskBudget(t *testing.T) {
+	got := MaxOpenRiskBudget(200_000, 0.5, 5)
+	want := 200_000 * 0.005 * 5
+	if got != want {
+		t.Fatalf("budget: got %.0f, want %.0f", got, want)
+	}
+}
+
 func TestGlobalRiskController_CircuitBreaker(t *testing.T) {
-	g := NewGlobalRiskController(200_000, 2.0, 2)
+	g := NewGlobalRiskController(200_000, 2.0, 0.5, 2)
 
 	// Реализованный убыток -3000 + открытый риск 1500 = -4500 > лимита -4000
 	g.realizedPnL = -3000
@@ -20,18 +28,41 @@ func TestGlobalRiskController_CircuitBreaker(t *testing.T) {
 	}
 }
 
-func TestGlobalRiskController_MaxParallelTrades(t *testing.T) {
-	g := NewGlobalRiskController(200_000, 2.0, 2)
+func TestGlobalRiskController_MaxOpenRiskBudget(t *testing.T) {
+	g := NewGlobalRiskController(200_000, 2.0, 0.5, 2) // budget = 2000
 	g.RegisterOpen("SBER", 1000)
 	g.RegisterOpen("MGNT", 1000)
 
-	if err := g.CanOpenPosition(); err != ErrMaxParallelTrades {
-		t.Fatalf("expected max parallel error, got %v", err)
+	if err := g.CanOpenPosition(1); err != ErrMaxRiskBudgetExceeded {
+		t.Fatalf("expected max risk budget error, got %v", err)
+	}
+}
+
+func TestGlobalRiskController_RiskBudgetAllowsMorePositionsThanSlots(t *testing.T) {
+	g := NewGlobalRiskController(200_000, 2.0, 0.5, 2) // budget = 2000, не count=2
+
+	if err := g.TryOpen("SBER", 600); err != nil {
+		t.Fatalf("SBER: %v", err)
+	}
+	if err := g.TryOpen("MGNT", 600); err != nil {
+		t.Fatalf("MGNT: %v", err)
+	}
+	if err := g.TryOpen("TATN", 600); err != nil {
+		t.Fatalf("TATN: %v", err)
+	}
+	if g.OpenPositionCount() != 3 {
+		t.Fatalf("open count: got %d, want 3", g.OpenPositionCount())
+	}
+	if g.OpenRiskUsed() != 1800 {
+		t.Fatalf("open risk: got %.0f, want 1800", g.OpenRiskUsed())
+	}
+	if err := g.TryOpen("CHMF", 300); err != ErrMaxRiskBudgetExceeded {
+		t.Fatalf("expected budget exceeded, got %v", err)
 	}
 }
 
 func TestGlobalRiskController_CanOpenTicker(t *testing.T) {
-	g := NewGlobalRiskController(200_000, 2.0, 4)
+	g := NewGlobalRiskController(200_000, 2.0, 0.5, 4)
 	if err := g.CanOpenTicker("MGNT"); err != nil {
 		t.Fatalf("expected free ticker, got %v", err)
 	}
@@ -49,7 +80,7 @@ func TestGlobalRiskController_CanOpenTicker(t *testing.T) {
 }
 
 func TestGlobalRiskController_TryOpenAtomic(t *testing.T) {
-	g := NewGlobalRiskController(200_000, 2.0, 4)
+	g := NewGlobalRiskController(200_000, 2.0, 0.5, 4)
 	if err := g.TryOpen("CHMF", 1000); err != nil {
 		t.Fatalf("first TryOpen: %v", err)
 	}
@@ -63,7 +94,7 @@ func TestGlobalRiskController_TryOpenAtomic(t *testing.T) {
 }
 
 func TestGlobalRiskController_TryOpenRace(t *testing.T) {
-	g := NewGlobalRiskController(200_000, 2.0, 8)
+	g := NewGlobalRiskController(200_000, 2.0, 0.5, 8)
 	var wg sync.WaitGroup
 	var okCount int
 	var mu sync.Mutex
@@ -86,8 +117,9 @@ func TestGlobalRiskController_TryOpenRace(t *testing.T) {
 		t.Fatalf("open count: %d", g.OpenPositionCount())
 	}
 }
+
 func TestGlobalRiskController_ThreadSafe(t *testing.T) {
-	g := NewGlobalRiskController(200_000, 2.0, 2)
+	g := NewGlobalRiskController(200_000, 2.0, 0.5, 2)
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
@@ -103,7 +135,7 @@ func TestGlobalRiskController_ThreadSafe(t *testing.T) {
 }
 
 func TestGlobalRiskController_ResetDaily(t *testing.T) {
-	g := NewGlobalRiskController(200_000, 2.0, 2)
+	g := NewGlobalRiskController(200_000, 2.0, 0.5, 2)
 	g.realizedPnL = -5000
 	g.blocked = true
 	g.RegisterOpen("SBER", 1000)
