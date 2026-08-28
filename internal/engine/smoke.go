@@ -19,8 +19,9 @@ func RunSmokeTest(ctx context.Context, client *bcs.BCSClient, ticker string, exe
 	logx.Info("Smoke-test: ожидание котировки по %s (таймаут %s)...", ticker, smokeTestTimeout)
 
 	tickCh := make(chan models.Tick, 8)
-	routes := map[string][]bcs.WorkerRoutes{
-		ticker: {{TickChan: tickCh}},
+	timeframe := bcs.CandleTimeFrame
+	routes := map[bcs.RouteKey][]bcs.WorkerRoutes{
+		{Ticker: ticker, Timeframe: timeframe}: {{TickChan: tickCh}},
 	}
 
 	wsCtx, wsCancel := context.WithTimeout(ctx, smokeTestTimeout)

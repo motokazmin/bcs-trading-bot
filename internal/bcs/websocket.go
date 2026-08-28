@@ -57,6 +57,27 @@ type WorkerRoutes struct {
 	TickChan   chan<- models.Tick
 }
 
+// RouteKey — подписка на свечи конкретного тикера в конкретном таймфрейме.
+// Один тикер может иметь несколько одновременных подписок с разным
+// Timeframe (разные стратегии, разные таймфреймы) — см. ADR 0001 и
+// internal/datafeed.
+type RouteKey struct {
+	Ticker    string
+	Timeframe string
+}
+
+// tickerRoutes — вспомогательная развёртка routes для рассылки котировок:
+// котировки (Quotes) не привязаны к таймфрейму свечей, поэтому тик должен
+// доходить до всех маршрутов тикера независимо от того, на какой Timeframe
+// подписан конкретный маршрут.
+func tickerRoutes(routes map[RouteKey][]WorkerRoutes) map[string][]WorkerRoutes {
+	out := make(map[string][]WorkerRoutes)
+	for key, wr := range routes {
+		out[key.Ticker] = append(out[key.Ticker], wr...)
+	}
+	return out
+}
+
 type wsInstrument struct {
 	ClassCode string `json:"classCode"`
 	Ticker    string `json:"ticker"`
@@ -98,33 +119,28 @@ type quoteWSMessage struct {
 	} `json:"errors"`
 }
 
-// SubscribeToCandles подключается к WebSocket БКС и передаёт свечи в candleChan.
+// SubscribeToCandles подключается к WebSocket БКС и передаёт свечи в candleChan
+// на таймфрейме по умолчанию (c.candleTimeFrame). Оставлено для smoke-теста
+// и других сценариев с одним тикером/одним таймфреймом.
 func (c *BCSClient) SubscribeToCandles(ctx context.Context, ticker string, candleChan chan<- models.Candle) error {
-	routes := map[string][]WorkerRoutes{
-		ticker: {{CandleChan: candleChan}},
+	timeframe := c.candleTimeFrame
+	if timeframe == "" {
+		timeframe = CandleTimeFrame
 	}
-	return c.runMarketDataSession(ctx, []string{ticker}, routes)
+	routes := map[RouteKey][]WorkerRoutes{
+		{Ticker: ticker, Timeframe: timeframe}: {{CandleChan: candleChan}},
+	}
+	return c.runMarketDataSession(ctx, routes)
 }
 
-// SubscribeCandlesFanOut — совместимость: только свечи без тиков.
-func (c *BCSClient) SubscribeCandlesFanOut(ctx context.Context, routes map[string]chan<- models.Candle) error {
-	wr := make(map[string][]WorkerRoutes, len(routes))
-	for ticker, ch := range routes {
-		wr[ticker] = []WorkerRoutes{{CandleChan: ch}}
-	}
-	return c.SubscribeMarketDataFanOut(ctx, wr)
-}
-
-// SubscribeMarketDataFanOut подписывается на свечи и котировки для всех тикеров.
-// На один тикер может быть несколько маршрутов (параллельные эксперименты).
-func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[string][]WorkerRoutes) error {
+// SubscribeMarketDataFanOut подписывается на свечи и котировки для набора
+// маршрутов, каждый ключ которых — пара (тикер, таймфрейм). Один тикер может
+// одновременно иметь несколько маршрутов с разными таймфреймами (разные
+// стратегии) — все они уходят на одно WebSocket-соединение отдельными
+// subscribe-сообщениями с нужным TimeFrame.
+func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[RouteKey][]WorkerRoutes) error {
 	if len(routes) == 0 {
 		return fmt.Errorf("список маршрутов пуст")
-	}
-
-	tickers := make([]string, 0, len(routes))
-	for ticker := range routes {
-		tickers = append(tickers, ticker)
 	}
 
 	backoff := time.Second
@@ -135,7 +151,7 @@ func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[st
 			return err
 		}
 
-		err := c.runMarketDataSession(ctx, tickers, routes)
+		err := c.runMarketDataSession(ctx, routes)
 		if err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
@@ -170,7 +186,7 @@ func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[st
 	}
 }
 
-func (c *BCSClient) runMarketDataSession(ctx context.Context, tickers []string, routes map[string][]WorkerRoutes) error {
+func (c *BCSClient) runMarketDataSession(ctx context.Context, routes map[RouteKey][]WorkerRoutes) error {
 	token := c.AccessToken()
 	if token == "" {
 		return fmt.Errorf("клиент не авторизован")
@@ -191,36 +207,52 @@ func (c *BCSClient) runMarketDataSession(ctx context.Context, tickers []string, 
 	}
 	defer conn.Close()
 
-	instruments := make([]wsInstrument, len(tickers))
-	for i, ticker := range tickers {
-		instruments[i] = wsInstrument{ClassCode: classCode, Ticker: ticker}
+	// Группируем тикеры по таймфрейму: сообщение подписки на свечи несёт один
+	// TimeFrame на весь список Instruments, поэтому на каждый уникальный
+	// таймфрейм нужно своё subscribe-сообщение (см. RouteKey/ADR 0001).
+	tickersByTimeframe := make(map[string][]string)
+	allTickersSet := make(map[string]struct{})
+	for key := range routes {
+		timeframe := key.Timeframe
+		if timeframe == "" {
+			timeframe = CandleTimeFrame
+		}
+		tickersByTimeframe[timeframe] = append(tickersByTimeframe[timeframe], key.Ticker)
+		allTickersSet[key.Ticker] = struct{}{}
 	}
 
-	timeFrame := c.candleTimeFrame
-	if timeFrame == "" {
-		timeFrame = CandleTimeFrame
+	for timeframe, tickers := range tickersByTimeframe {
+		instruments := make([]wsInstrument, len(tickers))
+		for i, ticker := range tickers {
+			instruments[i] = wsInstrument{ClassCode: classCode, Ticker: ticker}
+		}
+		candleSub := wsSubscribeRequest{
+			SubscribeType: 0,
+			DataType:      wsDataTypeCandles,
+			TimeFrame:     timeframe,
+			Instruments:   instruments,
+		}
+		if err := conn.WriteJSON(candleSub); err != nil {
+			return fmt.Errorf("ошибка подписки на свечи (%s): %w", timeframe, err)
+		}
+		logx.WS("подписка %d инструмент(ов) %v — свечи %s", len(tickers), tickers, timeframe)
 	}
 
-	candleSub := wsSubscribeRequest{
-		SubscribeType: 0,
-		DataType:      wsDataTypeCandles,
-		TimeFrame:     timeFrame,
-		Instruments:   instruments,
+	allTickers := make([]wsInstrument, 0, len(allTickersSet))
+	for ticker := range allTickersSet {
+		allTickers = append(allTickers, wsInstrument{ClassCode: classCode, Ticker: ticker})
 	}
-	if err := conn.WriteJSON(candleSub); err != nil {
-		return fmt.Errorf("ошибка подписки на свечи: %w", err)
-	}
-
 	quoteSub := wsSubscribeRequest{
 		SubscribeType: 0,
 		DataType:      wsDataTypeQuotes,
-		Instruments:   instruments,
+		Instruments:   allTickers,
 	}
 	if err := conn.WriteJSON(quoteSub); err != nil {
 		return fmt.Errorf("ошибка подписки на котировки: %w", err)
 	}
+	logx.WS("подписка %d инструмент(ов) — котировки", len(allTickers))
 
-	logx.WS("подписка %d инструмент(ов) %v — свечи %s + котировки", len(tickers), tickers, timeFrame)
+	tickRoutes := tickerRoutes(routes)
 
 	conn.SetPongHandler(func(string) error {
 		return conn.SetReadDeadline(time.Now().Add(wsReadDeadline(time.Now())))
@@ -258,7 +290,7 @@ func (c *BCSClient) runMarketDataSession(ctx context.Context, tickers []string, 
 			return fmt.Errorf("ошибка чтения: %w", err)
 		}
 
-		if err := c.dispatchMarketMessage(ctx, raw, routes); err != nil {
+		if err := c.dispatchMarketMessage(ctx, raw, routes, tickRoutes); err != nil {
 			return err
 		}
 	}
@@ -268,10 +300,15 @@ func isUnauthorizedWSError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "HTTP 401")
 }
 
-func (c *BCSClient) dispatchMarketMessage(ctx context.Context, raw []byte, routes map[string][]WorkerRoutes) error {
+// dispatchMarketMessage маршрутизирует входящее сообщение. Свечи (CandleStick)
+// маршрутизируются по (Ticker, TimeFrame) — так несколько подписок на один
+// тикер с разным таймфреймом не путают друг друга. Котировки (Quotes) не
+// несут TimeFrame и рассылаются во все маршруты тикера через tickRoutes.
+func (c *BCSClient) dispatchMarketMessage(ctx context.Context, raw []byte, routes map[RouteKey][]WorkerRoutes, tickRoutes map[string][]WorkerRoutes) error {
 	var header struct {
 		ResponseType string `json:"responseType"`
 		Ticker       string `json:"ticker"`
+		TimeFrame    string `json:"timeFrame"`
 		Errors       []struct {
 			Message string `json:"message"`
 			Code    string `json:"code"`
@@ -288,19 +325,26 @@ func (c *BCSClient) dispatchMarketMessage(ctx context.Context, raw []byte, route
 		return nil
 	}
 
-	routeList, ok := routes[header.Ticker]
-	if !ok {
-		return nil
-	}
-
 	switch header.ResponseType {
 	case "CandleStick":
+		timeframe := header.TimeFrame
+		if timeframe == "" {
+			timeframe = CandleTimeFrame
+		}
+		routeList, ok := routes[RouteKey{Ticker: header.Ticker, Timeframe: timeframe}]
+		if !ok {
+			return nil
+		}
 		for _, route := range routeList {
 			if err := c.dispatchCandle(ctx, raw, route); err != nil {
 				return err
 			}
 		}
 	case "Quotes":
+		routeList, ok := tickRoutes[header.Ticker]
+		if !ok {
+			return nil
+		}
 		for _, route := range routeList {
 			if err := c.dispatchQuote(ctx, raw, route); err != nil {
 				return err

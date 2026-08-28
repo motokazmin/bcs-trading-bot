@@ -15,6 +15,7 @@ import (
 	"bcs-trading-bot/internal/api"
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
+	"bcs-trading-bot/internal/datafeed"
 	"bcs-trading-bot/internal/engine"
 	"bcs-trading-bot/internal/live"
 	"bcs-trading-bot/internal/risk"
@@ -170,13 +171,21 @@ func main() {
 		logx.Fatalf("неизвестный trading_mode: %q", cfg.TradingMode)
 	}
 
-	routes := make(map[string][]bcs.WorkerRoutes)
+	feed := datafeed.New(client)
 	workerCount := 0
 	hub := live.NewHub()
 
 	for _, exp := range experiments {
 		expTickers := cfg.TickersForExperiment(exp)
 		session := cfg.SessionForExperiment(exp)
+
+		// Эффективный таймфрейм эксперимента: exp.CandleTimeframe уже
+		// нормализован в ResolvedExperiments() (fallback на cfg.CandleTimeFrame,
+		// если в конфиге эксперимента не задан свой) — см. ADR 0001.
+		timeframe := exp.CandleTimeframe
+		if timeframe == "" {
+			timeframe = cfg.CandleTimeFrame
+		}
 
 		workerExp := exp
 		workerExp.Risk = accountRisk
@@ -191,7 +200,7 @@ func main() {
 				cfg.TradingMode,
 				runID,
 				cfg.ClassCode,
-				cfg.CandleTimeFrame,
+				timeframe,
 				tradeStore,
 				globalRisk,
 			)
@@ -201,10 +210,9 @@ func main() {
 
 			hub.Register(worker)
 			candleIn, tickIn := teeMarketToHub(ctx, hub, tc.Symbol, worker.CandleChan(), worker.TickChan())
-			routes[tc.Symbol] = append(routes[tc.Symbol], bcs.WorkerRoutes{
-				CandleChan: candleIn,
-				TickChan:   tickIn,
-			})
+			if err := feed.Subscribe(tc.Symbol, timeframe, candleIn, tickIn); err != nil {
+				logx.Fatalf("ошибка подписки на данные %s/%s (%s): %v", exp.ID, tc.Symbol, timeframe, err)
+			}
 			go worker.Start(ctx, executor)
 			workerCount++
 		}
@@ -256,7 +264,7 @@ func main() {
 	}
 
 	go func() {
-		if err := client.SubscribeMarketDataFanOut(ctx, routes); err != nil && ctx.Err() == nil {
+		if err := feed.Run(ctx); err != nil && ctx.Err() == nil {
 			logx.Error("стрим рыночных данных остановлен: %v", err)
 			cancel() // даём main нормально завершиться через <-ctx.Done()
 		}
