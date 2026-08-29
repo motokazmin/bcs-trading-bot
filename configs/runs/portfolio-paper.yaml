@@ -1,5 +1,10 @@
-# Paper portfolio: 6 slots (5 legacy champions + ORC complement), один virtual-счёт 200k.
+# Paper portfolio: 6 slots, один virtual-счёт 200k.
+# Фаза 4/5 (ADR 0001, docs/adr/0001-engine-strategy-boundary.md): все 6
+# экспериментов переведены на runtime: strategy (StrategyRunner/adapter),
+# TickerWorker в этом файле больше не используется. Сигнальная логика
+# каждой стратегии не менялась при переносе.
 # docs/portfolio.md · docs/baseline.md · docs/research-rolling.md
+# docs/strategy-framework-architecture.md — карта каркас/стратегии.
 # Запуск: make bot
 # Проверка: go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
 
@@ -44,6 +49,10 @@ storage:
 experiments:
   - id: session-orc-morning
     name: "Morning Session ORC (07:00–09:50)"
+    # Фаза 4/5 (ADR 0001): перенос на StrategyRunner/adapter, см. комментарий
+    # у or-fade-conservative про известные дыры адаптера (live-дашборд,
+    # tradeaudit, ghost-handling) — актуально для всех перенесённых ниже.
+    runtime: strategy
     session_open_time: "07:00"
     eod_close_time: "09:50"
     weekdays_only: true
@@ -69,6 +78,7 @@ experiments:
 
   - id: orc-wave2
     name: "ORC Champion (10:00–10:30)"
+    runtime: strategy
     tickers:
       - MGNT
       - ROSN
@@ -88,6 +98,7 @@ experiments:
 
   - id: orc-complement
     name: "ORC Complement rolling (excl. MGNT/ROSN/TATN)"
+    runtime: strategy
     tickers:
       - SBER
       - GAZP
@@ -112,6 +123,14 @@ experiments:
 
   - id: or-fade-conservative
     name: "OR Fade Champion (10:15–12:30)"
+    # Фаза 4 (ADR 0001): первый боевой чемпион на StrategyRunner/adapter
+    # вместо TickerWorker. Сигнальная логика (opening_range_fade) не менялась.
+    # Известные дыры адаптера, ещё не закрыты для этого чемпиона:
+    #   - internal/live.Hub не получает снапшоты позиций (дашборд их не увидит);
+    #   - tradeaudit ValidateOpen/ValidateClose не вызываются;
+    #   - ghost-position handling упрощён (ReleaseOpen без ErrNoOpenPosition-диагностики).
+    # Смотреть в первую очередь при расхождениях с прежним поведением.
+    runtime: strategy
     tickers:
       - LKOH
       - CHMF
@@ -135,6 +154,7 @@ experiments:
 
   - id: mf-afternoon
     name: "MF Afternoon Champion (12:30–18:40)"
+    runtime: strategy
     entry_delay_minutes: 150
     tickers:
       - MGNT
@@ -159,6 +179,7 @@ experiments:
 
   - id: session-orc-evening
     name: "Evening Session ORC (19:05–23:50)"
+    runtime: strategy
     session_open_time: "19:05"
     eod_close_time: "23:50"
     weekdays_only: true
