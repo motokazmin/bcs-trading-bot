@@ -2,6 +2,8 @@
 
 Production paper-портфель: **6 слотов** на одном virtual-счёте 200 000 ₽
 (5 legacy champions + ORC complement на тикерах вне Main ORC).
+Все 6 слотов работают на StrategyRunner/SelfManagedStrategy — ADR 0001 Фазы 4–5 завершены.
+Детали (известные дыры адаптера): комментарии в `configs/runs/portfolio-paper.yaml`.
 
 Конфиг запуска: `configs/runs/portfolio-paper.yaml`.  
 Снапшоты параметров: `configs/champions/*.yaml`.  

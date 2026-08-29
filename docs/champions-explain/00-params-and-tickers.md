@@ -172,8 +172,9 @@ Fixed в space: `longOnly: 1`
 2. Потом смотрят, где edge держится лучше / хуже.
 3. Слабые бумаги выкидывают из слота (`configs/shared/tickers-*.yaml`, комментарии вроде «drop MGNT/GAZP/LKOH»).
 4. В champion YAML остаётся узкий список.
-5. У части ORC/Fade дополнительно есть whitelist/blacklist **в коде** —
-   session_orc как раз помечали как вариант без hardcoded whitelist.
+5. Тикеры теперь управляются **только через YAML** (`experiments[].tickers:` в
+   `configs/runs/portfolio-paper.yaml`). С переходом на StrategyRunner/SelfManagedStrategy
+   (ADR 0001, Фазы 4–5) code-level whitelist/blacklist удалён из движка.
 
 ### Согласие с сомнением
 

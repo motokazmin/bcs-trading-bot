@@ -200,11 +200,12 @@ func main() {
 		workerExp.Risk = accountRisk
 
 		for _, tc := range expTickers {
-			if exp.Runtime == "strategy" {
-				// Фаза 3, ADR 0001: пилотная модель — стратегия сама ведёт
-				// SL/TP/трейлинг/EOD/сайзинг через
-				// internal/strategies/adapter.SelfManagedStrategy, движок
-				// только подписывает данные и связывает риск/исполнение/стор.
+			if exp.Runtime != "strategy" {
+				logx.Fatalf("неизвестный runtime %q у %s (поддерживается только strategy)", exp.Runtime, exp.ID)
+			}
+			{
+				// ADR 0001 (Фазы 3–5): стратегия сама ведёт SL/TP/трейлинг/EOD/сайзинг
+				// через internal/strategies/adapter.SelfManagedStrategy.
 				label := fmt.Sprintf("strategy/%s/%s", exp.ID, tc.Symbol)
 
 				sessionClock, err := engine.NewSessionClockExt(
@@ -256,33 +257,7 @@ func main() {
 				}
 				go runner.Start(ctx)
 				workerCount++
-				continue
 			}
-
-			worker, err := engine.NewTickerWorker(
-				tc.Symbol,
-				workerExp,
-				tc.StepPriceValue,
-				cfg.CostsConfig(),
-				session,
-				cfg.TradingMode,
-				runID,
-				cfg.ClassCode,
-				timeframe,
-				tradeStore,
-				globalRisk,
-			)
-			if err != nil {
-				logx.Fatalf("ошибка создания воркера %s/%s: %v", exp.ID, tc.Symbol, err)
-			}
-
-			hub.Register(worker)
-			candleIn, tickIn := teeMarketToHub(ctx, hub, tc.Symbol, worker.CandleChan(), worker.TickChan())
-			if err := feed.Subscribe(tc.Symbol, timeframe, candleIn, tickIn); err != nil {
-				logx.Fatalf("ошибка подписки на данные %s/%s (%s): %v", exp.ID, tc.Symbol, timeframe, err)
-			}
-			go worker.Start(ctx, executor)
-			workerCount++
 		}
 	}
 
@@ -342,64 +317,6 @@ func main() {
 
 	<-ctx.Done()
 	logx.Info("Завершение работы...")
-}
-
-// teeMarketToHub дублирует свечи/тики в live hub и в каналы воркера.
-func teeMarketToHub(
-	ctx context.Context,
-	hub *live.Hub,
-	ticker string,
-	candleOut chan<- models.Candle,
-	tickOut chan<- models.Tick,
-) (chan<- models.Candle, chan<- models.Tick) {
-	candleIn := make(chan models.Candle, 64)
-	tickIn := make(chan models.Tick, 256)
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case c, ok := <-candleIn:
-				if !ok {
-					return
-				}
-				if c.Ticker == "" {
-					c.Ticker = ticker
-				}
-				hub.IngestCandle(c)
-				select {
-				case candleOut <- c:
-				case <-ctx.Done():
-					return
-				}
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case t, ok := <-tickIn:
-				if !ok {
-					return
-				}
-				if t.Ticker == "" {
-					t.Ticker = ticker
-				}
-				hub.IngestTick(t)
-				select {
-				case tickOut <- t:
-				case <-ctx.Done():
-					return
-				}
-			}
-		}
-	}()
-
-	return candleIn, tickIn
 }
 
 func runSmokeTest(ctx context.Context, cfg *config.Config, client *bcs.BCSClient) {

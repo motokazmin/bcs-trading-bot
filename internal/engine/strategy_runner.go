@@ -32,11 +32,9 @@ func (s *strategyContext) Orders() strategy.OrderPort     { return s.executor }
 func (s *strategyContext) Risk() strategy.RiskPort        { return s.risk }
 func (s *strategyContext) Trades() strategy.TradeRecorder { return s.store }
 
-// StrategyRunner запускает одну самодостаточную Strategy (Фаза 3, ADR 0001)
-// для одного тикера. В отличие от TickerWorker, StrategyRunner не знает
-// ничего про SL/TP/трейлинг/EOD — вся эта логика внутри самой Strategy.
-// Существующие чемпионы (MomentumBreakout, ORC, OR Fade) продолжают идти
-// через TickerWorker — обе модели осознанно сосуществуют, см. Фазу 5 плана.
+// StrategyRunner запускает одну самодостаточную Strategy (ADR 0001) для
+// одного тикера. StrategyRunner не знает ничего про SL/TP/трейлинг/EOD —
+// вся эта логика внутри самой Strategy (SelfManagedStrategy).
 type StrategyRunner struct {
 	strategy strategy.Strategy
 	sctx     *strategyContext
@@ -72,8 +70,7 @@ func NewStrategyRunner(
 	}
 }
 
-// Start блокируется до ctx.Done() — вызывать в отдельной горутине, как и
-// TickerWorker.Start.
+// Start блокируется до ctx.Done() — вызывать в отдельной горутине.
 func (r *StrategyRunner) Start(ctx context.Context) {
 	label := r.strategy.ID() + "/" + r.sctx.ticker
 	logx.WorkerLifecycle(label, "strategy runner запущен")

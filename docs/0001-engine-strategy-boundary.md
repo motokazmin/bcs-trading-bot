@@ -97,10 +97,10 @@ exits и без).
 |------|--------|------------------|
 | 0 — ADR | ✅ | `8c27019` |
 | 1 — DataFeed | ✅ | `f67ae5a` |
-| 2 — risk-budget | ✅ | см. ниже |
-| 3 — Strategy | — | |
-| 4 — пилот | — | |
-| 5 — чемпионы | — | |
+| 2 — risk-budget | ✅ | `4509e0a` |
+| 3 — Strategy | ✅ | `baadb1f` |
+| 4 — пилот | ✅ | `configs/runs/pilot-midday-compression.yaml` |
+| 5 — чемпионы | ✅ | все 6 слотов в `configs/runs/portfolio-paper.yaml` |
 
 ### Фаза 2 — risk-budget вместо count (реализовано)
 
@@ -124,6 +124,17 @@ maxOpenRiskBudget = deposit × risk_per_trade_percent / 100 × max_parallel_trad
 - `AdjustOpenRisk(ticker, newRiskAmount)` добавлен follow-up патчем — нужен
   Фазе 3/4 для частичной фиксации прибыли (уменьшение риска по открытой
   позиции без полного закрытия).
+
+### Фазы 4–5 — пилот и перевод чемпионов (реализовано)
+
+- Пилот: `configs/runs/pilot-midday-compression.yaml` — Midday Compression Breakout
+  (LKOH/MOEX) как первый опыт с новым runtime на изолированном счёте/БД.
+- Все 6 слотов champion-портфеля (`configs/runs/portfolio-paper.yaml`) переведены
+  на `runtime: strategy`. Сигнальная логика каждой стратегии не менялась при переносе.
+- TickerWorker (`internal/engine/worker.go`) и legacy-путь в `cmd/bot/main.go`
+  удалены — ни один конфиг больше не использует `runtime: worker`.
+- Известные дыры адаптера (live-дашборд, tradeaudit, ghost-handling) задокументированы
+  в комментариях `portfolio-paper.yaml` у слота `or-fade-conservative`.
 
 ### Фаза 3 — минимальный Strategy-интерфейс + пилот (реализовано)
 

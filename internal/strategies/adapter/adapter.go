@@ -1,22 +1,12 @@
-// Package adapter — пилот Фазы 3 (ADR 0001). SelfManagedStrategy оборачивает
-// любой существующий strategy.CandleStrategy (сигнальный "мозг" — вход
-// момент+уровни) в самодостаточную strategy.Strategy: сама ведёт позицию,
-// SL/TP/трейлинг, EOD-закрытие, сайзинг и экспорт закрытой сделки — то есть
-// именно то, что раньше было жёстко зашито в internal/engine.TickerWorker.
+// Package adapter реализует SelfManagedStrategy (ADR 0001, Фазы 3–5).
+// Оборачивает любой существующий strategy.CandleStrategy (сигнальный "мозг")
+// в самодостаточную strategy.Strategy: сама ведёт позицию, SL/TP/трейлинг,
+// EOD-закрытие, сайзинг и экспорт закрытой сделки.
 //
-// Название "adapter" — потому что это буквально адаптер существующей
-// сигнальной логики под новый контракт, не новая стратегия с нуля. Первый
-// пилот — Midday Compression Breakout (не задействован в проде, см. план
-// Фазы 4). Чемпионы (MomentumBreakout, ORC, OR Fade) продолжают идти через
-// TickerWorker — обе модели осознанно сосуществуют.
-//
-// Сознательно вне рамок этого пилота (см. приоритеты рефакторинга —
-// "интуитивность важнее чистоты", не тянуть лишнее заранее):
-//   - интеграция с live-дашбордом (internal/live.Hub/PositionSource) —
-//     SelfManagedStrategy не публикует SnapshotPosition;
-//   - tradeaudit-проверки (ValidateOpen/ValidateClose) — есть в
-//     TickerWorker, здесь опущены для пилота, добавить при переводе первого
-//     реального чемпиона (Фаза 5), если понадобится.
+// Известные дыры, пока не закрытые (задокументированы в portfolio-paper.yaml):
+//   - live-дашборд (internal/live.Hub) не получает снапшоты позиций;
+//   - tradeaudit ValidateOpen/ValidateClose не вызываются;
+//   - ghost-position handling упрощён.
 package adapter
 
 import (
@@ -47,8 +37,7 @@ type SessionClock interface {
 }
 
 // Config — всё, что нужно SelfManagedStrategy для одного (тикер, эксперимент).
-// Собирается вызывающей стороной (cmd/bot/main.go) из того же config.Config,
-// что и раньше — TickerWorker для чемпионов эту сборку не теряет.
+// Собирается вызывающей стороной (cmd/bot/main.go).
 type Config struct {
 	Signal          strategy.CandleStrategy // сигнальный "мозг" (существующий OnCandle)
 	Label           string                  // для логов, напр. "pilot/midday_compression/LKOH"
@@ -85,10 +74,8 @@ type SelfManagedStrategy struct {
 	tradesToday   int
 }
 
-// New создаёт пилот-стратегию. cfg.Signal — уже сконструированный
-// CandleStrategy (например, exp.Strategy.BuildStrategy(sessionCfg) для
-// IDMiddayCompressionBreakout — та же фабрика, что использует TickerWorker,
-// сигнальная логика не переписывается).
+// New создаёт стратегию. cfg.Signal — уже сконструированный CandleStrategy
+// (exp.Strategy.BuildStrategy(sessionCfg)); сигнальная логика не переписывается.
 func New(cfg Config) *SelfManagedStrategy {
 	if cfg.StepPriceValue <= 0 {
 		cfg.StepPriceValue = 1.0
@@ -199,7 +186,7 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx strategy.S
 	s.tradesToday++
 
 	// Limit-fill на баре: если на том же баре уже пробит SL/TP — закрыть по
-	// уровню, не ждать adverse tick (тот же приём, что в TickerWorker).
+	// уровню, не ждать adverse tick.
 	if reason := position.SameBarExitAfterFill(s.pos, candle); reason != "" {
 		exitPx := position.ExitFillPrice(s.pos, reason, candle.Close)
 		s.pos.SameBarExit = true
@@ -295,13 +282,10 @@ func (s *SelfManagedStrategy) closePosition(ctx context.Context, sctx strategy.S
 	if err := sctx.Orders().ExecuteOrder(ctx, order); err != nil {
 		logx.Error("[%s] ошибка закрытия позиции (%s): %v", s.cfg.Label, reason, err)
 		// Ghost-позиция (у исполнителя её уже нет) — не восстанавливаем,
-		// иначе спам повторных попыток закрыть несуществующее. Отличить
-		// ghost от временной ошибки исполнителя точно так же, как
-		// TickerWorker (interfaces.ErrNoOpenPosition), здесь опущено для
-		// пилота — минимальная версия просто освобождает риск и не
-		// восстанавливает позицию, что безопаснее (не откроет двойной
+		// иначе спам повторных попыток закрыть несуществующее. Минимальная
+		// версия просто освобождает риск (безопаснее, не откроет двойной
 		// риск), но может потерять сделку при кратковременном сбое
-		// исполнителя. Пересмотреть при переводе реального чемпиона.
+		// исполнителя. Это известная дыра адаптера (см. portfolio-paper.yaml).
 		sctx.Risk().ReleaseOpen(s.cfg.Ticker)
 		return
 	}

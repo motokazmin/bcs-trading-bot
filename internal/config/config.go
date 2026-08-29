@@ -68,13 +68,9 @@ type ExperimentConfig struct {
 	// в одном процессе могут подписываться на разные таймфреймы одного или разных
 	// тикеров (см. internal/datafeed) — это часть ADR 0001 "свобода стратегии".
 	CandleTimeframe string `yaml:"candle_timeframe"`
-	// Runtime — какой каркас ведёт этот эксперимент: "" (по умолчанию) или
-	// "worker" — старый internal/engine.TickerWorker (SL/TP/трейлинг/EOD в
-	// движке); "strategy" — новый internal/engine.StrategyRunner поверх
-	// internal/strategies/adapter.SelfManagedStrategy (та же сигнальная
-	// логика, но SL/TP/трейлинг/EOD/сайзинг ведёт сама стратегия, не
-	// движок) — см. Фазу 3, ADR 0001. Обе модели осознанно сосуществуют в
-	// одном процессе; чемпионы остаются на "worker" до Фазы 5.
+	// Runtime — каркас эксперимента. Единственное поддерживаемое значение:
+	// "strategy" — internal/engine.StrategyRunner поверх
+	// internal/strategies/adapter.SelfManagedStrategy (ADR 0001, Фазы 3–5).
 	Runtime string `yaml:"runtime"`
 }
 
