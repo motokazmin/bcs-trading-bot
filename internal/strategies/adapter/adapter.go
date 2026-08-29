@@ -1,27 +1,37 @@
-// Package adapter реализует SelfManagedStrategy (ADR 0001, Фазы 3–5).
-// Оборачивает любой существующий strategy.CandleStrategy (сигнальный "мозг")
-// в самодостаточную strategy.Strategy: сама ведёт позицию, SL/TP/трейлинг,
+// Package adapter реализует SelfManagedStrategy (ADR 0001).
+// Оборачивает любой strategy.CandleStrategy (сигнальный "мозг") в
+// самодостаточную strategy.Strategy: сама ведёт позицию, SL/TP/трейлинг,
 // EOD-закрытие, сайзинг и экспорт закрытой сделки.
 //
-// Известные дыры, пока не закрытые (задокументированы в portfolio-paper.yaml):
-//   - live-дашборд (internal/live.Hub) не получает снапшоты позиций;
-//   - tradeaudit ValidateOpen/ValidateClose не вызываются;
-//   - ghost-position handling упрощён.
+// Что делает адаптер поверх сигнала:
+//   - stale-guard входа (не входить по устаревшему бару после реконнекта WS);
+//   - tradeaudit ValidateOpen/ValidateClose → audit_* в ClosedTrade;
+//   - ghost-handling: ErrNoOpenPosition → дроп позиции, прочие ошибки
+//     исполнителя на закрытии → восстановление позиции для повтора;
+//   - снапшот позиции для live-дашборда (interfaces.PositionSource → live.Hub).
 package adapter
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine"
 	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/strategy"
+	"bcs-trading-bot/internal/tradeaudit"
 	"bcs-trading-bot/internal/trailing"
+	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
 )
+
+var _ interfaces.PositionSource = (*SelfManagedStrategy)(nil)
 
 // SessionClock — то подмножество internal/engine.SessionClock, которое
 // нужно адаптеру. Отдельный интерфейс здесь (а не прямой импорт
@@ -40,7 +50,7 @@ type SessionClock interface {
 // Собирается вызывающей стороной (cmd/bot/main.go).
 type Config struct {
 	Signal          strategy.CandleStrategy // сигнальный "мозг" (существующий OnCandle)
-	Label           string                  // для логов, напр. "pilot/midday_compression/LKOH"
+	Label           string                  // для логов, напр. "strategy/or-fade-conservative/LKOH"
 	Ticker          string
 	ExperimentID    string
 	StopMode        string
@@ -61,11 +71,13 @@ type Config struct {
 }
 
 // SelfManagedStrategy — самодостаточная стратегия поверх существующего
-// сигнального генератора. Реализует strategy.Strategy.
+// сигнального генератора. Реализует strategy.Strategy и
+// interfaces.PositionSource.
 type SelfManagedStrategy struct {
 	cfg     Config
 	riskMgr *risk.RiskManager
 
+	mu        sync.RWMutex // защищает pos + lastPrice (SnapshotPosition из HTTP-горутины)
 	pos       *position.State
 	lastPrice float64
 
@@ -86,13 +98,60 @@ func New(cfg Config) *SelfManagedStrategy {
 	}
 }
 
-func (s *SelfManagedStrategy) ID() string { return s.cfg.Signal.ID() }
+func (s *SelfManagedStrategy) ID() string           { return s.cfg.Signal.ID() }
+func (s *SelfManagedStrategy) Label() string        { return s.cfg.Label }
+func (s *SelfManagedStrategy) Ticker() string       { return s.cfg.Ticker }
+func (s *SelfManagedStrategy) ExperimentID() string { return s.cfg.ExperimentID }
+
+// SnapshotPosition возвращает копию открытой позиции (или nil) для live-дашборда.
+// Вызывается из HTTP-горутины live.Hub — доступ под RLock.
+func (s *SelfManagedStrategy) SnapshotPosition() *models.PositionSnapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.pos == nil {
+		return nil
+	}
+	pos := *s.pos
+	last := s.lastPrice
+	step := s.cfg.StepPriceValue
+	if step <= 0 {
+		step = 1
+	}
+	return &models.PositionSnapshot{
+		ID:            fmt.Sprintf("%s/%s", s.cfg.ExperimentID, s.cfg.Ticker),
+		ExperimentID:  s.cfg.ExperimentID,
+		Ticker:        s.cfg.Ticker,
+		Direction:     pos.Direction,
+		Quantity:      pos.Quantity,
+		EntryPrice:    pos.EntryPrice,
+		StopLoss:      pos.StopLoss,
+		TakeProfit:    pos.TakeProfit,
+		TrailStage:    pos.TrailStage,
+		OpenedAt:      pos.OpenedAt,
+		LastPrice:     last,
+		UnrealizedPnL: position.CalcPnL(&pos, last, step),
+		RDistance:     pos.RDistance,
+		StepPrice:     step,
+	}
+}
+
+func (s *SelfManagedStrategy) hasPos() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pos != nil
+}
+
+func (s *SelfManagedStrategy) setLastPrice(p float64) {
+	s.mu.Lock()
+	s.lastPrice = p
+	s.mu.Unlock()
+}
 
 // Run — основной цикл. Блокируется до ctx.Done() или закрытия каналов
 // StrategyContext.
 func (s *SelfManagedStrategy) Run(ctx context.Context, sctx strategy.StrategyContext) {
-	logx.WorkerLifecycle(s.cfg.Label, "pilot strategy запущена")
-	defer logx.WorkerLifecycle(s.cfg.Label, "pilot strategy остановлена")
+	logx.WorkerLifecycle(s.cfg.Label, "strategy запущена")
+	defer logx.WorkerLifecycle(s.cfg.Label, "strategy остановлена")
 
 	eodTicker := time.NewTicker(30 * time.Second)
 	defer eodTicker.Stop()
@@ -106,7 +165,7 @@ func (s *SelfManagedStrategy) Run(ctx context.Context, sctx strategy.StrategyCon
 			if !ok {
 				return
 			}
-			s.lastPrice = tick.Price
+			s.setLastPrice(tick.Price)
 			now := time.Now()
 			s.checkDailyReset(now)
 			s.checkSLTP(ctx, sctx, tick.Price)
@@ -117,7 +176,7 @@ func (s *SelfManagedStrategy) Run(ctx context.Context, sctx strategy.StrategyCon
 				return
 			}
 			now := time.Now()
-			s.lastPrice = candle.Close
+			s.setLastPrice(candle.Close)
 			s.checkDailyReset(now)
 			s.checkEOD(ctx, sctx, candle.Close, now)
 			s.processCandle(ctx, sctx, candle, now)
@@ -125,17 +184,30 @@ func (s *SelfManagedStrategy) Run(ctx context.Context, sctx strategy.StrategyCon
 		case <-eodTicker.C:
 			now := time.Now()
 			s.checkDailyReset(now)
-			if s.lastPrice > 0 {
-				s.checkEOD(ctx, sctx, s.lastPrice, now)
+			s.mu.RLock()
+			last := s.lastPrice
+			s.mu.RUnlock()
+			if last > 0 {
+				s.checkEOD(ctx, sctx, last, now)
 			}
 		}
 	}
 }
 
 func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx strategy.StrategyContext, candle models.Candle, now time.Time) {
-	if ctx.Err() != nil || s.pos != nil {
+	if ctx.Err() != nil || s.hasPos() {
 		return
 	}
+
+	// Stale-guard: не входить по переигранному/бэкфилл-бару после реконнекта WS
+	// (порог 3×TF, см. engine.CandleFreshForEntry).
+	if !engine.CandleFreshForEntry(now, candle.Timestamp, s.cfg.CandleTimeframe) {
+		age := now.Sub(candle.Timestamp)
+		logx.Warn("[%s] пропуск stale-свечи: bar=%s age=%s",
+			s.cfg.Label, candle.Timestamp.Format(time.RFC3339), age.Round(time.Second))
+		return
+	}
+
 	if !s.cfg.Session.EntriesAllowed(now) {
 		return
 	}
@@ -182,42 +254,83 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx strategy.S
 		return
 	}
 
-	s.pos = position.NewFromSignal(*signal, now)
+	pos := position.NewFromSignal(*signal, now)
+	pos.EntryBarTime = candle.Timestamp
+	pos.EntryBarClose = candle.Close
+	s.mu.Lock()
+	s.pos = pos
+	s.mu.Unlock()
 	s.tradesToday++
+
+	logx.TradeOpen(s.cfg.Label, signal.Direction, signal.Quantity, signal.Price, signal.StopLoss, signal.TakeProfit)
+	logx.Info("[%s] bar_age=%s bar_time=%s",
+		s.cfg.Label, now.Sub(candle.Timestamp).Round(time.Second), candle.Timestamp.Format(time.RFC3339))
+
+	openAudit := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
+		Direction:   signal.Direction,
+		EntryPrice:  signal.Price,
+		StopLoss:    signal.StopLoss,
+		TakeProfit:  signal.TakeProfit,
+		RDistance:   pos.RDistance,
+		BarClose:    candle.Close,
+		LastPrice:   s.currentLastPrice(),
+		RewardRatio: s.cfg.RewardRatio,
+	})
+	if !openAudit.Empty() {
+		logx.Audit(s.cfg.Label, openAudit.Severity, openAudit.CodesCSV(), openAudit.DetailsString())
+	}
 
 	// Limit-fill на баре: если на том же баре уже пробит SL/TP — закрыть по
 	// уровню, не ждать adverse tick.
-	if reason := position.SameBarExitAfterFill(s.pos, candle); reason != "" {
-		exitPx := position.ExitFillPrice(s.pos, reason, candle.Close)
-		s.pos.SameBarExit = true
-		position.UpdateMAE(s.pos, exitPx)
-		position.UpdateMFE(s.pos, exitPx)
+	if reason := position.SameBarExitAfterFill(pos, candle); reason != "" {
+		exitPx := position.ExitFillPrice(pos, reason, candle.Close)
+		s.mu.Lock()
+		if s.pos != nil {
+			s.pos.SameBarExit = true
+			position.UpdateMAE(s.pos, exitPx)
+			position.UpdateMFE(s.pos, exitPx)
+		}
+		s.mu.Unlock()
 		logx.Info("[%s] same-bar exit after fill: %s @ %.4f (bar close %.4f)", s.cfg.Label, reason, exitPx, candle.Close)
 		s.closePosition(ctx, sctx, exitPx, reason)
 		return
 	}
-	if s.lastPrice > 0 {
-		s.checkSLTP(ctx, sctx, s.lastPrice)
+	if last := s.currentLastPrice(); last > 0 {
+		s.checkSLTP(ctx, sctx, last)
 	}
 }
 
+func (s *SelfManagedStrategy) currentLastPrice() float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.lastPrice
+}
+
 func (s *SelfManagedStrategy) checkSLTP(ctx context.Context, sctx strategy.StrategyContext, price float64) {
+	s.mu.Lock()
 	if s.pos == nil {
+		s.mu.Unlock()
 		return
 	}
 	position.UpdateMFE(s.pos, price)
 	position.UpdateMAE(s.pos, price)
 	prevStage := s.pos.TrailStage
 	trailing.Apply(s.pos, price, s.cfg.TrailCfg)
-	if s.pos.TrailStage > prevStage {
-		logx.Trailing(s.cfg.Label, s.pos.TrailStage, s.pos.StopLoss)
-	}
+	stage := s.pos.TrailStage
+	sl := s.pos.StopLoss
 	reason := position.CheckExit(s.pos, price)
-	if reason == "" {
-		return
+	exitPx := price
+	if reason != "" {
+		exitPx = position.ExitFillPrice(s.pos, reason, price)
 	}
-	exitPx := position.ExitFillPrice(s.pos, reason, price)
-	s.closePosition(ctx, sctx, exitPx, reason)
+	s.mu.Unlock()
+
+	if stage > prevStage {
+		logx.Trailing(s.cfg.Label, stage, sl)
+	}
+	if reason != "" {
+		s.closePosition(ctx, sctx, exitPx, reason)
+	}
 }
 
 func (s *SelfManagedStrategy) checkEOD(ctx context.Context, sctx strategy.StrategyContext, price float64, now time.Time) {
@@ -231,7 +344,7 @@ func (s *SelfManagedStrategy) checkEOD(ctx context.Context, sctx strategy.Strate
 	if s.eodCloseDate == today {
 		return
 	}
-	if s.pos != nil {
+	if s.hasPos() {
 		s.closePosition(ctx, sctx, price, models.CloseReasonEOD)
 	}
 	s.eodCloseDate = today
@@ -252,11 +365,14 @@ func (s *SelfManagedStrategy) checkDailyReset(now time.Time) {
 }
 
 func (s *SelfManagedStrategy) closePosition(ctx context.Context, sctx strategy.StrategyContext, price float64, reason string) {
-	pos := s.pos
-	if pos == nil {
+	s.mu.Lock()
+	if s.pos == nil {
+		s.mu.Unlock()
 		return
 	}
+	pos := s.pos
 	s.pos = nil
+	s.mu.Unlock()
 
 	price = position.ExitFillPrice(pos, reason, price)
 
@@ -281,12 +397,19 @@ func (s *SelfManagedStrategy) closePosition(ctx context.Context, sctx strategy.S
 
 	if err := sctx.Orders().ExecuteOrder(ctx, order); err != nil {
 		logx.Error("[%s] ошибка закрытия позиции (%s): %v", s.cfg.Label, reason, err)
-		// Ghost-позиция (у исполнителя её уже нет) — не восстанавливаем,
-		// иначе спам повторных попыток закрыть несуществующее. Минимальная
-		// версия просто освобождает риск (безопаснее, не откроет двойной
-		// риск), но может потерять сделку при кратковременном сбое
-		// исполнителя. Это известная дыра адаптера (см. portfolio-paper.yaml).
-		sctx.Risk().ReleaseOpen(s.cfg.Ticker)
+		if errors.Is(err, interfaces.ErrNoOpenPosition) {
+			// Ghost: локальная позиция есть, у исполнителя уже нет — не
+			// восстанавливаем (иначе spam повторных закрытий), только
+			// освобождаем риск.
+			sctx.Risk().ReleaseOpen(s.cfg.Ticker)
+			return
+		}
+		// Транзиентная ошибка исполнителя — возвращаем позицию, риск не
+		// трогаем (резерв всё ещё соответствует открытой позиции). Следующий
+		// тик/свеча повторит попытку выхода.
+		s.mu.Lock()
+		s.pos = pos
+		s.mu.Unlock()
 		return
 	}
 
@@ -341,6 +464,35 @@ func (s *SelfManagedStrategy) closePosition(ctx context.Context, sctx strategy.S
 	}
 	if !pos.EntryBarTime.IsZero() {
 		trade.EntryBarTime = pos.EntryBarTime.UTC().Format(time.RFC3339)
+	}
+
+	audit := tradeaudit.AnnotateTrade(&trade, tradeaudit.OpenInput{
+		Direction:   pos.Direction,
+		EntryPrice:  pos.EntryPrice,
+		StopLoss:    pos.InitialStopLoss,
+		TakeProfit:  pos.InitialTakeProfit,
+		RDistance:   pos.RDistance,
+		BarClose:    pos.EntryBarClose,
+		RewardRatio: s.cfg.RewardRatio,
+	}, tradeaudit.CloseInput{
+		Direction:       pos.Direction,
+		EntryPrice:      pos.EntryPrice,
+		ExitPrice:       price,
+		FinalStopLoss:   pos.StopLoss,
+		TakeProfit:      pos.InitialTakeProfit,
+		RDistance:       pos.RDistance,
+		CloseReason:     reason,
+		PnLR:            pnlR,
+		MFEinR:          trade.MFEinR,
+		TrailStage:      pos.TrailStage,
+		TrailActivation: s.cfg.TrailCfg.ActivationR,
+		HoldSeconds:     trade.HoldSeconds,
+		BarDuration:     engine.CandleBarDuration(s.cfg.CandleTimeframe),
+		SameBarExit:     pos.SameBarExit,
+		EntryBarClose:   pos.EntryBarClose,
+	})
+	if !audit.Empty() {
+		logx.Audit(s.cfg.Label, audit.Severity, audit.CodesCSV(), audit.DetailsString())
 	}
 
 	if err := sctx.Trades().SaveClosedTrade(context.Background(), trade); err != nil {

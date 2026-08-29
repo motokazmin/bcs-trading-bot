@@ -30,9 +30,11 @@ func TestBuildStrategyTradeChartPayload(t *testing.T) {
 	if len(markers) != 2 {
 		t.Fatalf("markers: %d", len(markers))
 	}
-	levels, _ := payload["levels"].([]map[string]any)
-	if len(levels) < 3 {
-		t.Fatalf("levels: %d", len(levels))
+	// Вход/выход показываются маркерами; горизонтальные линии-levels
+	// намеренно отключены (см. closedTradeLevels) — поле есть, но пустое.
+	levels, ok := payload["levels"].([]map[string]any)
+	if !ok || len(levels) != 0 {
+		t.Fatalf("levels: %#v", payload["levels"])
 	}
 	if payload["trade_id"] != tradeSpanID(trade) {
 		t.Fatalf("trade_id: %v", payload["trade_id"])
@@ -116,9 +118,8 @@ func TestHandleAPIStrategyTradesAndChart(t *testing.T) {
 		if len(markers) != 2 {
 			t.Fatalf("markers: %v", body["markers"])
 		}
-		levels, _ := body["levels"].([]any)
-		if len(levels) < 1 {
-			t.Fatalf("levels: %v", body["levels"])
+		if _, ok := body["levels"].([]any); !ok {
+			t.Fatalf("levels должно быть массивом (пусть и пустым): %#v", body["levels"])
 		}
 		if fetcher.calls < 1 {
 			t.Fatal("fetcher not called")

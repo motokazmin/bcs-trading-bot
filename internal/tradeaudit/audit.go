@@ -1,7 +1,9 @@
 package tradeaudit
 
 import (
+	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -76,6 +78,24 @@ func (r Result) Empty() bool {
 
 func (r Result) CodesCSV() string {
 	return strings.Join(r.Codes, ",")
+}
+
+// DetailsString — детали аудита как "key=value" через пробел, ключи
+// отсортированы (для стабильного вывода в лог).
+func (r Result) DetailsString() string {
+	if len(r.Details) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(r.Details))
+	for k := range r.Details {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%.4f", k, r.Details[k]))
+	}
+	return strings.Join(parts, " ")
 }
 
 // ValidateOpen проверяет вход относительно бара и стопа.

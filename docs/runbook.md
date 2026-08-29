@@ -40,7 +40,7 @@ make bot-stop
 
 | Команда | Что делает |
 |---|---|
-| `make bot` | Paper portfolio в **фоне**, 5 champions |
+| `make bot` | Paper portfolio в **фоне**, 6 слотов |
 | `make bot-stop` / `make bot-status` | Остановка / статус |
 | `make bot-real` | Реал в фоне (осторожно; сейчас 1 experiment) |
 | `make bot-smoke` | Smoke OAuth+WS (**foreground**) |

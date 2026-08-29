@@ -95,10 +95,10 @@ func TestBuildDayChartPayloadMarkers(t *testing.T) {
 	if len(markers) != 4 {
 		t.Fatalf("markers: got %d, want 4", len(markers))
 	}
-	if markers[0]["text"] != "1 ВХ" {
+	if markers[0]["text"] != "1 ВХ 100.00" {
 		t.Fatalf("entry text: %v", markers[0]["text"])
 	}
-	if markers[1]["text"] != "1 ВЫХ TP" {
+	if markers[1]["text"] != "1 ВЫХ TP 105.00" {
 		t.Fatalf("exit text: %v", markers[1]["text"])
 	}
 	if markers[0]["shape"] != "arrowUp" {

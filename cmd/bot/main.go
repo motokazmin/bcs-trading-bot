@@ -181,8 +181,9 @@ func main() {
 	}
 
 	feed := datafeed.New(client)
-	workerCount := 0
+	strategyCount := 0
 	hub := live.NewHub()
+	hubFeeds := make(map[[2]string]bool) // (ticker, timeframe) → hub уже подписан
 
 	for _, exp := range experiments {
 		expTickers := cfg.TickersForExperiment(exp)
@@ -196,74 +197,83 @@ func main() {
 			timeframe = cfg.CandleTimeFrame
 		}
 
-		workerExp := exp
-		workerExp.Risk = accountRisk
-
 		for _, tc := range expTickers {
-			if exp.Runtime != "strategy" {
-				logx.Fatalf("неизвестный runtime %q у %s (поддерживается только strategy)", exp.Runtime, exp.ID)
+			// Каждый (эксперимент × тикер) — самодостаточная стратегия
+			// (internal/strategies/adapter.SelfManagedStrategy): сама ведёт
+			// SL/TP/трейлинг/EOD/сайзинг. Каркас (StrategyRunner) даёт ей
+			// поток данных, OrderExecutor, портфельный риск и TradeStore.
+			label := fmt.Sprintf("strategy/%s/%s", exp.ID, tc.Symbol)
+
+			sessionClock, err := engine.NewSessionClockExt(
+				session.Timezone, session.EODCloseTime, session.SessionOpenTime,
+				session.EntryDelayMinutes, session.WeekdaysOnly, session.WeekendOnly,
+			)
+			if err != nil {
+				logx.Fatalf("ошибка создания SessionClock %s: %v", label, err)
 			}
-			{
-				// ADR 0001 (Фазы 3–5): стратегия сама ведёт SL/TP/трейлинг/EOD/сайзинг
-				// через internal/strategies/adapter.SelfManagedStrategy.
-				label := fmt.Sprintf("strategy/%s/%s", exp.ID, tc.Symbol)
 
-				sessionClock, err := engine.NewSessionClockExt(
-					session.Timezone, session.EODCloseTime, session.SessionOpenTime,
-					session.EntryDelayMinutes, session.WeekdaysOnly, session.WeekendOnly,
-				)
-				if err != nil {
-					logx.Fatalf("ошибка создания SessionClock %s: %v", label, err)
+			signalStrategy, err := exp.Strategy.BuildStrategy(session)
+			if err != nil {
+				logx.Fatalf("ошибка создания сигнальной стратегии %s: %v", label, err)
+			}
+
+			step := tc.StepPriceValue
+			if step <= 0 {
+				step = 1.0
+			}
+			trailCfg := exp.Strategy.TrailingConfig(step, cfg.CostsConfig(), cfg.ClassCode)
+
+			selfManaged := adapter.New(adapter.Config{
+				Signal:          signalStrategy,
+				Label:           label,
+				Ticker:          tc.Symbol,
+				ExperimentID:    exp.ID,
+				StopMode:        exp.Strategy.StopMode,
+				StepPriceValue:  step,
+				TradingMode:     cfg.TradingMode,
+				RunID:           runID,
+				ClassCode:       cfg.ClassCode,
+				CandleTimeframe: timeframe,
+				Lookback:        exp.Strategy.Lookback,
+				RiskPerTradePct: accountRisk.RiskPerTradePercent,
+				Deposit:         accountRisk.Deposit,
+				MaxDailyLoss:    accountRisk.MaxDailyLoss,
+				TrailCfg:        trailCfg,
+				CostsCfg:        cfg.CostsConfig(),
+				RewardRatio:     exp.Strategy.EffectiveRewardRatio(),
+				MaxTradesPerDay: exp.Strategy.MaxTradesPerTickerPerDay,
+				Session:         sessionClock,
+			})
+
+			hub.Register(selfManaged)
+
+			candleCh := make(chan models.Candle, 64)
+			tickCh := make(chan models.Tick, 256)
+			runner := engine.NewStrategyRunner(selfManaged, tc.Symbol, timeframe, candleCh, tickCh, executor, globalRisk, tradeStore, sessionClock)
+			if err := feed.Subscribe(tc.Symbol, timeframe, candleCh, tickCh); err != nil {
+				logx.Fatalf("ошибка подписки на данные %s (%s): %v", label, timeframe, err)
+			}
+			go runner.Start(ctx)
+			strategyCount++
+
+			// live-дашборд: отдельный consumer того же (ticker, timeframe)
+			// через fan-out DataFeed — свечи/тики в hub для /positions,
+			// /candles, /chart. Один на пару, не на каждый эксперимент.
+			if key := [2]string{tc.Symbol, timeframe}; !hubFeeds[key] {
+				hubFeeds[key] = true
+				hubCandleCh := make(chan models.Candle, 128)
+				hubTickCh := make(chan models.Tick, 256)
+				if err := feed.Subscribe(tc.Symbol, timeframe, hubCandleCh, hubTickCh); err != nil {
+					logx.Fatalf("ошибка подписки hub %s (%s): %v", label, timeframe, err)
 				}
-
-				signalStrategy, err := workerExp.Strategy.BuildStrategy(session)
-				if err != nil {
-					logx.Fatalf("ошибка создания сигнальной стратегии %s: %v", label, err)
-				}
-
-				step := tc.StepPriceValue
-				if step <= 0 {
-					step = 1.0
-				}
-				trailCfg := workerExp.Strategy.TrailingConfig(step, cfg.CostsConfig(), cfg.ClassCode)
-
-				pilot := adapter.New(adapter.Config{
-					Signal:          signalStrategy,
-					Label:           label,
-					Ticker:          tc.Symbol,
-					ExperimentID:    exp.ID,
-					StopMode:        workerExp.Strategy.StopMode,
-					StepPriceValue:  step,
-					TradingMode:     cfg.TradingMode,
-					RunID:           runID,
-					ClassCode:       cfg.ClassCode,
-					CandleTimeframe: timeframe,
-					Lookback:        workerExp.Strategy.Lookback,
-					RiskPerTradePct: accountRisk.RiskPerTradePercent,
-					Deposit:         accountRisk.Deposit,
-					MaxDailyLoss:    accountRisk.MaxDailyLoss,
-					TrailCfg:        trailCfg,
-					CostsCfg:        cfg.CostsConfig(),
-					RewardRatio:     workerExp.Strategy.EffectiveRewardRatio(),
-					MaxTradesPerDay: workerExp.Strategy.MaxTradesPerTickerPerDay,
-					Session:         sessionClock,
-				})
-
-				candleCh := make(chan models.Candle, 64)
-				tickCh := make(chan models.Tick, 256)
-				runner := engine.NewStrategyRunner(pilot, tc.Symbol, timeframe, candleCh, tickCh, executor, globalRisk, tradeStore)
-				if err := feed.Subscribe(tc.Symbol, timeframe, candleCh, tickCh); err != nil {
-					logx.Fatalf("ошибка подписки на данные %s (%s): %v", label, timeframe, err)
-				}
-				go runner.Start(ctx)
-				workerCount++
+				go ingestMarketToHub(ctx, hub, tc.Symbol, hubCandleCh, hubTickCh)
 			}
 		}
 	}
 
 	logx.Info(
-		"Шаг 2: Запущено %d воркеров (%d экспериментов, EOD: %s МСК)",
-		workerCount, len(experiments), cfg.Session.EODCloseTime,
+		"Шаг 2: Запущено %d стратегий (%d экспериментов, EOD: %s МСК)",
+		strategyCount, len(experiments), cfg.Session.EODCloseTime,
 	)
 
 	if *httpListen != "" {
@@ -317,6 +327,40 @@ func main() {
 
 	<-ctx.Done()
 	logx.Info("Завершение работы...")
+}
+
+// ingestMarketToHub перекладывает свечи/тики из fan-out DataFeed в live.Hub
+// (буфер дня + last price для /positions, /candles, /chart). Отдельный
+// consumer, не влияет на канал стратегии.
+func ingestMarketToHub(
+	ctx context.Context,
+	hub *live.Hub,
+	ticker string,
+	candleCh <-chan models.Candle,
+	tickCh <-chan models.Tick,
+) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case c, ok := <-candleCh:
+			if !ok {
+				return
+			}
+			if c.Ticker == "" {
+				c.Ticker = ticker
+			}
+			hub.IngestCandle(c)
+		case t, ok := <-tickCh:
+			if !ok {
+				return
+			}
+			if t.Ticker == "" {
+				t.Ticker = ticker
+			}
+			hub.IngestTick(t)
+		}
+	}
 }
 
 func runSmokeTest(ctx context.Context, cfg *config.Config, client *bcs.BCSClient) {

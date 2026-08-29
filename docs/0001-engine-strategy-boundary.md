@@ -1,170 +1,106 @@
 # ADR 0001 — граница движок/стратегия
 
-Статус: принято
-Контекст: рефакторинг `refactor/engine-strategy-split` — см. Фазу 0
-`strategy-framework-refactor-plan.md`.
+Статус: принято, реализовано.
+Контекст: разделение торгового цикла на **каркас** (данные, исполнение,
+портфельный риск, хранилище) и **стратегию** (сигнал + ведение позиции).
 
-Приоритеты рефакторинга (для справки, не меняются в ходе фаз):
+Приоритеты (не меняются):
 1. Свобода стратегии (таймфрейм, объём, внутренняя архитектура).
 2. 90% времени разработки — только код стратегии, не движка.
 3. Интуитивность важнее чистоты границы.
 4. Разделение движок/pkg — жертвуем, если мешает.
 
-## Решение 1 — что остаётся в движке безусловно
+## Решение 1 — что остаётся в каркасе безусловно
 
-Ниже — единственное, что стратегия не может обойти или переопределить, вне
-зависимости от того, насколько её собственная архитектура отличается от
-остальных:
+Единственное, что стратегия не может обойти или переопределить:
 
-- **DataFeed** — подписка на поток свечей/тиков по `(ticker, timeframe)`.
-  Стратегия получает канал, но не владеет подключением к бирже/WS.
-- **OrderExecutor** — `ExecuteOrder`/`GetBalance`. Не меняется относительно
-  текущего `pkg/interfaces/executor.go`.
-- **GlobalRiskController** — циркуит-брейкер, капитал, лимит риска на счёте.
-  Стратегия запрашивает разрешение на открытие и сообщает об изменении
-  риска (открытие / частичное закрытие / полное закрытие); финальное
-  решение "можно ли открыться" всегда за контроллером, не за стратегией.
+- **DataFeed** (`internal/datafeed`) — подписка на поток свечей/тиков по
+  `(ticker, timeframe)`. Стратегия получает канал, но не владеет
+  подключением к бирже/WS.
+- **OrderExecutor** (`pkg/interfaces/executor.go`) — `ExecuteOrder` / `GetBalance`.
+- **GlobalRiskController** (`internal/risk/global.go`) — circuit breaker,
+  капитал, лимит открытого риска на счёте. Финальное решение «можно ли
+  открыться» всегда за контроллером. Стратегии он виден только через узкий
+  `strategy.RiskPort` (без `ResetDaily` — снять circuit breaker стратегия не
+  может; дневной сброс делает каркас, `StrategyRunner.globalDailyResetLoop`).
 - **TradeStore / схема `ClosedTrade`** — см. Решение 3.
 
-Всё, что происходит между сигналом на вход и вызовом `ExecuteOrder` —
-целиком в юрисдикции стратегии: сайзинг внутри выданного риск-бюджета,
-SL/TP/трейлинг (свой или переиспользованный из `internal/position`/
-`internal/trailing` как библиотека — по желанию стратегии), количество и
-момент частичных закрытий, внутренняя архитектура/state machine.
+Всё между сигналом на вход и `ExecuteOrder` — юрисдикция стратегии: сайзинг
+в выданном риск-бюджете, SL/TP/трейлинг, число и момент частичных закрытий,
+внутренняя state machine.
 
-## Решение 2 — конфликт `hasPos` при разных таймфреймах на одном тикере
+## Решение 2 — `one-position-per-ticker` при разных таймфреймах
 
-Проблема: сейчас блокировка "одна позиция на тикер" глобальная
-(`internal/risk/global.go`). Если две стратегии на разных таймфреймах (напр.
-M5 и H1) захотят одновременно торговать SBER — при текущей модели это
-конфликт.
+Блокировка «одна позиция на тикер» — **per-тикер на весь портфель**, не per
+`(тикер, стратегия)`. Если по SBER уже открыта позиция (любой стратегии),
+вторая по нему не откроется, независимо от таймфрейма.
 
-Решение: **блокировка остаётся per-тикер на весь портфель, не per
-(тикер, стратегия)**. То есть: если по SBER уже есть открытая позиция
-(любой стратегии), вторая стратегия не может открыть по нему свою —
-независимо от таймфрейма.
+Обоснование: самый простой и предсказуемый вариант (приоритет 3). Более
+гранулярная блокировка добавляет реальную сложность (чья позиция «главнее»
+при пересечении сигналов) ради сценария, которого нет ни у одного champion.
+Появится конкретный кейс — пересмотрим отдельным ADR.
 
-Обоснование: это самый простой и интуитивно понятный вариант (приоритет 3),
-не требует изменения структуры `GlobalRiskController` за пределы того, что
-и так планируется в Фазе 2 (переход на risk-budget). Более гранулярная
-блокировка (per стратегия) добавляет реальную сложность (нужно решать, чья
-позиция "главнее" при пересечении сигналов, как это видно в дашборде и
-трейд-логе) ради сценария, которого пока нет ни у одной champion-стратегии.
-Если он появится (конкретная пара стратегий, которым реально нужно делить
-один тикер одновременно) — это будет пересмотрено отдельным ADR с
-конкретным кейсом перед глазами, не заранее.
+## Решение 3 — `ClosedTrade` расширяется под несколько leg-ов
 
-## Решение 3 — схема `ClosedTrade` расширяется под несколько leg-ов сразу
+Плоская схема (один вход/один выход) не вмещает partial exits без потери
+информации. Решение — расширять схему сразу, не через «адаптер
+совместимости»:
 
-Проблема: `pkg/models/closed_trade.go` — плоская схема, один вход/один
-выход на сделку. Partial exits (частичная фиксация прибыли) в неё не
-ложатся без потери информации.
+- `ClosedTrade` получает `Legs []TradeLeg` (или таблица `trade_legs` с FK на
+  `trade_id`): у каждого leg свой `ExitPrice`, `Quantity`, `ClosedAt`, `CloseReason`.
+- Агрегаты (`GrossPnL`, `PnLR`, `MFEinR`, `MAEinR`, `IsWinner`) остаются на
+  уровне сделки (взвешенные по объёму legs) — walk-forward / оптимизатор /
+  дашборд не ломаются.
+- Сделки без частичных закрытий (весь текущий портфель) — вырожденный
+  `len(Legs) == 1`, миграции не требуют.
 
-Решение: расширяем схему сразу, не оборачиваем в адаптер "свернуть leg-и в
-одну строку ради совместимости с текущим `ClosedTrade`". Конкретно
-(уточняется при реализации Фазы 2/3, здесь — принцип, не финальный DDL):
-- `ClosedTrade` получает `Legs []TradeLeg` (или отдельная таблица
-  `trade_legs` с внешним ключом на `trade_id`), где каждый leg — свой
-  `ExitPrice`, `Quantity`, `ClosedAt`, `CloseReason`.
-- Агрегаты верхнего уровня (`GrossPnL`, `PnLR`, `MFEinR`, `MAEinR`,
-  `IsWinner`) остаются на уровне сделки в целом (взвешенные по объёму
-  legs), чтобы существующий walk-forward/оптимизатор/дашборд, читающие эти
-  поля, не ломались.
-- Сделки без частичных закрытий (весь текущий champion-портфель) — это
-  вырожденный случай `len(Legs) == 1`, никакой миграции их поведения не
-  требуется.
-- Экспорт в CSV/дашборд для обратной совместимости может по умолчанию
-  показывать агрегат, с опциональной детализацией по legs.
+> Статус: сама схема `Legs` ещё не введена — ни одна стратегия в портфеле не
+> делает частичных закрытий. Вводится вместе с первой такой стратегией.
 
-Обоснование: приоритет 3/4 (жертвуем чистотой границы, не жертвуем
-интуитивностью и не множим сущности "адаптеров совместимости", которые сами
-станут источником багов при сравнении exp_R между стратегиями с partial
-exits и без).
-
-## Что не решается в этом ADR
-
-- Конкретный Go-интерфейс `Strategy`/`StrategyContext` — Фаза 3, сознательно
-  не замораживается заранее (см. приоритет 3).
-- Пакетная граница `pkg/strategysdk`/`pkg/strategies` — вводится по факту
-  необходимости, не в Фазе 0.
-- BCS API: отдаёт ли H1 нативно по WebSocket или нужна локальная агрегация
-  из M5 — техническое исследование в начале Фазы 1, не архитектурное
-  решение.
-
-## Прогресс миграции
-
-| Фаза | Статус | Коммит / заметка |
-|------|--------|------------------|
-| 0 — ADR | ✅ | `8c27019` |
-| 1 — DataFeed | ✅ | `f67ae5a` |
-| 2 — risk-budget | ✅ | `4509e0a` |
-| 3 — Strategy | ✅ | `baadb1f` |
-| 4 — пилот | ✅ | `configs/runs/pilot-midday-compression.yaml` |
-| 5 — чемпионы | ✅ | все 6 слотов в `configs/runs/portfolio-paper.yaml` |
-
-### Фаза 2 — risk-budget вместо count (реализовано)
-
-`GlobalRiskController` (`internal/risk/global.go`) больше не ограничивает
-портфель числом одновременных позиций (`len(openPositions)`). Лимит —
-**суммарный открытый риск в рублях** (SL-notional по каждой позиции):
+## Итоговая реализация
 
 ```
-maxOpenRiskBudget = deposit × risk_per_trade_percent / 100 × max_parallel_trades
+cmd/bot
+  DataFeed (одна WS-сессия) --fan-out (ticker,timeframe)--> StrategyRunner × (experiment × ticker)
+                                                              └─ SelfManagedStrategy
+                                                                   ├─ CandleStrategy.OnCandle   (сигнал)
+                                                                   ├─ сайзинг · limit entry · SL/TP · трейлинг · EOD
+                                                                   ├─ RiskPort  → GlobalRiskController
+                                                                   └─ TradeRecorder → SQLite
 ```
 
-- `TryOpen` / `CanOpenPosition(newTradeRisk)` отклоняют сделку, если
-  `sumOpenRisk + newTradeRisk > maxOpenRiskBudget` (`ErrMaxRiskBudgetExceeded`).
-- Поле `max_parallel_trades` в YAML **сохранено**: задаёт размер бюджета,
-  не count-проверку. При стандартном сайзинге (~0.5% на сделку) поведение
-  эквивалентно прежней count-модели.
-- Блокировка per-ticker (`ErrTickerBusy`) без изменений (Решение 2).
-- `ErrMaxParallelTrades` — алиас `ErrMaxRiskBudgetExceeded` для обратной
-  совместимости.
-- Геттеры для логов/дашборда: `OpenRiskUsed()`, `MaxOpenRiskBudgetLimit()`.
-- `AdjustOpenRisk(ticker, newRiskAmount)` добавлен follow-up патчем — нужен
-  Фазе 3/4 для частичной фиксации прибыли (уменьшение риска по открытой
-  позиции без полного закрытия).
+- **`internal/strategy/runtime.go`** — `Strategy` (`ID`, `Run(ctx, sctx)`),
+  `StrategyContext` (`Candles`/`Ticks`/`Timeframe`/`Orders`/`Risk`/`Trades`),
+  узкие порты `OrderPort` / `RiskPort` / `TradeRecorder`.
+- **`internal/engine/strategy_runner.go`** — `StrategyRunner`: собирает
+  `StrategyContext` из подписанных каналов `datafeed.Feed` + `GlobalRiskController`
+  + `TradeStore`/`OrderExecutor`, запускает `Strategy.Run`, гоняет
+  `globalDailyResetLoop` для портфельного риска. Про SL/TP/трейлинг/EOD не знает.
+- **`internal/strategies/adapter/adapter.go`** — `SelfManagedStrategy`:
+  дженерик-обёртка любого `strategy.CandleStrategy` в самодостаточную
+  `strategy.Strategy`. Ведёт позицию/SL/TP/трейлинг/EOD/сайзинг, stale-guard
+  входа (`engine.CandleFreshForEntry`), `tradeaudit` (`ValidateOpen` /
+  `AnnotateTrade`), ghost-handling (`ErrNoOpenPosition` → дроп; прочие ошибки
+  закрытия → восстановление позиции), снапшот позиции для `live.Hub`
+  (`interfaces.PositionSource`). Переиспользует `internal/position` +
+  `internal/trailing` как библиотеку.
+  - `SessionClock` — локальный узкий интерфейс в adapter-пакете (не тянуть
+    весь `internal/engine` в публичный контракт); `*engine.SessionClock`
+    удовлетворяет ему структурно.
+- **`internal/risk/global.go`** (Решение 1) — лимит портфеля = суммарный
+  открытый риск в рублях, не число позиций:
+  `maxOpenRiskBudget = deposit × risk_per_trade_percent/100 × max_parallel_trades`.
+  `max_parallel_trades` в YAML сохранено — задаёт размер бюджета. Блокировка
+  per-ticker (`ErrTickerBusy`) без изменений.
 
-### Фазы 4–5 — пилот и перевод чемпионов (реализовано)
+Никакого поля `runtime` в конфиге нет: все эксперименты идут через
+`StrategyRunner` / `SelfManagedStrategy`. Как добавить свою стратегию —
+[`strategies.md`](strategies.md).
 
-- Пилот: `configs/runs/pilot-midday-compression.yaml` — Midday Compression Breakout
-  (LKOH/MOEX) как первый опыт с новым runtime на изолированном счёте/БД.
-- Все 6 слотов champion-портфеля (`configs/runs/portfolio-paper.yaml`) переведены
-  на `runtime: strategy`. Сигнальная логика каждой стратегии не менялась при переносе.
-- TickerWorker (`internal/engine/worker.go`) и legacy-путь в `cmd/bot/main.go`
-  удалены — ни один конфиг больше не использует `runtime: worker`.
-- Известные дыры адаптера (live-дашборд, tradeaudit, ghost-handling) задокументированы
-  в комментариях `portfolio-paper.yaml` у слота `or-fade-conservative`.
+## Что пока не решается
 
-### Фаза 3 — минимальный Strategy-интерфейс + пилот (реализовано)
-
-- `internal/strategy/runtime.go`: `Strategy` (`ID()`, `Run(ctx, sctx)`),
-  `StrategyContext` (Candles/Ticks/Timeframe/Orders/Risk/Trades),
-  `OrderPort`/`RiskPort`/`TradeRecorder` — узкие интерфейсы поверх
-  существующих `interfaces.OrderExecutor`/`risk.GlobalRiskController`/
-  `interfaces.TradeStore`. Не заморожен — донастраивается по опыту переноса
-  реальных стратегий (Фаза 4/5).
-- `internal/engine/strategy_runner.go`: `StrategyRunner` — тонкий
-  composition-root слой, конструирует `StrategyContext` из уже
-  подписанных `datafeed.Feed` каналов + `GlobalRiskController` +
-  `TradeStore`/`OrderExecutor`, запускает `Strategy.Run`. Не знает ничего
-  про SL/TP/трейлинг/EOD — это теперь дело самой стратегии.
-- `internal/strategies/adapter/adapter.go`: `SelfManagedStrategy` — дженерик
-  адаптер, оборачивающий любой существующий `strategy.CandleStrategy`
-  (сигнальный "мозг") в самодостаточную `Strategy`: сама ведёт
-  позицию/SL/TP/трейлинг/EOD/сайзинг/экспорт `ClosedTrade`, переиспользуя
-  `internal/position`+`internal/trailing` как библиотеку (тот же код, что
-  и `TickerWorker`, но во владении стратегии, не движка).
-  - `SessionClock` — локальный узкий интерфейс в adapter-пакете (не прямой
-    импорт `internal/engine`, иначе цикл: engine→strategy→(было бы)→engine).
-    `*engine.SessionClock` уже удовлетворяет ему структурно.
-  - Сознательно вне рамок пилота: интеграция с live-дашбордом
-    (`internal/live.Hub`), `tradeaudit`-проверки — не критично для
-    доказательства архитектуры, добавить при переводе первого реального
-    чемпиона.
-- Переключатель в конфиге: `runtime: strategy` (на корне конфига — для
-  одностратегийных `configs/strategies/*.yaml`, или в `experiments[].runtime`
-  для портфельных конфигов). Пусто/`worker` — прежний `TickerWorker`.
-- Пилот: `configs/runs/pilot-midday-compression.yaml` — Midday Compression
-  Breakout (LKOH/MOEX) через новый путь, изолированный счёт/БД, чемпионы не
-  затронуты.
+- Схема `Legs` для partial exits (Решение 3) — вводится с первой стратегией,
+  которой она нужна.
+- Пакетная граница `pkg/strategysdk` — по факту необходимости.
+- Нативный H1 по WebSocket vs локальная агрегация из M5 — вопрос BCS API,
+  не архитектуры.

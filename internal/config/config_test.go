@@ -39,8 +39,8 @@ func TestLoadPortfolioPaper(t *testing.T) {
 		t.Fatal(err)
 	}
 	exps := cfg.ResolvedExperiments()
-	if len(exps) != 5 {
-		t.Fatalf("experiments: got %d, want 5", len(exps))
+	if len(exps) != 6 {
+		t.Fatalf("experiments: got %d, want 6", len(exps))
 	}
 	if cfg.AccountRisk().Deposit != 200_000 {
 		t.Fatalf("account deposit: got %.0f, want 200000", cfg.AccountRisk().Deposit)

@@ -8,7 +8,7 @@ Offline подбор гиперпараметров акций TQBR: walk-forwar
 
 FROZEN champions **не** крутить без явного запроса.
 
-Отдельный бинарник `bin/optimizer`. Тот же цикл сделки, что в боте (`internal/simulation` ≈ `engine.TickerWorker`).
+Отдельный бинарник `bin/optimizer`. Тот же цикл сделки, что в боте (`internal/simulation` ≈ live-адаптер `internal/strategies/adapter`).
 
 ---
 

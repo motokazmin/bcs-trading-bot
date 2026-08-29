@@ -2,7 +2,7 @@
 
 Торговый робот на Go для [BCS Trade API](https://trade-api.bcs.ru). Дейтрейдинг акциями MOEX (TQBR) на M5 с жёстким риск-менеджментом.
 
-Paper portfolio — **5 champions** на едином счёте 200 000 ₽: Morning/Evening Session ORC, ORC, OR Fade, MF Afternoon.
+Paper portfolio — **6 слотов** на едином счёте 200 000 ₽: Morning/Evening Session ORC, Main ORC, ORC Complement, OR Fade, MF Afternoon.
 
 | | |
 |---|---|
@@ -30,8 +30,10 @@ Paper portfolio — **5 champions** на едином счёте 200 000 ₽
 ```
 cmd/bot
   YAML → OAuth2 → OrderExecutor (virtual | real)
-  WebSocket (M5 + quotes) → fan-out → TickerWorker × (experiment × ticker)
-                                  → Strategy + Risk + trailing + tradeaudit
+  WebSocket (M5 + quotes) → DataFeed (fan-out по ticker,timeframe)
+      → StrategyRunner × (experiment × ticker)
+          → SelfManagedStrategy: сигнал → сайзинг → limit entry → SL/TP/trail → EOD
+          → GlobalRisk (риск-бюджет, CB) + TradeStore + tradeaudit
 ```
 
 При секции `experiments` все слоты на **одном** счёте (общий депозит, CB, one-position-per-ticker). HTTP-админка в том же процессе (`-http-listen`).
@@ -71,7 +73,7 @@ make bot-smoke
 
 | Файл | Назначение |
 |---|---|
-| `configs/runs/portfolio-paper.yaml` | Paper: 5 champions |
+| `configs/runs/portfolio-paper.yaml` | Paper: 6 слотов |
 | `configs/champions/*.yaml` | Snapshot params champions |
 | `configs/runs/real-stocks.yaml` | Real, один тикер/experiment |
 | `configs/runs/virtual-futures.yaml` | Paper фьючерсы (не portfolio) |
@@ -104,7 +106,9 @@ Export JSON + prompt для ИИ (версия в `internal/export`).
 
 | Пакет | Роль |
 |---|---|
-| `internal/engine` | `TickerWorker`, сессия, freshness M5 |
+| `internal/engine` | `StrategyRunner`, `SessionClock`, freshness бара |
+| `internal/strategies/adapter` | `SelfManagedStrategy` — сигнал → позиция/SL/TP/EOD/сайзинг |
+| `internal/datafeed` | Единая WS-подписка (ticker, timeframe) → fan-out |
 | `internal/strategy` | Сигналы |
 | `internal/position` | Состояние, fill-at-level, same-bar |
 | `internal/tradeaudit` | Валидность входа/выхода |
