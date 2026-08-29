@@ -45,6 +45,10 @@ type Config struct {
 	Session     SessionConfig      `yaml:"session"`
 	Storage     StorageConfig      `yaml:"storage"`
 	Experiments []ExperimentConfig `yaml:"experiments"`
+	// Runtime — как и ExperimentConfig.Runtime, но для конфигов без явного
+	// experiments: (одностратегийные, как configs/strategies/*.yaml) —
+	// применяется к единственному "default"-эксперименту.
+	Runtime string `yaml:"runtime"`
 }
 
 // ExperimentConfig — слот стратегии в портфеле (общий счёт на все experiments).
@@ -64,6 +68,14 @@ type ExperimentConfig struct {
 	// в одном процессе могут подписываться на разные таймфреймы одного или разных
 	// тикеров (см. internal/datafeed) — это часть ADR 0001 "свобода стратегии".
 	CandleTimeframe string `yaml:"candle_timeframe"`
+	// Runtime — какой каркас ведёт этот эксперимент: "" (по умолчанию) или
+	// "worker" — старый internal/engine.TickerWorker (SL/TP/трейлинг/EOD в
+	// движке); "strategy" — новый internal/engine.StrategyRunner поверх
+	// internal/strategies/adapter.SelfManagedStrategy (та же сигнальная
+	// логика, но SL/TP/трейлинг/EOD/сайзинг ведёт сама стратегия, не
+	// движок) — см. Фазу 3, ADR 0001. Обе модели осознанно сосуществуют в
+	// одном процессе; чемпионы остаются на "worker" до Фазы 5.
+	Runtime string `yaml:"runtime"`
 }
 
 // ResolvedExperiment — нормализованный эксперимент, готовый к запуску воркеров.
@@ -81,6 +93,8 @@ type ResolvedExperiment struct {
 	// CandleTimeframe — эффективный таймфрейм эксперимента: exp.CandleTimeframe,
 	// если задан, иначе Config.CandleTimeFrame (заполняется в ResolvedExperiments()).
 	CandleTimeframe string
+	// Runtime — см. ExperimentConfig.Runtime.
+	Runtime string
 }
 
 type StorageConfig struct {
@@ -166,6 +180,7 @@ func (c *Config) ResolvedExperiments() []ResolvedExperiment {
 			Strategy:        c.Strategy,
 			Risk:            c.Risk,
 			CandleTimeframe: c.CandleTimeFrame,
+			Runtime:         strings.TrimSpace(c.Runtime),
 		}}
 	}
 
@@ -187,6 +202,7 @@ func (c *Config) ResolvedExperiments() []ResolvedExperiment {
 			Strategy:          exp.Strategy,
 			Risk:              exp.Risk,
 			CandleTimeframe:   timeframe,
+			Runtime:           strings.TrimSpace(exp.Runtime),
 		}
 	}
 	return out

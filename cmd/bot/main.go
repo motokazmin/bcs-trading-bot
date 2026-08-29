@@ -20,6 +20,7 @@ import (
 	"bcs-trading-bot/internal/live"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/storage/sqlite"
+	"bcs-trading-bot/internal/strategies/adapter"
 	"bcs-trading-bot/pkg/interfaces"
 	"bcs-trading-bot/pkg/logx"
 	"bcs-trading-bot/pkg/models"
@@ -199,6 +200,65 @@ func main() {
 		workerExp.Risk = accountRisk
 
 		for _, tc := range expTickers {
+			if exp.Runtime == "strategy" {
+				// Фаза 3, ADR 0001: пилотная модель — стратегия сама ведёт
+				// SL/TP/трейлинг/EOD/сайзинг через
+				// internal/strategies/adapter.SelfManagedStrategy, движок
+				// только подписывает данные и связывает риск/исполнение/стор.
+				label := fmt.Sprintf("strategy/%s/%s", exp.ID, tc.Symbol)
+
+				sessionClock, err := engine.NewSessionClockExt(
+					session.Timezone, session.EODCloseTime, session.SessionOpenTime,
+					session.EntryDelayMinutes, session.WeekdaysOnly, session.WeekendOnly,
+				)
+				if err != nil {
+					logx.Fatalf("ошибка создания SessionClock %s: %v", label, err)
+				}
+
+				signalStrategy, err := workerExp.Strategy.BuildStrategy(session)
+				if err != nil {
+					logx.Fatalf("ошибка создания сигнальной стратегии %s: %v", label, err)
+				}
+
+				step := tc.StepPriceValue
+				if step <= 0 {
+					step = 1.0
+				}
+				trailCfg := workerExp.Strategy.TrailingConfig(step, cfg.CostsConfig(), cfg.ClassCode)
+
+				pilot := adapter.New(adapter.Config{
+					Signal:          signalStrategy,
+					Label:           label,
+					Ticker:          tc.Symbol,
+					ExperimentID:    exp.ID,
+					StopMode:        workerExp.Strategy.StopMode,
+					StepPriceValue:  step,
+					TradingMode:     cfg.TradingMode,
+					RunID:           runID,
+					ClassCode:       cfg.ClassCode,
+					CandleTimeframe: timeframe,
+					Lookback:        workerExp.Strategy.Lookback,
+					RiskPerTradePct: accountRisk.RiskPerTradePercent,
+					Deposit:         accountRisk.Deposit,
+					MaxDailyLoss:    accountRisk.MaxDailyLoss,
+					TrailCfg:        trailCfg,
+					CostsCfg:        cfg.CostsConfig(),
+					RewardRatio:     workerExp.Strategy.EffectiveRewardRatio(),
+					MaxTradesPerDay: workerExp.Strategy.MaxTradesPerTickerPerDay,
+					Session:         sessionClock,
+				})
+
+				candleCh := make(chan models.Candle, 64)
+				tickCh := make(chan models.Tick, 256)
+				runner := engine.NewStrategyRunner(pilot, tc.Symbol, timeframe, candleCh, tickCh, executor, globalRisk, tradeStore)
+				if err := feed.Subscribe(tc.Symbol, timeframe, candleCh, tickCh); err != nil {
+					logx.Fatalf("ошибка подписки на данные %s (%s): %v", label, timeframe, err)
+				}
+				go runner.Start(ctx)
+				workerCount++
+				continue
+			}
+
 			worker, err := engine.NewTickerWorker(
 				tc.Symbol,
 				workerExp,

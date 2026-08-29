@@ -121,3 +121,39 @@ maxOpenRiskBudget = deposit × risk_per_trade_percent / 100 × max_parallel_trad
 - `ErrMaxParallelTrades` — алиас `ErrMaxRiskBudgetExceeded` для обратной
   совместимости.
 - Геттеры для логов/дашборда: `OpenRiskUsed()`, `MaxOpenRiskBudgetLimit()`.
+- `AdjustOpenRisk(ticker, newRiskAmount)` добавлен follow-up патчем — нужен
+  Фазе 3/4 для частичной фиксации прибыли (уменьшение риска по открытой
+  позиции без полного закрытия).
+
+### Фаза 3 — минимальный Strategy-интерфейс + пилот (реализовано)
+
+- `internal/strategy/runtime.go`: `Strategy` (`ID()`, `Run(ctx, sctx)`),
+  `StrategyContext` (Candles/Ticks/Timeframe/Orders/Risk/Trades),
+  `OrderPort`/`RiskPort`/`TradeRecorder` — узкие интерфейсы поверх
+  существующих `interfaces.OrderExecutor`/`risk.GlobalRiskController`/
+  `interfaces.TradeStore`. Не заморожен — донастраивается по опыту переноса
+  реальных стратегий (Фаза 4/5).
+- `internal/engine/strategy_runner.go`: `StrategyRunner` — тонкий
+  composition-root слой, конструирует `StrategyContext` из уже
+  подписанных `datafeed.Feed` каналов + `GlobalRiskController` +
+  `TradeStore`/`OrderExecutor`, запускает `Strategy.Run`. Не знает ничего
+  про SL/TP/трейлинг/EOD — это теперь дело самой стратегии.
+- `internal/strategies/adapter/adapter.go`: `SelfManagedStrategy` — дженерик
+  адаптер, оборачивающий любой существующий `strategy.CandleStrategy`
+  (сигнальный "мозг") в самодостаточную `Strategy`: сама ведёт
+  позицию/SL/TP/трейлинг/EOD/сайзинг/экспорт `ClosedTrade`, переиспользуя
+  `internal/position`+`internal/trailing` как библиотеку (тот же код, что
+  и `TickerWorker`, но во владении стратегии, не движка).
+  - `SessionClock` — локальный узкий интерфейс в adapter-пакете (не прямой
+    импорт `internal/engine`, иначе цикл: engine→strategy→(было бы)→engine).
+    `*engine.SessionClock` уже удовлетворяет ему структурно.
+  - Сознательно вне рамок пилота: интеграция с live-дашбордом
+    (`internal/live.Hub`), `tradeaudit`-проверки — не критично для
+    доказательства архитектуры, добавить при переводе первого реального
+    чемпиона.
+- Переключатель в конфиге: `runtime: strategy` (на корне конфига — для
+  одностратегийных `configs/strategies/*.yaml`, или в `experiments[].runtime`
+  для портфельных конфигов). Пусто/`worker` — прежний `TickerWorker`.
+- Пилот: `configs/runs/pilot-midday-compression.yaml` — Midday Compression
+  Breakout (LKOH/MOEX) через новый путь, изолированный счёт/БД, чемпионы не
+  затронуты.
