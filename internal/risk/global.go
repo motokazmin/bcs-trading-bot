@@ -140,6 +140,22 @@ func (g *GlobalRiskController) RegisterOpen(ticker string, riskAmount float64) {
 	g.openPositions[ticker] = riskAmount
 }
 
+// AdjustOpenRisk обновляет зарезервированный риск по уже открытой позиции —
+// нужен для частичной фиксации прибыли (partial exits, см. Фазу 3/4, ADR
+// 0001): как только объём позиции уменьшается, риск по остатку падает, и
+// newRiskAmount < текущего сразу освобождает бюджет для новой сделки, не
+// дожидаясь полного закрытия через RegisterClose. Вызов для
+// незарегистрированного тикера — no-op, не паника (это ошибка вызывающего
+// кода, но не тот случай, где стоит валить торговый цикл).
+func (g *GlobalRiskController) AdjustOpenRisk(ticker string, newRiskAmount float64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if _, ok := g.openPositions[ticker]; !ok {
+		return
+	}
+	g.openPositions[ticker] = newRiskAmount
+}
+
 // ReleaseOpen снимает резерв без учёта PnL (откат после неудачного ExecuteOrder).
 func (g *GlobalRiskController) ReleaseOpen(ticker string) {
 	g.mu.Lock()

@@ -148,3 +148,25 @@ func TestGlobalRiskController_ResetDaily(t *testing.T) {
 		t.Fatalf("expected 0 open positions, got %d", g.OpenPositionCount())
 	}
 }
+
+func TestGlobalRiskController_AdjustOpenRisk(t *testing.T) {
+	g := NewGlobalRiskController(200_000, 2.0, 0.5, 2) // budget = 2000
+	if err := g.TryOpen("SBER", 1500); err != nil {
+		t.Fatalf("TryOpen: %v", err)
+	}
+	// Частичная фиксация: риск по остатку упал с 1500 до 500.
+	g.AdjustOpenRisk("SBER", 500)
+	if got := g.OpenRiskUsed(); got != 500 {
+		t.Fatalf("open risk after adjust: got %.0f, want 500", got)
+	}
+	// Освободившийся бюджет должен впустить новую сделку, которую бюджет
+	// в 2000 не пропустил бы при старом риске 1500 по SBER.
+	if err := g.TryOpen("MGNT", 1400); err != nil {
+		t.Fatalf("TryOpen after adjust: %v", err)
+	}
+	// Несуществующий тикер — no-op, не паника.
+	g.AdjustOpenRisk("GHOST", 100)
+	if err := g.CanOpenTicker("GHOST"); err != nil {
+		t.Fatalf("AdjustOpenRisk must not register unknown ticker: %v", err)
+	}
+}
