@@ -12,7 +12,7 @@ import (
 	"bcs-trading-bot/internal/engine/marketdata"
 	"bcs-trading-bot/internal/models"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/simulation"
+	"bcs-trading-bot/internal/backtest"
 	"bcs-trading-bot/internal/engine/storage/memory"
 )
 
@@ -109,7 +109,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 			from.Format("2006-01-02"), to.Format("2006-01-02"))
 	}
 
-	runnerCfgs := make(map[string]simulation.RunnerConfig)
+	runnerCfgs := make(map[string]backtest.RunnerConfig)
 	for _, exp := range experiments {
 		session := cfg.SessionForExperiment(exp)
 		trailCfg := exp.Strategy.TrailingConfig(1.0, costsCfg, cfg.ClassCode)
@@ -126,7 +126,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 			}
 			slotTrail := trailCfg
 			slotTrail.StepPriceValue = step
-			runnerCfgs[slotKey] = simulation.RunnerConfig{
+			runnerCfgs[slotKey] = backtest.RunnerConfig{
 				Ticker:          tc.Symbol,
 				ClassCode:       cfg.ClassCode,
 				CandleTimeframe: cfg.CandleTimeFrame,
@@ -153,7 +153,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 	executor := execution.NewVirtualExecutor(deposit)
 	globalRisk := risk.NewGlobalRiskController(deposit, dailyLossPct, riskPerTrade, maxParallel)
 
-	portfolio, err := simulation.NewPortfolioRunner(simulation.PortfolioRunnerConfig{
+	portfolio, err := backtest.NewPortfolioRunner(backtest.PortfolioRunnerConfig{
 		Tickers:    runnerCfgs,
 		SessionCfg: cfg.Session,
 		GlobalRisk: globalRisk,

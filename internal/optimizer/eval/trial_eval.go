@@ -12,7 +12,7 @@ import (
 	"bcs-trading-bot/internal/engine/trailing"
 	"bcs-trading-bot/internal/models"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/simulation"
+	"bcs-trading-bot/internal/backtest"
 	"bcs-trading-bot/internal/engine/storage/memory"
 	"bcs-trading-bot/internal/strategy"
 )
@@ -173,7 +173,7 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 	)
 
 	// Собираем конфиги раннеров по тикерам для портфельного прогона в одном окне.
-	runnerCfgs := make(map[string]simulation.RunnerConfig, len(tickers))
+	runnerCfgs := make(map[string]backtest.RunnerConfig, len(tickers))
 	for _, ticker := range tickers {
 		filtered := candlesByTicker[ticker]
 		if len(filtered) == 0 {
@@ -185,7 +185,7 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 			continue
 		}
 
-		runnerCfgs[ticker] = simulation.RunnerConfig{
+		runnerCfgs[ticker] = backtest.RunnerConfig{
 			Ticker:             ticker,
 			ClassCode:          e.settings.ClassCode,
 			CandleTimeframe:    e.settings.CandleTimeframe,
@@ -213,7 +213,7 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 	}
 
 	// Портфельный раннер учитывает общий риск и конкурентные позиции между тикерами.
-	portfolio, err := simulation.NewPortfolioRunner(simulation.PortfolioRunnerConfig{
+	portfolio, err := backtest.NewPortfolioRunner(backtest.PortfolioRunnerConfig{
 		Tickers:    runnerCfgs,
 		SessionCfg: e.settings.Session,
 		GlobalRisk: globalRisk,
