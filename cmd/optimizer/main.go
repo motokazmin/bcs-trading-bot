@@ -291,6 +291,8 @@ func portfolioBacktestCmd(args []string) {
 	dateTo := fs.String("date-to", "", "конец периода YYYY-MM-DD (default: из CSV)")
 	deposit := fs.Float64("deposit", 200000, "единый депозит")
 	maxParallel := fs.Int("max-parallel", 5, "лимит одновременных позиций")
+	intrabar := fs.Int("intrabar-oscillations", 1, "проходов по экстремумам свечи при проверке SL/TP: 1 — обычно, 2-3 — стресс-тест тиков")
+	slippage := fs.Float64("slippage-bps", -1, "override costs.slippage_bps: проскальзывание на ногу, б.п. (-1 = из YAML)")
 	_ = fs.Parse(args)
 
 	opts := eval.PortfolioBacktestOptions{
@@ -298,6 +300,8 @@ func portfolioBacktestCmd(args []string) {
 		HistoryDir:  *historyDir,
 		Deposit:     *deposit,
 		MaxParallel: *maxParallel,
+		IntrabarOscillations: *intrabar,
+		SlippageBps:          *slippage,
 	}
 	if *dateFrom != "" {
 		from, err := report.ParseDate(*dateFrom)

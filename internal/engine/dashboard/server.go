@@ -256,8 +256,12 @@ func BuildOpenChartPayload(candles []models.Candle, pos *models.PositionSnapshot
 		levels = append(levels,
 			map[string]any{"price": pos.EntryPrice, "title": "Entry", "color": "#90caf9"},
 			map[string]any{"price": pos.StopLoss, "title": "SL", "color": "#ef5350"},
-			map[string]any{"price": pos.TakeProfit, "title": "TP", "color": "#66bb6a"},
 		)
+		// TakeProfit == 0 — тейк отключён, линию не рисуем (иначе она уедет в ноль).
+		if pos.TakeProfit > 0 {
+			levels = append(levels,
+				map[string]any{"price": pos.TakeProfit, "title": "TP", "color": "#66bb6a"})
+		}
 	}
 
 	return map[string]any{

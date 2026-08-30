@@ -25,7 +25,11 @@ type State struct {
 	OpenedAt          time.Time
 	EntryBarTime      time.Time // метка M5-бара входа
 	EntryBarClose     float64   // close бара входа (для audit)
-	SameBarExit       bool      // закрытие same-bar после limit-fill
+	// EntryAtBarClose — вход был по цене закрытия бара (fade/MF), а не лимитом
+	// внутри бара. Признак ставится явно: выводить его сравнением EntryPrice и
+	// candle.Close нельзя — проскальзывание сдвигает цену фила и сравнение врёт.
+	EntryAtBarClose bool
+	SameBarExit     bool // закрытие same-bar после limit-fill
 }
 
 // NewFromSignal создаёт состояние позиции из исполненного сигнала.
@@ -129,19 +133,20 @@ func CheckExit(pos *State, price float64) string {
 	if pos == nil {
 		return ""
 	}
+	// TakeProfit == 0 — тейк отключён (выход только по трейлингу/EOD).
 	switch pos.Direction {
 	case "BUY":
 		if price <= pos.StopLoss {
 			return models.CloseReasonStopLoss
 		}
-		if price >= pos.TakeProfit {
+		if pos.TakeProfit > 0 && price >= pos.TakeProfit {
 			return models.CloseReasonTakeProfit
 		}
 	case "SELL":
 		if price >= pos.StopLoss {
 			return models.CloseReasonStopLoss
 		}
-		if price <= pos.TakeProfit {
+		if pos.TakeProfit > 0 && price <= pos.TakeProfit {
 			return models.CloseReasonTakeProfit
 		}
 	}
@@ -175,7 +180,7 @@ func SameBarExitAfterFill(pos *State, candle models.Candle) string {
 		return ""
 	}
 	// Вход по цене закрытия бара — same-bar OHLC до entry не применяем.
-	if pricesEqual(pos.EntryPrice, candle.Close) {
+	if pos.EntryAtBarClose {
 		return ""
 	}
 	switch pos.Direction {
@@ -208,12 +213,38 @@ func pricesEqual(a, b float64) bool {
 
 // IntrabarPrices возвращает синтетический путь цены внутри свечи для проверки SL/TP.
 func IntrabarPrices(candle models.Candle, direction string) []float64 {
+	return IntrabarPathN(candle, direction, 1)
+}
+
+// IntrabarPathN — путь цены внутри свечи с n проходами по экстремумам.
+//
+// n=1 — базовая модель: Open → adverse → favorable → Close (для BUY: O, L, H, C).
+// Она видит каждый экстремум один раз, поэтому «дошли до пика, трейлинг подтянул
+// стоп, откатились и вылетели» ловится только если бар ЗАКРЫЛСЯ ниже стопа.
+//
+// В live выход считается по каждому тику, и такой цикл может случиться несколько
+// раз внутри одной свечи. n>1 повторяет экстремумы и служит стресс-тестом: он
+// оценивает, насколько результат держится на предположении о гладком пути внутри
+// бара. Это не «правильная» модель тиков (её без тиковой истории не построить),
+// а нижняя граница — чем сильнее падает результат при n=2..3, тем меньше доверия
+// к бэктесту на стратегиях, где выход целиком на трейлинге.
+func IntrabarPathN(candle models.Candle, direction string, n int) []float64 {
+	if n < 1 {
+		n = 1
+	}
+	var adverse, favorable float64
 	switch direction {
 	case "BUY":
-		return []float64{candle.Open, candle.Low, candle.High, candle.Close}
+		adverse, favorable = candle.Low, candle.High
 	case "SELL":
-		return []float64{candle.Open, candle.High, candle.Low, candle.Close}
+		adverse, favorable = candle.High, candle.Low
 	default:
 		return []float64{candle.Close}
 	}
+	path := make([]float64, 0, 2*n+2)
+	path = append(path, candle.Open)
+	for i := 0; i < n; i++ {
+		path = append(path, adverse, favorable)
+	}
+	return append(path, candle.Close)
 }

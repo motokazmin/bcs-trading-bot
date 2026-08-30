@@ -26,6 +26,54 @@ func TestValidateOpenTATNLimitStale(t *testing.T) {
 	assertHas(t, r, tradeaudit.CodeEntryPastStop)
 }
 
+// Rejects — гейт входа: error режет сделку, warn/info пропускают.
+func TestResultRejectsOnlyOnError(t *testing.T) {
+	// Реальная сделка id=17 из trades.db: фил 278.61 записан на 1.95R выше
+	// закрытия сигнального бара, вход сразу за стопом.
+	bad := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
+		Direction:  "BUY",
+		EntryPrice: 278.61,
+		StopLoss:   278.22,
+		TakeProfit: 279.25,
+		RDistance:  0.389,
+		BarClose:   277.85,
+		LastPrice:  277.85,
+	})
+	if !bad.Rejects() {
+		t.Fatalf("вход за стопом должен отклоняться, got %+v", bad)
+	}
+
+	clean := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
+		Direction:  "BUY",
+		EntryPrice: 100,
+		StopLoss:   99.5,
+		TakeProfit: 101.3,
+		RDistance:  0.5,
+		BarClose:   100,
+		LastPrice:  100,
+	})
+	if clean.Rejects() {
+		t.Fatalf("чистый вход не должен отклоняться, got %+v", clean)
+	}
+
+	// Умеренный дрейф лимита — warn, сделка проходит.
+	warn := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
+		Direction:  "BUY",
+		EntryPrice: 100,
+		StopLoss:   99.5,
+		TakeProfit: 101.3,
+		RDistance:  0.5,
+		BarClose:   99.6,
+		LastPrice:  99.6,
+	})
+	if warn.Severity != tradeaudit.SeverityWarn {
+		t.Fatalf("severity: got %q, want warn (%+v)", warn.Severity, warn)
+	}
+	if warn.Rejects() {
+		t.Fatal("warn не должен резать вход")
+	}
+}
+
 func TestValidateOpenCloseEntryClean(t *testing.T) {
 	r := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
 		Direction:   "SELL",
@@ -107,5 +155,36 @@ func assertNotHas(t *testing.T, r tradeaudit.Result, code string) {
 		if c == code {
 			t.Fatalf("unexpected code %s in %v", code, r.Codes)
 		}
+	}
+}
+
+// Дрейф лимита в НАШУ сторону — не повод резать вход. После фикса фила это
+// штатная ситуация: лимит поймал откат, бар закрылся выше входа (для BUY).
+func TestValidateOpenFavorableDriftIsNotError(t *testing.T) {
+	favorable := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
+		Direction:  "BUY",
+		EntryPrice: 100,
+		StopLoss:   99.5,
+		TakeProfit: 101.3,
+		RDistance:  0.5,
+		BarClose:   101.2, // +2.4R в нашу сторону
+		LastPrice:  101.2,
+	})
+	if favorable.Rejects() {
+		t.Fatalf("благоприятный дрейф не должен резать вход, got %+v", favorable)
+	}
+
+	// Тот же размер дрейфа, но против позиции — по-прежнему ошибка.
+	adverse := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
+		Direction:  "BUY",
+		EntryPrice: 100,
+		StopLoss:   99.5,
+		TakeProfit: 101.3,
+		RDistance:  0.5,
+		BarClose:   98.8, // −2.4R против нас, ниже стопа
+		LastPrice:  98.8,
+	})
+	if !adverse.Rejects() {
+		t.Fatalf("дрейф против позиции должен резать вход, got %+v", adverse)
 	}
 }

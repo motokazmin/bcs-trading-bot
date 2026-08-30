@@ -224,6 +224,28 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 		return
 	}
 
+	// Гейт входа: сигнал, у которого цена входа уже за стопом относительно рынка
+	// (или лимит оторван от бара), не исполняется. Раньше аудит только писал в лог,
+	// и такие сделки открывались, чтобы тут же закрыться по -1R.
+	openAudit := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
+		Direction:   signal.Direction,
+		EntryPrice:  signal.Price,
+		StopLoss:    signal.StopLoss,
+		TakeProfit:  signal.TakeProfit,
+		RDistance:   math.Abs(signal.Price - signal.StopLoss),
+		BarClose:    candle.Close,
+		LastPrice:   s.currentLastPrice(),
+		RewardRatio: s.cfg.RewardRatio,
+	})
+	if !openAudit.Empty() {
+		logx.Audit(s.cfg.Label, openAudit.Severity, openAudit.CodesCSV(), openAudit.DetailsString())
+	}
+	if openAudit.Rejects() {
+		logx.SignalRejected(s.cfg.Label, signal.Direction,
+			"вход отклонён аудитом: "+openAudit.CodesCSV()+" "+openAudit.DetailsString())
+		return
+	}
+
 	quantity := s.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if quantity <= 0 {
 		logx.SignalRejected(s.cfg.Label, signal.Direction, "нулевой объём позиции")
@@ -246,6 +268,10 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 	signal.Quantity = quantity
 	signal.OrderType = models.OrderTypeLimit
 	signal.Ticker = s.cfg.Ticker
+	entryAtClose := signal.Price == candle.Close
+	// Проскальзывание на входе: позиция открывается хуже сигнальной цены.
+	// SL/TP остаются там, где их поставила стратегия.
+	signal.Price = costs.FillPrice(s.cfg.CostsCfg, signal.Direction, signal.Price)
 
 	if err := sctx.Orders().ExecuteOrder(ctx, *signal); err != nil {
 		logx.Error("[%s] ошибка открытия позиции: %v", s.cfg.Label, err)
@@ -256,6 +282,7 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 	pos := position.NewFromSignal(*signal, now)
 	pos.EntryBarTime = candle.Timestamp
 	pos.EntryBarClose = candle.Close
+	pos.EntryAtBarClose = entryAtClose
 	s.mu.Lock()
 	s.pos = pos
 	s.mu.Unlock()
@@ -264,20 +291,6 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 	logx.TradeOpen(s.cfg.Label, signal.Direction, signal.Quantity, signal.Price, signal.StopLoss, signal.TakeProfit)
 	logx.Info("[%s] bar_age=%s bar_time=%s",
 		s.cfg.Label, now.Sub(candle.Timestamp).Round(time.Second), candle.Timestamp.Format(time.RFC3339))
-
-	openAudit := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
-		Direction:   signal.Direction,
-		EntryPrice:  signal.Price,
-		StopLoss:    signal.StopLoss,
-		TakeProfit:  signal.TakeProfit,
-		RDistance:   pos.RDistance,
-		BarClose:    candle.Close,
-		LastPrice:   s.currentLastPrice(),
-		RewardRatio: s.cfg.RewardRatio,
-	})
-	if !openAudit.Empty() {
-		logx.Audit(s.cfg.Label, openAudit.Severity, openAudit.CodesCSV(), openAudit.DetailsString())
-	}
 
 	// Limit-fill на баре: если на том же баре уже пробит SL/TP — закрыть по
 	// уровню, не ждать adverse tick.
@@ -375,10 +388,9 @@ func (s *SelfManagedStrategy) closePosition(ctx context.Context, sctx contract.S
 
 	price = position.ExitFillPrice(pos, reason, price)
 
-	closeDir := "SELL"
-	if pos.Direction == "SELL" {
-		closeDir = "BUY"
-	}
+	closeDir := costs.CloseSide(pos.Direction)
+	// Проскальзывание на выходе: стоп/тейк исполняются хуже своего уровня.
+	price = costs.FillPrice(s.cfg.CostsCfg, closeDir, price)
 
 	order := models.Order{
 		Ticker:      s.cfg.Ticker,

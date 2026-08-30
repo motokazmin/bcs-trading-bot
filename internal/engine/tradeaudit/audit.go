@@ -76,6 +76,14 @@ func (r Result) Empty() bool {
 	return len(r.Codes) == 0
 }
 
+// Rejects — сигнал не должен исполняться: вход уже за стопом относительно рынка
+// или лимит оторван от бара настолько, что сделка не соответствует идее.
+// Используется как гейт входа в live/virtual и в backtest, чтобы оптимизатор
+// не подбирал параметры под сделки, которые бот не возьмёт.
+func (r Result) Rejects() bool {
+	return r.Severity == SeverityError
+}
+
 func (r Result) CodesCSV() string {
 	return strings.Join(r.Codes, ",")
 }
@@ -108,9 +116,15 @@ func ValidateOpen(in OpenInput) Result {
 	if !pricesEqual(in.EntryPrice, in.BarClose) && in.BarClose > 0 {
 		drift := math.Abs(in.EntryPrice-in.BarClose) / in.RDistance
 		r.Details["limit_vs_close_r"] = drift
-		if drift >= LimitDriftErrorR {
+		// Ошибка — только когда бар ушёл ПРОТИВ позиции: это признак того, что
+		// заявка исполнена по цене, которой на рынке уже нет. Такой же дрейф в
+		// нашу сторону (лимит поймал откат, бар закрылся в плюс) — нормальный
+		// вход, его нельзя резать гейтом.
+		adverse := adverseDrift(in.Direction, in.EntryPrice, in.BarClose)
+		switch {
+		case drift >= LimitDriftErrorR && adverse:
 			r.add(SeverityError, CodeLimitVsClose)
-		} else if drift >= LimitDriftWarnR {
+		case drift >= LimitDriftWarnR:
 			r.add(SeverityWarn, CodeLimitVsClose)
 		}
 	}
@@ -236,6 +250,18 @@ func maxSeverity(a, b string) string {
 		return b
 	}
 	return a
+}
+
+// adverseDrift — цена бара ушла против позиции относительно цены входа.
+func adverseDrift(direction string, entry, barClose float64) bool {
+	switch direction {
+	case "BUY":
+		return barClose < entry
+	case "SELL":
+		return barClose > entry
+	default:
+		return false
+	}
 }
 
 func pastStop(direction string, entry, stop, price float64) bool {

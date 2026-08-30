@@ -69,6 +69,7 @@ type orFadeOpts struct {
 	ATRMultiplier       float64
 	RewardRatio         float64
 	RangeUseCap         bool
+	commonStopOpts
 }
 
 type orFadeWatch struct {
@@ -196,11 +197,11 @@ func (s *OpeningRangeFade) tryFadeEntry(candle models.Candle, close float64) *mo
 	}
 
 	entry := close
-	stopCfg := stopConfig{
+	stopCfg := s.opts.applyTo(stopConfig{
 		StopMode: s.opts.StopMode, ATRPeriod: s.opts.ATRPeriod,
 		ATRMultiplier: s.opts.ATRMultiplier, RangeUseCap: s.opts.RangeUseCap,
 		RewardRatio: s.opts.RewardRatio,
-	}
+	})
 	sl, tp := calcStopTP(direction, entry, s.orbHigh, s.orbLow, s.buffer.history, stopCfg)
 	if sl == 0 {
 		s.watch = nil
@@ -296,6 +297,7 @@ func newORFadeFromParamsExt(params Params, ctx BuildContext, allowAll bool) (Can
 		ATRMultiplier:       params.Float("atrMultiplier"),
 		RewardRatio:         rewardRatio,
 		RangeUseCap:         paramsBoolDefault(params, "rangeUseCap", true),
+		commonStopOpts:      commonStopOptsFromParams(params),
 	}.normalized()
 	return &OpeningRangeFade{
 		opts:            opts,
@@ -336,7 +338,7 @@ func orFadeConfigFields(params Params, ctx BuildContext) map[string]interface{} 
 	if rewardRatio <= 0 {
 		rewardRatio = 1.5
 	}
-	return map[string]interface{}{
+	return commonStopOptsFromParams(params).configFields(map[string]interface{}{
 		"stop_mode":                     ctx.StopMode,
 		"orb_minutes":                   params.Int("orbMinutes"),
 		"breakout_threshold":            params.Float("breakoutThreshold"),
@@ -350,5 +352,5 @@ func orFadeConfigFields(params Params, ctx BuildContext) map[string]interface{} 
 		"trail_activation_r":            params.Float("trailActivationR"),
 		"trail_stage_max":               params.Int("trailStageMax"),
 		"trail_breakeven_r":             params.Float("trailBreakevenR"),
-	}
+	})
 }

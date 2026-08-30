@@ -15,6 +15,26 @@ func TestExitFillPriceStopLossUsesLevel(t *testing.T) {
 	}
 }
 
+// TakeProfit == 0 означает «тейк отключён». Без явной проверки условие
+// price >= 0 для лонга истинно всегда и позиция закрывалась бы сразу как TP.
+func TestCheckExitNoTakeProfit(t *testing.T) {
+	long := &position.State{Direction: "BUY", EntryPrice: 100, StopLoss: 99, TakeProfit: 0}
+	if got := position.CheckExit(long, 100.5); got != "" {
+		t.Fatalf("BUY без тейка: got %q, want \"\"", got)
+	}
+	if got := position.CheckExit(long, 98.9); got != models.CloseReasonStopLoss {
+		t.Fatalf("BUY без тейка, цена под стопом: got %q, want STOP_LOSS", got)
+	}
+
+	short := &position.State{Direction: "SELL", EntryPrice: 100, StopLoss: 101, TakeProfit: 0}
+	if got := position.CheckExit(short, 99.5); got != "" {
+		t.Fatalf("SELL без тейка: got %q, want \"\"", got)
+	}
+	if got := position.CheckExit(short, 101.1); got != models.CloseReasonStopLoss {
+		t.Fatalf("SELL без тейка, цена над стопом: got %q, want STOP_LOSS", got)
+	}
+}
+
 func TestSameBarExitAfterFillShortTATN(t *testing.T) {
 	// Paper bug scenario: limit short 484.7, stop 485.84, bar high 500 / close 491.6.
 	pos := &position.State{
@@ -50,14 +70,45 @@ func TestSameBarExitAfterFillNoHit(t *testing.T) {
 func TestSameBarExitSkipsCloseBasedEntry(t *testing.T) {
 	// Fade/MF: вход по close; Low до close не должен дать мгновенный SL.
 	pos := &position.State{
-		Direction:  "BUY",
-		EntryPrice: 100,
-		StopLoss:   95,
-		TakeProfit: 110,
+		Direction:       "BUY",
+		EntryPrice:      100,
+		StopLoss:        95,
+		TakeProfit:      110,
+		EntryAtBarClose: true,
 	}
 	candle := models.Candle{Open: 102, High: 103, Low: 94, Close: 100}
 	if got := position.SameBarExitAfterFill(pos, candle); got != "" {
 		t.Fatalf("close entry must not same-bar exit on pre-entry wick, got %q", got)
+	}
+}
+
+// Признак «вход по close» должен быть явным полем, а не выводиться сравнением
+// EntryPrice с candle.Close: проскальзывание сдвигает цену фила, и по сравнению
+// вход по закрытию перестаёт распознаваться — стратегия получает ложный -1R
+// по хвосту свечи, который случился ДО входа.
+func TestSameBarExitCloseEntrySurvivesSlippage(t *testing.T) {
+	candle := models.Candle{Open: 102, High: 103, Low: 94, Close: 100}
+	pos := &position.State{
+		Direction:       "BUY",
+		EntryPrice:      100.01, // фил с проскальзыванием: уже != candle.Close
+		StopLoss:        95,
+		TakeProfit:      110,
+		EntryAtBarClose: true,
+	}
+	if got := position.SameBarExitAfterFill(pos, candle); got != "" {
+		t.Fatalf("вход по close со скольжением не должен давать same-bar выход, got %q", got)
+	}
+
+	// А настоящий limit-fill внутри бара по-прежнему проверяется по OHLC.
+	limitPos := &position.State{
+		Direction:       "BUY",
+		EntryPrice:      100.01,
+		StopLoss:        95,
+		TakeProfit:      110,
+		EntryAtBarClose: false,
+	}
+	if got := position.SameBarExitAfterFill(limitPos, candle); got != models.CloseReasonStopLoss {
+		t.Fatalf("limit-fill: got %q, want STOP_LOSS", got)
 	}
 }
 

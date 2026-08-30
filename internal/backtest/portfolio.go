@@ -15,6 +15,7 @@ import (
 	"bcs-trading-bot/internal/engine/tradeaudit"
 	"bcs-trading-bot/internal/engine/trailing"
 	"bcs-trading-bot/internal/engine/contract"
+	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/models"
 )
 
@@ -201,6 +202,18 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	if err := st.riskMgr.CheckCircuitBreaker(); err != nil {
 		return
 	}
+	// Тот же гейт входа, что и в live: см. tradeaudit.Result.Rejects.
+	if tradeaudit.ValidateOpen(tradeaudit.OpenInput{
+		Direction:   signal.Direction,
+		EntryPrice:  signal.Price,
+		StopLoss:    signal.StopLoss,
+		TakeProfit:  signal.TakeProfit,
+		RDistance:   abs(signal.Price - signal.StopLoss),
+		BarClose:    candle.Close,
+		RewardRatio: st.cfg.RewardRatio,
+	}).Rejects() {
+		return
+	}
 	qty := st.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if qty <= 0 {
 		return
@@ -216,6 +229,9 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	if signal.Ticker == "" {
 		signal.Ticker = st.cfg.Ticker
 	}
+	entryAtClose := signal.Price == candle.Close
+	// Проскальзывание на входе — см. комментарий в runner.go.
+	signal.Price = costs.FillPrice(st.cfg.CostsCfg, signal.Direction, signal.Price)
 
 	tradeRisk := abs(signal.Price-signal.StopLoss) * float64(qty) * st.cfg.StepPriceValue
 	if p.global != nil {
@@ -238,6 +254,7 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	st.position = position.NewFromSignal(*signal, candle.Timestamp)
 	st.position.EntryBarTime = candle.Timestamp
 	st.position.EntryBarClose = candle.Close
+	st.position.EntryAtBarClose = entryAtClose
 
 	if reason := position.SameBarExitAfterFill(st.position, candle); reason != "" {
 		exitPx := position.ExitFillPrice(st.position, reason, candle.Close)
@@ -249,7 +266,7 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 }
 
 func (p *PortfolioRunner) processIntrabar(ctx context.Context, executor contract.OrderExecutor, st *tickerState, candle models.Candle) {
-	for _, price := range position.IntrabarPrices(candle, st.position.Direction) {
+	for _, price := range position.IntrabarPathN(candle, st.position.Direction, st.cfg.IntrabarOscillations) {
 		position.UpdateMFE(st.position, price)
 		position.UpdateMAE(st.position, price)
 		trailing.Apply(st.position, price, st.cfg.TrailCfg)
@@ -305,7 +322,8 @@ func (p *PortfolioRunner) closePosition(ctx context.Context, executor contract.O
 	pos := st.position
 	st.position = nil
 
-	price = position.ExitFillPrice(pos, reason, price)
+	price = costs.FillPrice(st.cfg.CostsCfg, costs.CloseSide(pos.Direction),
+		position.ExitFillPrice(pos, reason, price))
 
 	closeDir := "SELL"
 	if pos.Direction == "SELL" {

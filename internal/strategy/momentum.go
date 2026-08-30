@@ -33,6 +33,7 @@ type momentumBreakoutOpts struct {
 	VolumeFilter      bool
 	VolumeMinRatio    float64
 	BreakoutThreshold float64
+	commonStopOpts
 }
 
 // NewMomentumBreakout создаёт стратегию (legacy API для тестов).
@@ -84,11 +85,11 @@ func (s *MomentumBreakout) OnCandle(candle models.Candle) *models.Order {
 	}
 
 	entry := close
-	stopCfg := stopConfig{
+	stopCfg := s.opts.applyTo(stopConfig{
 		StopMode: s.opts.StopMode, ATRPeriod: s.opts.ATRPeriod,
 		ATRMultiplier: s.opts.ATRMultiplier, RangeUseCap: s.opts.RangeUseCap,
 		RewardRatio: s.opts.RewardRatio,
-	}
+	})
 	sl, tp := calcStopTP(direction, entry, upper, lower, s.buffer.history, stopCfg)
 	order := buildOrder(candle, direction, entry, sl, tp, upper, lower)
 	if order == nil {
@@ -127,6 +128,7 @@ func momentumBreakoutOptsFromParams(params Params, ctx BuildContext) momentumBre
 		VolumeFilter:      volFilter,
 		VolumeMinRatio:    volMin,
 		BreakoutThreshold: params.Float("breakoutThreshold"),
+		commonStopOpts:    commonStopOptsFromParams(params),
 	}.normalized()
 }
 
@@ -172,7 +174,7 @@ func momentumBreakoutConfigFields(params Params, ctx BuildContext) map[string]in
 	if volMin <= 0 {
 		volMin = params.Float("volumeFilterMultiplier")
 	}
-	return map[string]interface{}{
+	return commonStopOptsFromParams(params).configFields(map[string]interface{}{
 		"lookback":                     params.Int("lookback"),
 		"stop_mode":                    ctx.StopMode,
 		"atr_period":                   params.Int("atrPeriod"),
@@ -182,7 +184,7 @@ func momentumBreakoutConfigFields(params Params, ctx BuildContext) map[string]in
 		"volume_filter":                vol,
 		"volume_min_ratio":             volMin,
 		"max_trades_per_ticker_per_day": params.Int("maxEntriesPerTickerPerDay"),
-	}
+	})
 }
 
 func paramsBoolDefault(p Params, key string, def bool) bool {

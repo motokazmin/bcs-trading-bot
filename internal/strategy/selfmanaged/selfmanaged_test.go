@@ -313,6 +313,34 @@ func TestProcessCandleSetsEntryBar(t *testing.T) {
 	}
 }
 
+// Гейт входа: сигнал, у которого цена входа уже за стопом относительно бара,
+// не должен открывать позицию. Раньше аудит только писал в лог, и такая сделка
+// открывалась, чтобы тут же закрыться по -1R.
+func TestProcessCandleRejectsEntryPastStop(t *testing.T) {
+	// Сделка id=17 из trades.db: BUY 278.61 при закрытии сигнального бара 277.85.
+	sig := &fakeSignal{next: &models.Order{
+		Direction: "BUY", Price: 278.61, StopLoss: 278.22, TakeProfit: 279.25,
+	}}
+	s := newTestStrategy(Config{
+		Signal: sig, ExperimentID: "orc", CandleTimeframe: "M5",
+		Session: fakeClock{entries: true, open: true},
+	})
+	risk := newFakeRisk()
+	sctx := &fakeCtx{orders: &stubExecutor{}, risk: risk, trades: &recordingTradeStore{}}
+
+	now := time.Date(2026, 8, 14, 11, 30, 0, 0, time.UTC)
+	bar := models.Candle{Open: 277.85, High: 278.13, Low: 277.45, Close: 277.85, Timestamp: now.Add(-1 * time.Minute)}
+
+	s.processCandle(context.Background(), sctx, bar, now)
+
+	if s.hasPos() {
+		t.Fatal("вход за стопом должен быть отклонён, позиция не открывается")
+	}
+	if len(risk.opened) != 0 {
+		t.Fatalf("риск не должен резервироваться на отклонённом сигнале: %+v", risk.opened)
+	}
+}
+
 func TestSnapshotPosition(t *testing.T) {
 	s := newTestStrategy(Config{ExperimentID: "exp1", Ticker: "SBER", StepPriceValue: 1})
 	if s.SnapshotPosition() != nil {

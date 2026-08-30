@@ -13,6 +13,7 @@ import (
 	"bcs-trading-bot/internal/engine/tradeaudit"
 	"bcs-trading-bot/internal/engine/trailing"
 	"bcs-trading-bot/internal/engine/contract"
+	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/models"
 )
 
@@ -37,6 +38,12 @@ type RunnerConfig struct {
 	RewardRatio          float64
 	StrategyParamsJSON   string
 	SessionCfg           config.SessionConfig
+	// IntrabarOscillations — число проходов по экстремумам свечи при проверке
+	// SL/TP (см. position.IntrabarPathN). 0/1 — обычная модель, >1 — стресс-тест.
+	IntrabarOscillations int
+	// CostsCfg — модель издержек. В backtest из неё используется только
+	// SlippageBps: комиссия применяется позже, на агрегации (eval.AggregateTrades).
+	CostsCfg costs.Config
 }
 
 // Runner воспроизводит торговый цикл воркера на исторических свечах.
@@ -129,6 +136,18 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 	if err := r.riskMgr.CheckCircuitBreaker(); err != nil {
 		return
 	}
+	// Тот же гейт входа, что и в live: см. tradeaudit.Result.Rejects.
+	if tradeaudit.ValidateOpen(tradeaudit.OpenInput{
+		Direction:   signal.Direction,
+		EntryPrice:  signal.Price,
+		StopLoss:    signal.StopLoss,
+		TakeProfit:  signal.TakeProfit,
+		RDistance:   abs(signal.Price - signal.StopLoss),
+		BarClose:    candle.Close,
+		RewardRatio: r.cfg.RewardRatio,
+	}).Rejects() {
+		return
+	}
 
 	qty := r.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if qty <= 0 {
@@ -142,6 +161,11 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 	}
 	signal.Quantity = qty
 	signal.OrderType = models.OrderTypeLimit
+	entryAtClose := signal.Price == candle.Close
+	// Проскальзывание на входе: позиция открывается хуже сигнальной цены.
+	// SL/TP остаются там, где их поставила стратегия, поэтому фактический R
+	// слегка отличается от задуманного — ровно как в реальном исполнении.
+	signal.Price = costs.FillPrice(r.cfg.CostsCfg, signal.Direction, signal.Price)
 
 	if err := executor.ExecuteOrder(ctx, *signal); err != nil {
 		return
@@ -151,6 +175,7 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 	r.position = position.NewFromSignal(*signal, candle.Timestamp)
 	r.position.EntryBarTime = candle.Timestamp
 	r.position.EntryBarClose = candle.Close
+	r.position.EntryAtBarClose = entryAtClose
 
 	if reason := position.SameBarExitAfterFill(r.position, candle); reason != "" {
 		exitPx := position.ExitFillPrice(r.position, reason, candle.Close)
@@ -162,7 +187,7 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 }
 
 func (r *Runner) processIntrabar(ctx context.Context, executor contract.OrderExecutor, candle models.Candle) {
-	for _, price := range position.IntrabarPrices(candle, r.position.Direction) {
+	for _, price := range position.IntrabarPathN(candle, r.position.Direction, r.cfg.IntrabarOscillations) {
 		position.UpdateMFE(r.position, price)
 		position.UpdateMAE(r.position, price)
 		trailing.Apply(r.position, price, r.cfg.TrailCfg)
@@ -213,7 +238,8 @@ func (r *Runner) closePosition(ctx context.Context, executor contract.OrderExecu
 	pos := r.position
 	r.position = nil
 
-	price = position.ExitFillPrice(pos, reason, price)
+	price = costs.FillPrice(r.cfg.CostsCfg, costs.CloseSide(pos.Direction),
+		position.ExitFillPrice(pos, reason, price))
 
 	closeDir := "SELL"
 	if pos.Direction == "SELL" {

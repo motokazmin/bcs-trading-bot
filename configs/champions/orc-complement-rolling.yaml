@@ -20,6 +20,11 @@ candle_timeframe: M5
 
 costs:
   commission_rate_per_leg: 0.00008
+  # Проскальзывание + половина спреда на КАЖДОЙ ноге. 1 б.п. — консервативно-мягкая
+  # оценка для ликвидных TQBR. Для стратегий со входом лимитом на уровне (ORC) вход
+  # так оценивается с запасом: лимит не проскальзывает, он либо исполняется, либо нет.
+  # Стресс без правки конфига: portfolio-backtest -slippage-bps N
+  slippage_bps: 1
 
 session:
   timezone: Europe/Moscow
@@ -41,6 +46,12 @@ strategy:
   max_trades_per_ticker_per_day: 1
   allow_all_tickers: true
 
+  # Порог по стоимости сделки, не подгонка: комиссия 1.6 б.п. round-trip плюс
+  # спред 1–5 б.п. Стоп в 20 б.п. — примерно 10x издержек. Ужесточать только
+  # по новым данным (docs/analysis/state.md), а не по этим 95 сделкам.
+  min_stop_bps: 20
+  # Фикс. тейк резал победителей (18/18 сделок шли дальше). Выход — трейлинг.
+  take_profit_enabled: false
 risk:
   deposit: 200000
   max_daily_loss_percent: 2.0

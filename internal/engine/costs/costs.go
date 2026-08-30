@@ -24,6 +24,35 @@ type Config struct {
 	CommissionPerLot float64 `yaml:"commission_per_lot"`
 	// CommissionRatePerLeg — доля оборота за одну сделку (0.00008 = 0,008%).
 	CommissionRatePerLeg float64 `yaml:"commission_rate_per_leg"`
+	// SlippageBps — проскальзывание и половина спреда на КАЖДОЙ ноге, в базисных
+	// пунктах от цены. Всегда против позиции: покупка исполняется дороже, продажа
+	// дешевле. 0 = идеальное исполнение по уровню (оптимистично, см. docs/baseline.md).
+	SlippageBps float64 `yaml:"slippage_bps"`
+}
+
+// FillPrice применяет проскальзывание к цене исполнения одной ноги.
+// side — направление исполняемой сделки: "BUY" исполняется дороже, "SELL" дешевле.
+func FillPrice(cfg Config, side string, price float64) float64 {
+	if cfg.SlippageBps <= 0 || price <= 0 {
+		return price
+	}
+	delta := price * cfg.SlippageBps / 1e4
+	switch side {
+	case "BUY":
+		return price + delta
+	case "SELL":
+		return price - delta
+	default:
+		return price
+	}
+}
+
+// CloseSide — направление сделки, закрывающей позицию.
+func CloseSide(positionDirection string) string {
+	if positionDirection == "SELL" {
+		return "BUY"
+	}
+	return "SELL"
 }
 
 func (c Config) UsesRate(classCode string) bool {

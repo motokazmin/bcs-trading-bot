@@ -1,6 +1,7 @@
 package strategy
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -65,18 +66,59 @@ type orcOpts struct {
 	ATRMultiplier     float64
 	RewardRatio       float64
 	RangeUseCap       bool
+	commonStopOpts
+}
+
+func (s *OpeningRangeContinuation) stopCfg() stopConfig {
+	return s.opts.applyTo(stopConfig{
+		StopMode: s.opts.StopMode, ATRPeriod: s.opts.ATRPeriod,
+		ATRMultiplier: s.opts.ATRMultiplier, RangeUseCap: s.opts.RangeUseCap,
+		RewardRatio: s.opts.RewardRatio,
+	})
 }
 
 type orcPendingLimit struct {
-	direction     string
-	limitPrice    float64
-	stopLoss      float64
-	takeProfit    float64
-	upper         float64
-	lower         float64
-	placedAt      time.Time
-	expiresAt     time.Time
+	direction      string
+	limitPrice     float64
+	upper          float64
+	lower          float64
+	placedAt       time.Time
+	expiresAt      time.Time
 	breakoutCandle models.Candle
+}
+
+// invalidated — свеча закрылась обратно внутри диапазона, т.е. пробой не состоялся.
+// Ретест-лимит в этом случае снимается: иначе он гарантированно исполнится на
+// возврате цены и позиция откроется против уже развернувшегося движения.
+func (p *orcPendingLimit) invalidated(candle models.Candle) bool {
+	switch p.direction {
+	case "BUY":
+		return candle.Close < p.upper
+	case "SELL":
+		return candle.Close > p.lower
+	}
+	return true
+}
+
+// fillPrice — цена исполнения лимитной заявки на баре.
+// Лимит на покупку исполняется, когда рынок доходит до уровня; если бар открылся
+// уже ниже уровня, заявка исполняется по цене открытия (лучше лимита), а не по
+// самому уровню. Раньше фил всегда записывался по limitPrice — из-за этого сделка
+// открывалась по цене, которой на рынке в тот момент не было.
+func (p *orcPendingLimit) fillPrice(candle models.Candle) (float64, bool) {
+	switch p.direction {
+	case "BUY":
+		if candle.Low > p.limitPrice {
+			return 0, false
+		}
+		return math.Min(candle.Open, p.limitPrice), true
+	case "SELL":
+		if candle.High < p.limitPrice {
+			return 0, false
+		}
+		return math.Max(candle.Open, p.limitPrice), true
+	}
+	return 0, false
 }
 
 func (s *OpeningRangeContinuation) ID() string {
@@ -162,21 +204,16 @@ func (s *OpeningRangeContinuation) OnCandle(candle models.Candle) *models.Order 
 		entry = s.orbLow
 	}
 
-	stopCfg := stopConfig{
-		StopMode: s.opts.StopMode, ATRPeriod: s.opts.ATRPeriod,
-		ATRMultiplier: s.opts.ATRMultiplier, RangeUseCap: s.opts.RangeUseCap,
-		RewardRatio: s.opts.RewardRatio,
-	}
-	sl, tp := calcStopTP(direction, entry, s.orbHigh, s.orbLow, s.buffer.history, stopCfg)
-	if sl == 0 {
+	// Пре-проверка выполнимости: если стоп по текущей истории не считается или
+	// уже, чем min_stop_bps, заявку не ставим. Финальные SL/TP считаются при филе
+	// от фактической цены исполнения.
+	if sl, _ := calcStopTP(direction, entry, s.orbHigh, s.orbLow, s.buffer.history, s.stopCfg()); sl == 0 {
 		return nil
 	}
 
 	s.pending = &orcPendingLimit{
 		direction:      direction,
 		limitPrice:     entry,
-		stopLoss:       sl,
-		takeProfit:     tp,
 		upper:          s.orbHigh,
 		lower:          s.orbLow,
 		placedAt:       candle.Timestamp,
@@ -227,18 +264,25 @@ func (s *OpeningRangeContinuation) tryFillPending(candle models.Candle) *models.
 	}
 
 	p := s.pending
-	filled := false
-	switch p.direction {
-	case "BUY":
-		filled = candle.Low <= p.limitPrice
-	case "SELL":
-		filled = candle.High >= p.limitPrice
+	if p.invalidated(candle) {
+		s.pending = nil
+		return nil
 	}
+
+	fill, filled := p.fillPrice(candle)
 	if !filled {
 		return nil
 	}
 
-	order := buildOrder(candle, p.direction, p.limitPrice, p.stopLoss, p.takeProfit, p.upper, p.lower)
+	// SL/TP считаются от фактической цены фила, а не от уровня диапазона:
+	// иначе R позиции не совпадает с реальным риском по факту исполнения.
+	sl, tp := calcStopTP(p.direction, fill, p.upper, p.lower, s.buffer.history, s.stopCfg())
+	if sl == 0 {
+		s.pending = nil
+		return nil
+	}
+
+	order := buildOrder(candle, p.direction, fill, sl, tp, p.upper, p.lower)
 	if order == nil {
 		s.pending = nil
 		return nil
@@ -286,6 +330,7 @@ func newORCFromParamsExt(params Params, ctx BuildContext, allowAll bool) (Candle
 		ATRMultiplier:     params.Float("atrMultiplier"),
 		RewardRatio:       rewardRatio,
 		RangeUseCap:       paramsBoolDefault(params, "rangeUseCap", true),
+		commonStopOpts:    commonStopOptsFromParams(params),
 	}.normalized()
 	return &OpeningRangeContinuation{
 		opts:            opts,
@@ -320,7 +365,7 @@ func orcConfigFields(params Params, ctx BuildContext) map[string]interface{} {
 	if rewardRatio <= 0 {
 		rewardRatio = 2.60
 	}
-	return map[string]interface{}{
+	return commonStopOptsFromParams(params).configFields(map[string]interface{}{
 		"stop_mode":                     ctx.StopMode,
 		"orb_minutes":                   params.Int("orbMinutes"),
 		"breakout_threshold":            params.Float("breakoutThreshold"),
@@ -332,5 +377,5 @@ func orcConfigFields(params Params, ctx BuildContext) map[string]interface{} {
 		"trail_stage_max":               params.Int("trailStageMax"),
 		"trail_breakeven_r":             params.Float("trailBreakevenR"),
 		"allow_all_tickers":             params.Bool("allowAllTickers"),
-	}
+	})
 }
