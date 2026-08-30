@@ -8,11 +8,10 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/contract"
+	"bcs-trading-bot/internal/models"
 	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/risk"
-	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/internal/models"
 )
 
 // --- фейки каркаса ---------------------------------------------------------
@@ -72,18 +71,18 @@ func (r *fakeRisk) ReleaseOpen(ticker string) {
 }
 
 type fakeCtx struct {
-	orders strategy.OrderPort
-	risk   strategy.RiskPort
-	trades strategy.TradeRecorder
+	orders contract.OrderPort
+	risk   contract.RiskPort
+	trades contract.TradeRecorder
 }
 
 func (c *fakeCtx) Ticker() string                 { return "SBER" }
 func (c *fakeCtx) Timeframe() string              { return "M5" }
 func (c *fakeCtx) Candles() <-chan models.Candle  { return nil }
 func (c *fakeCtx) Ticks() <-chan models.Tick      { return nil }
-func (c *fakeCtx) Orders() strategy.OrderPort     { return c.orders }
-func (c *fakeCtx) Risk() strategy.RiskPort        { return c.risk }
-func (c *fakeCtx) Trades() strategy.TradeRecorder { return c.trades }
+func (c *fakeCtx) Orders() contract.OrderPort     { return c.orders }
+func (c *fakeCtx) Risk() contract.RiskPort        { return c.risk }
+func (c *fakeCtx) Trades() contract.TradeRecorder { return c.trades }
 
 type fakeClock struct {
 	entries    bool
@@ -202,7 +201,7 @@ func TestClosePositionGhostDropsWithoutRestore(t *testing.T) {
 	fr := newFakeRisk()
 	fr.opened["CHMF"] = 1000
 	s := newTestStrategy(Config{ExperimentID: "or-fade", Ticker: "CHMF"})
-	sctx := &fakeCtx{orders: errExecutor{err: interfaces.ErrNoOpenPosition}, risk: fr, trades: store}
+	sctx := &fakeCtx{orders: errExecutor{err: contract.ErrNoOpenPosition}, risk: fr, trades: store}
 
 	s.pos = &position.State{Direction: "BUY", Quantity: 1, EntryPrice: 680, StopLoss: 677, TakeProfit: 684, RDistance: 3, OpenedAt: time.Now()}
 	s.closePosition(context.Background(), sctx, 677, models.CloseReasonStopLoss)
@@ -334,7 +333,7 @@ func TestSnapshotPosition(t *testing.T) {
 func TestGlobalRiskPortIntegration(t *testing.T) {
 	// sanity: реальный контроллер удовлетворяет RiskPort и адаптер с ним работает
 	gr := risk.NewGlobalRiskController(200_000, 2.0, 0.5, 4)
-	var _ strategy.RiskPort = gr
+	var _ contract.RiskPort = gr
 	if err := gr.TryOpen("SBER", 500); err != nil {
 		t.Fatalf("TryOpen: %v", err)
 	}

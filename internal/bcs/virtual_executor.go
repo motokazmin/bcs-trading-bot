@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"sync"
 
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )
 
 // ErrTickerAlreadyOpen — повторный open по занятому тикеру (one-position-per-ticker).
 var ErrTickerAlreadyOpen = fmt.Errorf("ticker already has open position")
 
-var _ interfaces.OrderExecutor = (*VirtualExecutor)(nil)
+var _ contract.OrderExecutor = (*VirtualExecutor)(nil)
 
 const defaultVirtualBalance = 100_000
 
@@ -85,7 +85,7 @@ func (v *VirtualExecutor) openPosition(order models.Order) error {
 func (v *VirtualExecutor) closePosition(order models.Order) error {
 	pos, ok := v.positions[order.Ticker]
 	if !ok {
-		return fmt.Errorf("[VIRTUAL] нет открытой позиции по %s: %w", order.Ticker, interfaces.ErrNoOpenPosition)
+		return fmt.Errorf("[VIRTUAL] нет открытой позиции по %s: %w", order.Ticker, contract.ErrNoOpenPosition)
 	}
 
 	closePrice := order.Price

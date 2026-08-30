@@ -4,14 +4,14 @@ import (
 	"sync"
 	"time"
 
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )
 
 // Hub хранит воркеры и буфер свечей текущего торгового дня.
 type Hub struct {
 	mu        sync.RWMutex
-	sources   []interfaces.PositionSource
+	sources   []contract.PositionSource
 	candles   map[string][]models.Candle
 	lastPrice map[string]float64
 	dayKey    map[string]string // ticker → YYYY-MM-DD MSK
@@ -31,7 +31,7 @@ func NewHub() *Hub {
 	}
 }
 
-func (h *Hub) Register(src interfaces.PositionSource) {
+func (h *Hub) Register(src contract.PositionSource) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.sources = append(h.sources, src)
@@ -78,7 +78,7 @@ func (h *Hub) IngestTick(t models.Tick) {
 
 func (h *Hub) Positions() []models.PositionSnapshot {
 	h.mu.RLock()
-	sources := append([]interfaces.PositionSource(nil), h.sources...)
+	sources := append([]contract.PositionSource(nil), h.sources...)
 	last := make(map[string]float64, len(h.lastPrice))
 	for k, v := range h.lastPrice {
 		last[k] = v

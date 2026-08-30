@@ -8,11 +8,11 @@ import (
 	"strings"
 
 	"bcs-trading-bot/internal/api"
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )
 
-func (s *Server) requireReader(w http.ResponseWriter) interfaces.TradeReader {
+func (s *Server) requireReader(w http.ResponseWriter) contract.TradeReader {
 	if s.reader == nil {
 		http.Error(w, "хранилище сделок отключено", http.StatusServiceUnavailable)
 		return nil

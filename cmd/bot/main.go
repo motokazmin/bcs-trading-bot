@@ -21,7 +21,7 @@ import (
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/storage/sqlite"
 	"bcs-trading-bot/internal/strategies/adapter"
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
 )
@@ -109,8 +109,8 @@ func main() {
 		return
 	}
 
-	var tradeStore interfaces.TradeStore = interfaces.NoopTradeStore{}
-	var tradeReader interfaces.TradeReader
+	var tradeStore contract.TradeStore = contract.NoopTradeStore{}
+	var tradeReader contract.TradeReader
 	if cfg.StorageEnabled() {
 		store, err := sqlite.Open(cfg.Storage.Path)
 		if err != nil {
@@ -151,7 +151,7 @@ func main() {
 		maxParallel,
 	)
 
-	var executor interfaces.OrderExecutor
+	var executor contract.OrderExecutor
 	switch cfg.TradingMode {
 	case config.TradingModeVirtual:
 		balance := cfg.AccountBalance()

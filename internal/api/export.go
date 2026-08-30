@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"bcs-trading-bot/internal/export"
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )
 
@@ -30,10 +30,10 @@ func ParseExportMode(s string) (ExportMode, error) {
 
 // ExportService собирает пакеты для веб-UI и ИИ-анализа.
 type ExportService struct {
-	reader interfaces.TradeReader
+	reader contract.TradeReader
 }
 
-func NewExportService(reader interfaces.TradeReader) *ExportService {
+func NewExportService(reader contract.TradeReader) *ExportService {
 	return &ExportService{reader: reader}
 }
 

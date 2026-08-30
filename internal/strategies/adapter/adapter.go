@@ -1,6 +1,6 @@
 // Package adapter реализует SelfManagedStrategy (ADR 0001).
 // Оборачивает любой strategy.CandleStrategy (сигнальный "мозг") в
-// самодостаточную strategy.Strategy: сама ведёт позицию, SL/TP/трейлинг,
+// самодостаточную contract.Strategy: сама ведёт позицию, SL/TP/трейлинг,
 // EOD-закрытие, сайзинг и экспорт закрытой сделки.
 //
 // Что делает адаптер поверх сигнала:
@@ -8,7 +8,7 @@
 //   - tradeaudit ValidateOpen/ValidateClose → audit_* в ClosedTrade;
 //   - ghost-handling: ErrNoOpenPosition → дроп позиции, прочие ошибки
 //     исполнителя на закрытии → восстановление позиции для повтора;
-//   - снапшот позиции для live-дашборда (interfaces.PositionSource → live.Hub).
+//   - снапшот позиции для live-дашборда (contract.PositionSource → live.Hub).
 package adapter
 
 import (
@@ -26,12 +26,12 @@ import (
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/tradeaudit"
 	"bcs-trading-bot/internal/trailing"
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
 )
 
-var _ interfaces.PositionSource = (*SelfManagedStrategy)(nil)
+var _ contract.PositionSource = (*SelfManagedStrategy)(nil)
 
 // SessionClock — то подмножество internal/engine.SessionClock, которое
 // нужно адаптеру. Отдельный интерфейс здесь (а не прямой импорт
@@ -71,8 +71,8 @@ type Config struct {
 }
 
 // SelfManagedStrategy — самодостаточная стратегия поверх существующего
-// сигнального генератора. Реализует strategy.Strategy и
-// interfaces.PositionSource.
+// сигнального генератора. Реализует contract.Strategy и
+// contract.PositionSource.
 type SelfManagedStrategy struct {
 	cfg     Config
 	riskMgr *risk.RiskManager
@@ -149,7 +149,7 @@ func (s *SelfManagedStrategy) setLastPrice(p float64) {
 
 // Run — основной цикл. Блокируется до ctx.Done() или закрытия каналов
 // StrategyContext.
-func (s *SelfManagedStrategy) Run(ctx context.Context, sctx strategy.StrategyContext) {
+func (s *SelfManagedStrategy) Run(ctx context.Context, sctx contract.StrategyContext) {
 	logx.WorkerLifecycle(s.cfg.Label, "strategy запущена")
 	defer logx.WorkerLifecycle(s.cfg.Label, "strategy остановлена")
 
@@ -194,7 +194,7 @@ func (s *SelfManagedStrategy) Run(ctx context.Context, sctx strategy.StrategyCon
 	}
 }
 
-func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx strategy.StrategyContext, candle models.Candle, now time.Time) {
+func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.StrategyContext, candle models.Candle, now time.Time) {
 	if ctx.Err() != nil || s.hasPos() {
 		return
 	}
@@ -306,7 +306,7 @@ func (s *SelfManagedStrategy) currentLastPrice() float64 {
 	return s.lastPrice
 }
 
-func (s *SelfManagedStrategy) checkSLTP(ctx context.Context, sctx strategy.StrategyContext, price float64) {
+func (s *SelfManagedStrategy) checkSLTP(ctx context.Context, sctx contract.StrategyContext, price float64) {
 	s.mu.Lock()
 	if s.pos == nil {
 		s.mu.Unlock()
@@ -333,7 +333,7 @@ func (s *SelfManagedStrategy) checkSLTP(ctx context.Context, sctx strategy.Strat
 	}
 }
 
-func (s *SelfManagedStrategy) checkEOD(ctx context.Context, sctx strategy.StrategyContext, price float64, now time.Time) {
+func (s *SelfManagedStrategy) checkEOD(ctx context.Context, sctx contract.StrategyContext, price float64, now time.Time) {
 	if !s.cfg.Session.ShouldForceClose(now) {
 		if s.cfg.Session.EntriesAllowed(now) {
 			s.eodCloseDate = ""
@@ -364,7 +364,7 @@ func (s *SelfManagedStrategy) checkDailyReset(now time.Time) {
 	logx.DailyReset(s.cfg.Label)
 }
 
-func (s *SelfManagedStrategy) closePosition(ctx context.Context, sctx strategy.StrategyContext, price float64, reason string) {
+func (s *SelfManagedStrategy) closePosition(ctx context.Context, sctx contract.StrategyContext, price float64, reason string) {
 	s.mu.Lock()
 	if s.pos == nil {
 		s.mu.Unlock()
@@ -397,7 +397,7 @@ func (s *SelfManagedStrategy) closePosition(ctx context.Context, sctx strategy.S
 
 	if err := sctx.Orders().ExecuteOrder(ctx, order); err != nil {
 		logx.Error("[%s] ошибка закрытия позиции (%s): %v", s.cfg.Label, reason, err)
-		if errors.Is(err, interfaces.ErrNoOpenPosition) {
+		if errors.Is(err, contract.ErrNoOpenPosition) {
 			// Ghost: локальная позиция есть, у исполнителя уже нет — не
 			// восстанавливаем (иначе spam повторных закрытий), только
 			// освобождаем риск.

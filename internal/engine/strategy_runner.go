@@ -4,14 +4,13 @@ import (
 	"context"
 	"time"
 
-	"bcs-trading-bot/internal/risk"
-	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
+	"bcs-trading-bot/internal/risk"
 )
 
-// strategyContext — конкретная реализация strategy.StrategyContext,
+// strategyContext — конкретная реализация contract.StrategyContext,
 // связывающая одну Strategy с каркасом: каналы данных (уже подписанные
 // через internal/datafeed до старта), GlobalRiskController, OrderExecutor,
 // TradeStore.
@@ -20,24 +19,24 @@ type strategyContext struct {
 	timeframe string
 	candleCh  <-chan models.Candle
 	tickCh    <-chan models.Tick
-	executor  interfaces.OrderExecutor
+	executor  contract.OrderExecutor
 	risk      *risk.GlobalRiskController
-	store     interfaces.TradeStore
+	store     contract.TradeStore
 }
 
 func (s *strategyContext) Ticker() string                 { return s.ticker }
 func (s *strategyContext) Timeframe() string              { return s.timeframe }
 func (s *strategyContext) Candles() <-chan models.Candle  { return s.candleCh }
 func (s *strategyContext) Ticks() <-chan models.Tick      { return s.tickCh }
-func (s *strategyContext) Orders() strategy.OrderPort     { return s.executor }
-func (s *strategyContext) Risk() strategy.RiskPort        { return s.risk }
-func (s *strategyContext) Trades() strategy.TradeRecorder { return s.store }
+func (s *strategyContext) Orders() contract.OrderPort     { return s.executor }
+func (s *strategyContext) Risk() contract.RiskPort        { return s.risk }
+func (s *strategyContext) Trades() contract.TradeRecorder { return s.store }
 
 // StrategyRunner запускает одну самодостаточную Strategy (ADR 0001) для
 // одного тикера. StrategyRunner не знает ничего про SL/TP/трейлинг/EOD —
 // вся эта логика внутри самой Strategy (SelfManagedStrategy).
 type StrategyRunner struct {
-	strategy   strategy.Strategy
+	strategy   contract.Strategy
 	sctx       *strategyContext
 	globalRisk *risk.GlobalRiskController
 	clock      *SessionClock
@@ -48,17 +47,17 @@ type StrategyRunner struct {
 // (композиция происходит в cmd/bot/main.go, StrategyRunner сам ничего не
 // подписывает — см. Решение 1, ADR 0001: DataFeed остаётся снаружи).
 func NewStrategyRunner(
-	strat strategy.Strategy,
+	strat contract.Strategy,
 	ticker, timeframe string,
 	candleCh <-chan models.Candle,
 	tickCh <-chan models.Tick,
-	executor interfaces.OrderExecutor,
+	executor contract.OrderExecutor,
 	globalRisk *risk.GlobalRiskController,
-	store interfaces.TradeStore,
+	store contract.TradeStore,
 	clock *SessionClock,
 ) *StrategyRunner {
 	if store == nil {
-		store = interfaces.NoopTradeStore{}
+		store = contract.NoopTradeStore{}
 	}
 	return &StrategyRunner{
 		strategy:   strat,

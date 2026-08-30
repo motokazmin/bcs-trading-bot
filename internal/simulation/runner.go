@@ -12,7 +12,7 @@ import (
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/tradeaudit"
 	"bcs-trading-bot/internal/trailing"
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )
 
@@ -45,7 +45,7 @@ type Runner struct {
 	session *engine.SessionClock
 	strat   strategy.CandleStrategy
 	riskMgr *risk.RiskManager
-	store   interfaces.TradeStore
+	store   contract.TradeStore
 
 	position      *position.State
 	eodCloseDate  string
@@ -54,12 +54,12 @@ type Runner struct {
 }
 
 // NewRunner создаёт симулятор для одного тикера.
-func NewRunner(cfg RunnerConfig, store interfaces.TradeStore) (*Runner, error) {
+func NewRunner(cfg RunnerConfig, store contract.TradeStore) (*Runner, error) {
 	if cfg.StepPriceValue <= 0 {
 		cfg.StepPriceValue = 1.0
 	}
 	if store == nil {
-		store = interfaces.NoopTradeStore{}
+		store = contract.NoopTradeStore{}
 	}
 
 	clock, err := engine.NewSessionClockExt(
@@ -94,7 +94,7 @@ func NewRunner(cfg RunnerConfig, store interfaces.TradeStore) (*Runner, error) {
 }
 
 // Run прогоняет свечи в хронологическом порядке.
-func (r *Runner) Run(ctx context.Context, candles []models.Candle, executor interfaces.OrderExecutor) error {
+func (r *Runner) Run(ctx context.Context, candles []models.Candle, executor contract.OrderExecutor) error {
 	for _, candle := range candles {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -114,7 +114,7 @@ func (r *Runner) Run(ctx context.Context, candles []models.Candle, executor inte
 	return nil
 }
 
-func (r *Runner) processCandle(ctx context.Context, executor interfaces.OrderExecutor, candle models.Candle) {
+func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecutor, candle models.Candle) {
 	if !r.session.EntriesAllowed(candle.Timestamp) {
 		return
 	}
@@ -161,7 +161,7 @@ func (r *Runner) processCandle(ctx context.Context, executor interfaces.OrderExe
 	}
 }
 
-func (r *Runner) processIntrabar(ctx context.Context, executor interfaces.OrderExecutor, candle models.Candle) {
+func (r *Runner) processIntrabar(ctx context.Context, executor contract.OrderExecutor, candle models.Candle) {
 	for _, price := range position.IntrabarPrices(candle, r.position.Direction) {
 		position.UpdateMFE(r.position, price)
 		position.UpdateMAE(r.position, price)
@@ -174,7 +174,7 @@ func (r *Runner) processIntrabar(ctx context.Context, executor interfaces.OrderE
 	}
 }
 
-func (r *Runner) checkEOD(ctx context.Context, executor interfaces.OrderExecutor, candle models.Candle) {
+func (r *Runner) checkEOD(ctx context.Context, executor contract.OrderExecutor, candle models.Candle) {
 	ts := candle.Timestamp
 	if !r.session.ShouldForceClose(ts) {
 		if r.session.EntriesAllowed(ts) {
@@ -205,7 +205,7 @@ func (r *Runner) checkDailyReset(now time.Time) {
 	r.riskResetDate = today
 }
 
-func (r *Runner) closePosition(ctx context.Context, executor interfaces.OrderExecutor, price float64, reason string, closedAt time.Time) {
+func (r *Runner) closePosition(ctx context.Context, executor contract.OrderExecutor, price float64, reason string, closedAt time.Time) {
 	if r.position == nil {
 		return
 	}

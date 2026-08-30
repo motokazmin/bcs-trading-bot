@@ -6,7 +6,7 @@ import (
 	"math"
 	"testing"
 
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )
 
@@ -140,7 +140,7 @@ func TestVirtualExecutorCloseMissingWrapsErrNoOpenPosition(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !errors.Is(err, interfaces.ErrNoOpenPosition) {
+	if !errors.Is(err, contract.ErrNoOpenPosition) {
 		t.Fatalf("got %v, want ErrNoOpenPosition", err)
 	}
 }

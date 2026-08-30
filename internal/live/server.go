@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/api"
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )
 
@@ -29,8 +29,8 @@ type Options struct {
 	Listen   string
 	Token    string
 	Deposit  float64
-	Exec     interfaces.OrderExecutor
-	Reader   interfaces.TradeReader
+	Exec     contract.OrderExecutor
+	Reader   contract.TradeReader
 	Archives *api.ArchiveStore
 	Candles  CandleProvider
 }
@@ -41,8 +41,8 @@ type Server struct {
 	listen   string
 	token    string
 	deposit  float64
-	exec     interfaces.OrderExecutor
-	reader   interfaces.TradeReader
+	exec     contract.OrderExecutor
+	reader   contract.TradeReader
 	archives *api.ArchiveStore
 	export   *api.ExportService
 	candles  CandleProvider

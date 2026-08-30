@@ -14,7 +14,7 @@ import (
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/tradeaudit"
 	"bcs-trading-bot/internal/trailing"
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )
 
@@ -45,19 +45,19 @@ type PortfolioRunner struct {
 	states          map[string]*tickerState
 	byTicker        map[string][]*tickerState
 	global          *risk.GlobalRiskController
-	store           interfaces.TradeStore
+	store           contract.TradeStore
 	riskResetDate   string
 	daySession      *engine.SessionClock // timezone/EOD для daily reset
 	TickerBusySkips int
 }
 
 // NewPortfolioRunner создаёт портфельный симулятор.
-func NewPortfolioRunner(cfg PortfolioRunnerConfig, store interfaces.TradeStore) (*PortfolioRunner, error) {
+func NewPortfolioRunner(cfg PortfolioRunnerConfig, store contract.TradeStore) (*PortfolioRunner, error) {
 	if len(cfg.Tickers) == 0 {
 		return nil, fmt.Errorf("simulation: portfolio tickers пуст")
 	}
 	if store == nil {
-		store = interfaces.NoopTradeStore{}
+		store = contract.NoopTradeStore{}
 	}
 
 	states := make(map[string]*tickerState, len(cfg.Tickers))
@@ -132,7 +132,7 @@ type candleEvent struct {
 }
 
 // Run прогоняет свечи всех тикеров в хронологическом порядке.
-func (p *PortfolioRunner) Run(ctx context.Context, candlesByTicker map[string][]models.Candle, executor interfaces.OrderExecutor) error {
+func (p *PortfolioRunner) Run(ctx context.Context, candlesByTicker map[string][]models.Candle, executor contract.OrderExecutor) error {
 	events := p.mergeCandles(candlesByTicker)
 	for _, ev := range events {
 		if ctx.Err() != nil {
@@ -163,7 +163,7 @@ func (p *PortfolioRunner) mergeCandles(candlesByTicker map[string][]models.Candl
 	return events
 }
 
-func (p *PortfolioRunner) processEvent(ctx context.Context, executor interfaces.OrderExecutor, ev candleEvent) {
+func (p *PortfolioRunner) processEvent(ctx context.Context, executor contract.OrderExecutor, ev candleEvent) {
 	slots := p.byTicker[ev.ticker]
 	if len(slots) == 0 {
 		return
@@ -186,7 +186,7 @@ func (p *PortfolioRunner) processEvent(ctx context.Context, executor interfaces.
 	}
 }
 
-func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces.OrderExecutor, st *tickerState, candle models.Candle) {
+func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.OrderExecutor, st *tickerState, candle models.Candle) {
 	if !st.session.EntriesAllowed(candle.Timestamp) {
 		return
 	}
@@ -248,7 +248,7 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor interfaces
 	}
 }
 
-func (p *PortfolioRunner) processIntrabar(ctx context.Context, executor interfaces.OrderExecutor, st *tickerState, candle models.Candle) {
+func (p *PortfolioRunner) processIntrabar(ctx context.Context, executor contract.OrderExecutor, st *tickerState, candle models.Candle) {
 	for _, price := range position.IntrabarPrices(candle, st.position.Direction) {
 		position.UpdateMFE(st.position, price)
 		position.UpdateMAE(st.position, price)
@@ -261,7 +261,7 @@ func (p *PortfolioRunner) processIntrabar(ctx context.Context, executor interfac
 	}
 }
 
-func (p *PortfolioRunner) checkEOD(ctx context.Context, executor interfaces.OrderExecutor, st *tickerState, candle models.Candle) {
+func (p *PortfolioRunner) checkEOD(ctx context.Context, executor contract.OrderExecutor, st *tickerState, candle models.Candle) {
 	ts := candle.Timestamp
 	if !st.session.ShouldForceClose(ts) {
 		if st.session.EntriesAllowed(ts) {
@@ -297,7 +297,7 @@ func (p *PortfolioRunner) checkDailyReset(now time.Time) {
 	p.riskResetDate = today
 }
 
-func (p *PortfolioRunner) closePosition(ctx context.Context, executor interfaces.OrderExecutor, st *tickerState, price float64, reason string, closedAt time.Time) {
+func (p *PortfolioRunner) closePosition(ctx context.Context, executor contract.OrderExecutor, st *tickerState, price float64, reason string, closedAt time.Time) {
 	if st.position == nil {
 		return
 	}

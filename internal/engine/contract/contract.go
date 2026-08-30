@@ -1,4 +1,12 @@
-package strategy
+// Package contract — граница движок ↔ стратегия (ADR 0001).
+//
+// Здесь и только здесь описано всё, что каркас (internal/engine) обещает
+// стратегии (internal/strategy) и наоборот: сам контракт Strategy/
+// StrategyContext, узкие порты (OrderPort/RiskPort/TradeRecorder) и
+// инфраструктурные интерфейсы каркаса (OrderExecutor, TradeStore/TradeReader,
+// PositionSource). Пакет — leaf: зависит только от internal/models, поэтому
+// его свободно импортируют и engine, и strategy, и брокер, без циклов.
+package contract
 
 import (
 	"context"
@@ -59,10 +67,9 @@ type StrategyContext interface {
 	Trades() TradeRecorder
 }
 
-// OrderPort — исполнение ордеров. Совпадает по форме с
-// pkg/interfaces.OrderExecutor; отдельный тип здесь — чтобы internal/strategy
-// не тянул pkg/interfaces напрямую в публичный контракт (мелкая деталь
-// изоляции пакетов, не архитектурное решение).
+// OrderPort — исполнение ордеров, доступное стратегии из StrategyContext.
+// Совпадает по форме с OrderExecutor (executor.go): OrderPort — имя роли в
+// контракте стратегии, OrderExecutor — та же абстракция со стороны каркаса.
 type OrderPort interface {
 	ExecuteOrder(ctx context.Context, order models.Order) error
 	GetBalance(ctx context.Context) (float64, error)
@@ -88,8 +95,8 @@ type RiskPort interface {
 }
 
 // TradeRecorder — сохранение закрытых сделок. Узкий интерфейс поверх
-// pkg/interfaces.TradeStore (без Close() — стратегия не владеет жизненным
-// циклом БД).
+// TradeStore (trade_store.go), без Close() — стратегия не владеет жизненным
+// циклом БД.
 type TradeRecorder interface {
 	SaveClosedTrade(ctx context.Context, trade models.ClosedTrade) error
 }

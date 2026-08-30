@@ -10,11 +10,11 @@ import (
 	"net/http"
 	"time"
 
-	"bcs-trading-bot/pkg/interfaces"
+	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )
 
-var _ interfaces.OrderExecutor = (*BCSClient)(nil)
+var _ contract.OrderExecutor = (*BCSClient)(nil)
 
 // Официальные эндпоинты БКС Trade API
 const (
