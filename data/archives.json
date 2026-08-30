@@ -1,0 +1,10 @@
+[
+  {
+    "id": "1fa058c2-c933-41ad-aa45-edad6e6c1469",
+    "name": "2026-08-10 — 2026-08-28",
+    "date_from": "2026-08-10",
+    "date_to": "2026-08-28",
+    "comment": "95 сделок до рефакторинга engine/strategy: честная модель фила и выхода (ac2b1ae). Разбор — docs/analysis/0001-entry-fill-adverse-selection.md",
+    "created_at": "2026-08-30T12:21:59.259297Z"
+  }
+]
