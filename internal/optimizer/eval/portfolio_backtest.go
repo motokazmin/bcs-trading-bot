@@ -13,7 +13,7 @@ import (
 	"bcs-trading-bot/internal/models"
 	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/simulation"
-	"bcs-trading-bot/internal/storage/memory"
+	"bcs-trading-bot/internal/engine/storage/memory"
 )
 
 // PortfolioBacktestResult — метрики единого счёта по нескольким FROZEN-экспериментам.

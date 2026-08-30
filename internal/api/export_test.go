@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"bcs-trading-bot/internal/storage/sqlite"
+	"bcs-trading-bot/internal/engine/storage/sqlite"
 	"bcs-trading-bot/internal/models"
 )
 

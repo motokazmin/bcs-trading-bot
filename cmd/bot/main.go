@@ -23,7 +23,7 @@ import (
 	"bcs-trading-bot/internal/live"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
-	"bcs-trading-bot/internal/storage/sqlite"
+	"bcs-trading-bot/internal/engine/storage/sqlite"
 	"bcs-trading-bot/internal/strategy/selfmanaged"
 )
 
