@@ -434,7 +434,6 @@ func syncHistoryCmd(args []string) {
 
 	client := broker.NewBCSClient(token)
 	client.SetClassCode(u.ClassCode)
-	client.SetCandleTimeFrame(u.CandleTimeframe)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

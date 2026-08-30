@@ -26,32 +26,25 @@ const (
 )
 
 type BCSClient struct {
-	httpClient      *http.Client
-	refreshToken    string
-	accessToken     string
-	classCode       string
-	candleTimeFrame string
-	clientID        string
+	httpClient   *http.Client
+	refreshToken string
+	accessToken  string
+	classCode    string
+	clientID     string
 }
 
 func NewBCSClient(refreshToken string) *BCSClient {
 	return &BCSClient{
-		httpClient:      &http.Client{Timeout: 15 * time.Second},
-		refreshToken:    refreshToken,
-		classCode:       DefaultClassCode,
-		candleTimeFrame: CandleTimeFrame,
-		clientID:        ClientIDRead,
+		httpClient:   &http.Client{Timeout: 15 * time.Second},
+		refreshToken: refreshToken,
+		classCode:    DefaultClassCode,
+		clientID:     ClientIDRead,
 	}
 }
 
 // SetClassCode задаёт код класса инструмента (например, TQBR или SPBFUT).
 func (c *BCSClient) SetClassCode(code string) {
 	c.classCode = code
-}
-
-// SetCandleTimeFrame задаёт таймфрейм свечей для WebSocket-подписки (M1, M5, ...).
-func (c *BCSClient) SetCandleTimeFrame(tf string) {
-	c.candleTimeFrame = tf
 }
 
 // SetWriteMode переключает OAuth client_id на trade-api-write для реальной торговли.

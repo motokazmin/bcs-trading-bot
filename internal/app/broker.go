@@ -22,7 +22,6 @@ func MustConnectBroker(ctx context.Context, opts Options, cfg *config.Config) *b
 
 	client := broker.NewBCSClient(token)
 	client.SetClassCode(cfg.ClassCode)
-	client.SetCandleTimeFrame(cfg.CandleTimeFrame)
 
 	logStartupSummary(opts, cfg)
 

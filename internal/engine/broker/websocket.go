@@ -119,20 +119,6 @@ type quoteWSMessage struct {
 	} `json:"errors"`
 }
 
-// SubscribeToCandles подключается к WebSocket БКС и передаёт свечи в candleChan
-// на таймфрейме по умолчанию (c.candleTimeFrame). Оставлено для smoke-теста
-// и других сценариев с одним тикером/одним таймфреймом.
-func (c *BCSClient) SubscribeToCandles(ctx context.Context, ticker string, candleChan chan<- models.Candle) error {
-	timeframe := c.candleTimeFrame
-	if timeframe == "" {
-		timeframe = CandleTimeFrame
-	}
-	routes := map[RouteKey][]WorkerRoutes{
-		{Ticker: ticker, Timeframe: timeframe}: {{CandleChan: candleChan}},
-	}
-	return c.runMarketDataSession(ctx, routes)
-}
-
 // SubscribeMarketDataFanOut подписывается на свечи и котировки для набора
 // маршрутов, каждый ключ которых — пара (тикер, таймфрейм). Один тикер может
 // одновременно иметь несколько маршрутов с разными таймфреймами (разные
