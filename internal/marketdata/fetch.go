@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/bcs"
-	"bcs-trading-bot/pkg/logx"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/logx"
+	"bcs-trading-bot/internal/models"
 )
 
 const (

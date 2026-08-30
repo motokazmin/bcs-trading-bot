@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // TryLoadCSV читает CSV; если файла нет — возвращает nil без ошибки.

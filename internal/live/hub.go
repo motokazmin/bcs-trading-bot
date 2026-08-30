@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // Hub хранит воркеры и буфер свечей текущего торгового дня.

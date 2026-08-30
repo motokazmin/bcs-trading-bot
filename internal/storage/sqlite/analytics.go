@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func (s *Store) ListClosedTrades(ctx context.Context, f models.TradeFilter, limit, offset int) (models.TradeListResult, error) {

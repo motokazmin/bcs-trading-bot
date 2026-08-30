@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 
 	"github.com/google/uuid"
 )

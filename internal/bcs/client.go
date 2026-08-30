@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 var _ interfaces.OrderExecutor = (*BCSClient)(nil)

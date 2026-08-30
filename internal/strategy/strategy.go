@@ -1,6 +1,6 @@
 package strategy
 
-import "bcs-trading-bot/pkg/models"
+import "bcs-trading-bot/internal/models"
 
 const (
 	IDMomentumBreakout            = "momentum_breakout"

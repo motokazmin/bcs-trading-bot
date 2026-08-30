@@ -14,7 +14,7 @@ import (
 	"bcs-trading-bot/internal/storage/memory"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/trailing"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // trialContext — параметры trial, вычисленные один раз на весь trial.

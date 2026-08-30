@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // TradeStore — in-memory хранилище закрытых сделок (backtest, тесты).

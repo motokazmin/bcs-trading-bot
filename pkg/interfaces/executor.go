@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // ErrNoOpenPosition — закрытие/изменение позиции, которой нет у исполнителя.

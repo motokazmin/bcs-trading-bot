@@ -27,8 +27,8 @@ import (
 	"bcs-trading-bot/internal/tradeaudit"
 	"bcs-trading-bot/internal/trailing"
 	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/pkg/logx"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/logx"
+	"bcs-trading-bot/internal/models"
 )
 
 var _ interfaces.PositionSource = (*SelfManagedStrategy)(nil)

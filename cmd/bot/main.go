@@ -22,8 +22,8 @@ import (
 	"bcs-trading-bot/internal/storage/sqlite"
 	"bcs-trading-bot/internal/strategies/adapter"
 	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/pkg/logx"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/logx"
+	"bcs-trading-bot/internal/models"
 )
 
 func main() {

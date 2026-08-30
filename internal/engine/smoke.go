@@ -7,8 +7,8 @@ import (
 
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/pkg/logx"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/logx"
+	"bcs-trading-bot/internal/models"
 )
 
 const smokeTestTimeout = 90 * time.Second

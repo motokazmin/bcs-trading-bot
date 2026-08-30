@@ -3,7 +3,7 @@ package strategy
 import (
 	"context"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // Strategy — самодостаточная торговая стратегия (ADR 0001,

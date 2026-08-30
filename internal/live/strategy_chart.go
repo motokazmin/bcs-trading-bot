@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 const (

@@ -15,7 +15,7 @@ import (
 	"sync"
 
 	"bcs-trading-bot/internal/bcs"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // Feed собирает подписки от стратегий/подписчиков до старта и затем прогоняет

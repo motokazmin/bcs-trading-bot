@@ -13,7 +13,7 @@ import (
 	"bcs-trading-bot/internal/costs"
 	core "bcs-trading-bot/internal/optimizer/core"
 	evalpkg "bcs-trading-bot/internal/optimizer/eval"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func TestEvaluatePeriodDetailedMatchesMetrics(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"sort"
 
 	"bcs-trading-bot/internal/costs"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // Metrics — агрегированные метрики backtest.

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"bcs-trading-bot/internal/position"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func TestExitFillPriceStopLossUsesLevel(t *testing.T) {

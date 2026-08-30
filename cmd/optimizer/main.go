@@ -20,8 +20,8 @@ import (
 	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/internal/optimizer/report"
 	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/pkg/logx"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/logx"
+	"bcs-trading-bot/internal/models"
 )
 
 const defaultTickersConfig = "configs/shared/tickers.yaml"

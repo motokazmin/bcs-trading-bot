@@ -6,7 +6,7 @@ import (
 
 	"bcs-trading-bot/internal/export"
 	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // ExportMode — вариант выгрузки для ИИ.

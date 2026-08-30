@@ -3,7 +3,7 @@ package eval
 import (
 	"bcs-trading-bot/internal/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // WindowCandleSlices — преднарезанные свечи по тикерам для одного окна.

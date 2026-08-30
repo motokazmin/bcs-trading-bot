@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 
 	_ "modernc.org/sqlite"
 )

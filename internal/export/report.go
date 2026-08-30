@@ -3,7 +3,7 @@ package export
 import (
 	"sort"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // tradePnL возвращает PnL сделки в рублях (уже net или gross — как передано в GrossPnL).

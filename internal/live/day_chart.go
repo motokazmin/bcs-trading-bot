@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 const dayTradesLimit = 5000

@@ -9,7 +9,7 @@ import (
 
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/marketdata"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 const defaultCandleCacheTTL = 15 * time.Minute

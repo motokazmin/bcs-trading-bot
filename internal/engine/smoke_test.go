@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 type smokeExecutor struct {

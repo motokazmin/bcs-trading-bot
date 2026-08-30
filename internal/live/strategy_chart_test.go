@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func TestBuildStrategyTradeChartPayload(t *testing.T) {

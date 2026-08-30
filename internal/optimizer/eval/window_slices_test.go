@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func TestBuildWindowCandleSlices(t *testing.T) {

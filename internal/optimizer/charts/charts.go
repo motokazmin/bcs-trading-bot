@@ -18,8 +18,8 @@ import (
 	"bcs-trading-bot/internal/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
 	evalpkg "bcs-trading-bot/internal/optimizer/eval"
-	"bcs-trading-bot/pkg/logx"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/logx"
+	"bcs-trading-bot/internal/models"
 )
 
 //go:embed templates/chart.html

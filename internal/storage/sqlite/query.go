@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func buildWhere(f models.TradeFilter) (string, []any) {

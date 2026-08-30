@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // ErrTickerAlreadyOpen — повторный open по занятому тикеру (one-position-per-ticker).

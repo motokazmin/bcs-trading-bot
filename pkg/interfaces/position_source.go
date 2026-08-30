@@ -1,6 +1,6 @@
 package interfaces
 
-import "bcs-trading-bot/pkg/models"
+import "bcs-trading-bot/internal/models"
 
 // PositionSource отдаёт снимок открытой позиции (или nil).
 type PositionSource interface {

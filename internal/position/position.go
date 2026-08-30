@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // State — открытая позиция (общая для live-воркера и backtest-симулятора).

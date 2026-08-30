@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/tradeaudit"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func TestValidateOpenTATNLimitStale(t *testing.T) {

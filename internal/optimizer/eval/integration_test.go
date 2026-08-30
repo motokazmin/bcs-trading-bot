@@ -13,7 +13,7 @@ import (
 	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/optimizer/eval"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func TestPipelineIntegration(t *testing.T) {

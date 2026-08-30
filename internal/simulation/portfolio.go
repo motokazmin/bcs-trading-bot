@@ -15,7 +15,7 @@ import (
 	"bcs-trading-bot/internal/tradeaudit"
 	"bcs-trading-bot/internal/trailing"
 	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // PortfolioRunnerConfig — параметры портфельной симуляции (несколько слотов, общий риск).

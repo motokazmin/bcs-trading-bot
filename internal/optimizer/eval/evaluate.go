@@ -14,8 +14,8 @@ import (
 	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/trailing"
-	"bcs-trading-bot/pkg/logx"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/logx"
+	"bcs-trading-bot/internal/models"
 )
 
 // RunSettings — общие настройки прогона оптимизатора.

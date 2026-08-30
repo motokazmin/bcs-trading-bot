@@ -3,7 +3,7 @@ package interfaces
 import (
 	"context"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // TradeStore сохраняет закрытые сделки для последующего анализа.
