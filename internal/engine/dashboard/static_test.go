@@ -1,4 +1,4 @@
-package live
+package dashboard
 
 import (
 	"net/http"

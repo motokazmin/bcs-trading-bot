@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"bcs-trading-bot/internal/api"
+	"bcs-trading-bot/internal/engine/api"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine/datafeed"
 	"bcs-trading-bot/internal/engine"
@@ -20,7 +20,7 @@ import (
 	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/engine/execution"
 	"bcs-trading-bot/internal/engine/risk"
-	"bcs-trading-bot/internal/live"
+	"bcs-trading-bot/internal/engine/dashboard"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
 	"bcs-trading-bot/internal/engine/storage/sqlite"
@@ -183,7 +183,7 @@ func main() {
 
 	feed := datafeed.New(client)
 	strategyCount := 0
-	hub := live.NewHub()
+	hub := dashboard.NewHub()
 	hubFeeds := make(map[[2]string]bool) // (ticker, timeframe) → hub уже подписан
 
 	for _, exp := range experiments {
@@ -280,14 +280,14 @@ func main() {
 	if *httpListen != "" {
 		deposit := cfg.AccountBalance()
 		adminToken := strings.TrimSpace(os.Getenv("ADMIN_TOKEN"))
-		liveSrv, err := live.NewServer(hub, live.Options{
+		liveSrv, err := dashboard.NewServer(hub, dashboard.Options{
 			Listen:   *httpListen,
 			Token:    adminToken,
 			Deposit:  deposit,
 			Exec:     executor,
 			Reader:   tradeReader,
 			Archives: api.NewArchiveStore(*archivesPath),
-			Candles:  live.NewCachedDayCandles(&live.BCSCandleFetcher{Client: client}, cfg.ClassCode, 0),
+			Candles:  dashboard.NewCachedDayCandles(&dashboard.BCSCandleFetcher{Client: client}, cfg.ClassCode, 0),
 		})
 		if err != nil {
 			logx.Fatalf("HTTP UI/API: %v", err)
@@ -330,12 +330,12 @@ func main() {
 	logx.Info("Завершение работы...")
 }
 
-// ingestMarketToHub перекладывает свечи/тики из fan-out DataFeed в live.Hub
+// ingestMarketToHub перекладывает свечи/тики из fan-out DataFeed в dashboard.Hub
 // (буфер дня + last price для /positions, /candles, /chart). Отдельный
 // consumer, не влияет на канал стратегии.
 func ingestMarketToHub(
 	ctx context.Context,
-	hub *live.Hub,
+	hub *dashboard.Hub,
 	ticker string,
 	candleCh <-chan models.Candle,
 	tickCh <-chan models.Tick,

@@ -1,4 +1,4 @@
-package live
+package dashboard
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"bcs-trading-bot/internal/api"
+	"bcs-trading-bot/internal/engine/api"
 	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )

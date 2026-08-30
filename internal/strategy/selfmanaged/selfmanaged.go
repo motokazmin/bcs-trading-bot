@@ -8,7 +8,7 @@
 //   - tradeaudit ValidateOpen/ValidateClose → audit_* в ClosedTrade;
 //   - ghost-handling: ErrNoOpenPosition → дроп позиции, прочие ошибки
 //     исполнителя на закрытии → восстановление позиции для повтора;
-//   - снапшот позиции для live-дашборда (contract.PositionSource → live.Hub).
+//   - снапшот позиции для live-дашборда (contract.PositionSource → dashboard.Hub).
 package selfmanaged
 
 import (
@@ -103,7 +103,7 @@ func (s *SelfManagedStrategy) Ticker() string       { return s.cfg.Ticker }
 func (s *SelfManagedStrategy) ExperimentID() string { return s.cfg.ExperimentID }
 
 // SnapshotPosition возвращает копию открытой позиции (или nil) для live-дашборда.
-// Вызывается из HTTP-горутины live.Hub — доступ под RLock.
+// Вызывается из HTTP-горутины dashboard.Hub — доступ под RLock.
 func (s *SelfManagedStrategy) SnapshotPosition() *models.PositionSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

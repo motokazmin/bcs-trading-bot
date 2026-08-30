@@ -1,4 +1,4 @@
-package live
+package dashboard
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"bcs-trading-bot/internal/api"
+	"bcs-trading-bot/internal/engine/api"
 	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )
