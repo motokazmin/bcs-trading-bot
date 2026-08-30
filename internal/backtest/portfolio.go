@@ -54,7 +54,7 @@ type PortfolioRunner struct {
 // NewPortfolioRunner создаёт портфельный симулятор.
 func NewPortfolioRunner(cfg PortfolioRunnerConfig, store contract.TradeStore) (*PortfolioRunner, error) {
 	if len(cfg.Tickers) == 0 {
-		return nil, fmt.Errorf("simulation: portfolio tickers пуст")
+		return nil, fmt.Errorf("backtest: portfolio tickers пуст")
 	}
 	if store == nil {
 		store = contract.NoopTradeStore{}
@@ -79,7 +79,7 @@ func NewPortfolioRunner(cfg PortfolioRunnerConfig, store contract.TradeStore) (*
 			rc.StepPriceValue = 1.0
 		}
 		if rc.Strategy == nil {
-			return nil, fmt.Errorf("simulation: strategy не задана для %s", slotKey)
+			return nil, fmt.Errorf("backtest: strategy не задана для %s", slotKey)
 		}
 		trailCfg := rc.TrailCfg
 		if trailCfg.StepPriceValue <= 0 {
@@ -100,7 +100,7 @@ func NewPortfolioRunner(cfg PortfolioRunnerConfig, store contract.TradeStore) (*
 			sessCfg.WeekendOnly,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("simulation: session %s: %w", slotKey, err)
+			return nil, fmt.Errorf("backtest: session %s: %w", slotKey, err)
 		}
 		if daySession == nil {
 			daySession = clock

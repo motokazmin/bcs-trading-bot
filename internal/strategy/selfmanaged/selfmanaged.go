@@ -46,7 +46,7 @@ type SessionClock interface {
 }
 
 // Config — всё, что нужно SelfManagedStrategy для одного (тикер, эксперимент).
-// Собирается вызывающей стороной (cmd/bot/main.go).
+// Собирается вызывающей стороной (internal/app).
 type Config struct {
 	Signal          strategy.CandleStrategy // сигнальный "мозг" (существующий OnCandle)
 	Label           string                  // для логов, напр. "strategy/or-fade-conservative/LKOH"

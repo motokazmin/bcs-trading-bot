@@ -60,7 +60,7 @@ type WorkerRoutes struct {
 // RouteKey — подписка на свечи конкретного тикера в конкретном таймфрейме.
 // Один тикер может иметь несколько одновременных подписок с разным
 // Timeframe (разные стратегии, разные таймфреймы) — см. ADR 0001 и
-// internal/datafeed.
+// internal/engine/datafeed.
 type RouteKey struct {
 	Ticker    string
 	Timeframe string

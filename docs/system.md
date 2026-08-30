@@ -46,8 +46,8 @@ Production: дейтрейдинг акций MOEX (**TQBR**), M5, paper portfol
 4. Трейлинг: `trail_activation_r`, `trail_breakeven_r`, `trail_stage_max`; стоп только в сторону прибыли.
 5. EOD принудительно закрывает остаток.
 
-Код live: `internal/strategies/adapter` (`SelfManagedStrategy`) + `internal/engine` (`StrategyRunner`, `SessionClock`).
-Backtest: `internal/simulation`. Общее: `internal/position`, `internal/trailing`, `internal/tradeaudit`, `internal/risk`.
+Код live: `internal/strategy/selfmanaged` (`SelfManagedStrategy`) + `internal/engine` (`StrategyRunner`, `SessionClock`).
+Backtest: `internal/backtest`. Общее: `internal/engine/position`, `internal/engine/trailing`, `internal/engine/tradeaudit`, `internal/engine/risk`.
 
 ---
 
@@ -64,4 +64,4 @@ Backtest: `internal/simulation`. Общее: `internal/position`, `internal/trai
 
 ## Paper trading
 
-`trading_mode: virtual` — котировки с BCS, исполнение в `VirtualExecutor`. Сделки → `data/trades.db`. Админка: `-http-listen` (дефолт `127.0.0.1:8091`). Логи: `pkg/logx` (`[OPEN]` / `[TP]` / `[SL]` / `[EOD]` / `[AUDIT]`).
+`trading_mode: virtual` — котировки с BCS, исполнение в `VirtualExecutor`. Сделки → `data/trades.db`. Админка: `-http-listen` (дефолт `127.0.0.1:8091`). Логи: `internal/logx` (`[OPEN]` / `[TP]` / `[SL]` / `[EOD]` / `[AUDIT]`).

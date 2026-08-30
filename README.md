@@ -87,7 +87,7 @@ make bot-smoke
 
 ## Логи
 
-`pkg/logx`: `[SYS]`, `[OPEN]`, `[TP]`/`[SL]`/`[EOD]`, `[TRAIL]`, `[SKIP]`, `[AUDIT]`, `[WS]`, `[ERR]`.
+`internal/logx`: `[SYS]`, `[OPEN]`, `[TP]`/`[SL]`/`[EOD]`, `[TRAIL]`, `[SKIP]`, `[AUDIT]`, `[WS]`, `[ERR]`.
 
 Метка воркера: `[TATN]` или `[orc-wave2/TATN]`. Файл по умолчанию: `/var/log/trading-bot/bot.log`.
 
@@ -104,18 +104,24 @@ Export JSON + prompt для ИИ (версия в `internal/export`).
 
 ## Модули
 
+Две зоны: `internal/engine/**` — каркас (меняется редко), `internal/strategy/**` —
+стратегии (меняется часто). Сборка приложения — `internal/app`.
+
 | Пакет | Роль |
 |---|---|
 | `internal/engine` | `StrategyRunner`, `SessionClock`, freshness бара |
-| `internal/strategies/adapter` | `SelfManagedStrategy` — сигнал → позиция/SL/TP/EOD/сайзинг |
-| `internal/datafeed` | Единая WS-подписка (ticker, timeframe) → fan-out |
-| `internal/strategy` | Сигналы |
-| `internal/position` | Состояние, fill-at-level, same-bar |
-| `internal/tradeaudit` | Валидность входа/выхода |
-| `internal/risk` | Лот, CB, global risk |
-| `internal/simulation` | Backtest runner |
-| `internal/storage/sqlite` | `closed_trades` |
-| `internal/export` / `internal/live` | Выгрузка и HTTP UI |
+| `internal/engine/contract` | Граница движок↔стратегия: `Strategy`, `StrategyContext`, порты, `OrderExecutor`/`TradeStore` |
+| `internal/engine/broker` / `internal/engine/execution` | Клиент БКС / paper-исполнитель |
+| `internal/engine/datafeed` | Единая WS-подписка (ticker, timeframe) → fan-out |
+| `internal/engine/{position,trailing,tradeaudit,risk,costs}` | Примитивы торгового цикла |
+| `internal/engine/storage/sqlite` | `closed_trades` |
+| `internal/engine/dashboard` + `internal/engine/api` | HTTP UI/API админки |
+| `internal/engine/marketdata` | Загрузка истории |
+| `internal/strategy` | Сигнальные стратегии (`CandleStrategy`) + registry |
+| `internal/strategy/selfmanaged` | `SelfManagedStrategy` — сигнал → позиция/SL/TP/EOD/сайзинг |
+| `internal/app` | Composition root: флаги, зависимости, сборка `Trader` |
+| `internal/backtest` | Backtest runner |
+| `internal/config`, `internal/export`, `internal/optimizer` | Конфиг, выгрузка, оптимизатор |
 | `cmd/bot`, `cmd/optimizer` | Бинарники |
 
 ---

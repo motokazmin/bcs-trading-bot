@@ -62,7 +62,7 @@ type ExperimentConfig struct {
 	// CandleTimeframe — таймфрейм свечей для этого эксперимента (M1, M5, H1, ...).
 	// Если пусто — используется корневой Config.CandleTimeFrame. Разные эксперименты
 	// в одном процессе могут подписываться на разные таймфреймы одного или разных
-	// тикеров (см. internal/datafeed) — это часть ADR 0001 "свобода стратегии".
+	// тикеров (см. internal/engine/datafeed) — это часть ADR 0001 "свобода стратегии".
 	CandleTimeframe string `yaml:"candle_timeframe"`
 }
 

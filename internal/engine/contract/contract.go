@@ -41,16 +41,15 @@ type StrategyContext interface {
 	// Ticker — тикер, под который эта StrategyContext создана.
 	Ticker() string
 	// Candles/Ticks — потоки рыночных данных для (Ticker(), Timeframe()),
-	// уже подписанные через internal/datafeed. Закрываются при остановке
+	// уже подписанные через internal/engine/datafeed. Закрываются при остановке
 	// процесса.
 	Candles() <-chan models.Candle
 	Ticks() <-chan models.Tick
 	// Timeframe — таймфрейм, на котором подписаны Candles().
 	Timeframe() string
 
-	// Orders — исполнение ордеров (ExecuteOrder/GetBalance). Та же
-	// абстракция, что и раньше (pkg/interfaces.OrderExecutor) — не
-	// дублируем.
+	// Orders — исполнение ордеров (ExecuteOrder/GetBalance); та же
+	// абстракция, что OrderExecutor (executor.go).
 	Orders() OrderPort
 
 	// Risk — риск-бюджет счёта. Урезанный интерфейс поверх

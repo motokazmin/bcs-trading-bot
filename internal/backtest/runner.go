@@ -81,7 +81,7 @@ func NewRunner(cfg RunnerConfig, store contract.TradeStore) (*Runner, error) {
 	cfg.TrailCfg = trailCfg
 
 	if cfg.Strategy == nil {
-		return nil, fmt.Errorf("simulation: strategy не задана")
+		return nil, fmt.Errorf("backtest: strategy не задана")
 	}
 
 	return &Runner{

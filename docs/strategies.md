@@ -14,7 +14,7 @@
 | Каркас | `engine.StrategyRunner` | движок: даёт данные, `OrderExecutor`, портфельный риск, `TradeStore` |
 
 Почти всегда добавляют только **сигнал** (`CandleStrategy`). `SelfManagedStrategy`
-(`internal/strategies/adapter`) сама берёт этот сигнал и ведёт позицию:
+(`internal/strategy/selfmanaged`) сама берёт этот сигнал и ведёт позицию:
 сайзинг в риск-бюджете, limit-entry, SL/TP/трейлинг, same-bar exit, EOD,
 `tradeaudit`, запись `ClosedTrade` в SQLite. Своя `strategy.Strategy` нужна
 только если стратегии не хватает модели «один сигнал на вход → одна позиция»
@@ -45,7 +45,7 @@ eod_close_time → принудительное закрытие
 закрытие → tradeaudit (ValidateOpen/Close) → ClosedTrade в SQLite
 ```
 
-Live: SL/TP по котировкам (`quotes`). Backtest (`internal/simulation`): intrabar OHLC.
+Live: SL/TP по котировкам (`quotes`). Backtest (`internal/backtest`): intrabar OHLC.
 
 ---
 
@@ -88,7 +88,7 @@ func init() {
 
 ## Как добавить стратегию
 
-1. **ID** — константа `IDMyStrategy` в `internal/strategy/strategy.go`
+1. **ID** — константа `IDMyStrategy` в `internal/strategy/candlestrategy.go`
    (+ ветка в `DefaultRewardRatio`, если нужен свой дефолтный R:R).
 2. **Сигнал** — `internal/strategy/my_strategy.go`:
    - тип со `state` (обычно `candleBuffer`), методы `ID()` и `OnCandle()`;

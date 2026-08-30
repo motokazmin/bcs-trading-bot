@@ -6,7 +6,7 @@
 //
 // Реализация — тонкая обвязка над broker.BCSClient.SubscribeMarketDataFanOut,
 // которая уже умеет мультиплексировать несколько таймфреймов на одном
-// WebSocket-соединении (см. internal/bcs/websocket.go, RouteKey).
+// WebSocket-соединении (см. internal/engine/broker/websocket.go, RouteKey).
 package datafeed
 
 import (

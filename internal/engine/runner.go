@@ -12,7 +12,7 @@ import (
 
 // strategyContext — конкретная реализация contract.StrategyContext,
 // связывающая одну Strategy с каркасом: каналы данных (уже подписанные
-// через internal/datafeed до старта), GlobalRiskController, OrderExecutor,
+// через internal/engine/datafeed до старта), GlobalRiskController, OrderExecutor,
 // TradeStore.
 type strategyContext struct {
 	ticker    string
@@ -44,7 +44,7 @@ type StrategyRunner struct {
 
 // NewStrategyRunner создаёт раннер. candleCh/tickCh — уже зарегистрированные
 // каналы под datafeed.Feed.Subscribe(ticker, timeframe, candleCh, tickCh)
-// (композиция происходит в cmd/bot/main.go, StrategyRunner сам ничего не
+// (композиция происходит в internal/app, StrategyRunner сам ничего не
 // подписывает — см. Решение 1, ADR 0001: DataFeed остаётся снаружи).
 func NewStrategyRunner(
 	strat contract.Strategy,
