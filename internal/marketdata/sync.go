@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"bcs-trading-bot/internal/bcs"
+	"bcs-trading-bot/internal/engine/broker"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
 )
@@ -29,7 +29,7 @@ type SyncOptions struct {
 // Первый запуск: initial_history_years назад → now.
 // Повторный: от последней свечи в CSV → now (пропуск, если уже актуально).
 // Ошибка по одному тикеру не прерывает остальные; fail только если не загружен ни один.
-func SyncHistory(ctx context.Context, client *bcs.BCSClient, opts SyncOptions) error {
+func SyncHistory(ctx context.Context, client *broker.BCSClient, opts SyncOptions) error {
 	if opts.OutputDir == "" {
 		opts.OutputDir = "data/history"
 	}
@@ -116,7 +116,7 @@ func tickerNamesFromErrors(errs []error) []string {
 	return out
 }
 
-func syncOneTicker(ctx context.Context, client *bcs.BCSClient, opts SyncOptions, fetchCfg FetchConfig, ticker string, now time.Time, barDur time.Duration) error {
+func syncOneTicker(ctx context.Context, client *broker.BCSClient, opts SyncOptions, fetchCfg FetchConfig, ticker string, now time.Time, barDur time.Duration) error {
 	path := filepath.Join(opts.OutputDir, ticker+".csv")
 	existing, err := TryLoadCSV(path, ticker)
 	if err != nil {

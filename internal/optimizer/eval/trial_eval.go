@@ -5,16 +5,16 @@ import (
 	"sort"
 	"strings"
 
-	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine/costs"
-	core "bcs-trading-bot/internal/optimizer/core"
+	"bcs-trading-bot/internal/engine/execution"
 	"bcs-trading-bot/internal/engine/risk"
+	"bcs-trading-bot/internal/engine/trailing"
+	"bcs-trading-bot/internal/models"
+	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/simulation"
 	"bcs-trading-bot/internal/storage/memory"
 	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/internal/engine/trailing"
-	"bcs-trading-bot/internal/models"
 )
 
 // trialContext — параметры trial, вычисленные один раз на весь trial.
@@ -157,7 +157,7 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 
 	store := memory.NewTradeStore()
 	// Optimizer всегда считает в virtual-режиме, без реальных ордеров.
-	executor := bcs.NewVirtualExecutor(e.settings.Deposit)
+	executor := execution.NewVirtualExecutor(e.settings.Deposit)
 
 	maxParallel := 2
 	if e.space != nil {

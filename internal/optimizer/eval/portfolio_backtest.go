@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine/costs"
-	"bcs-trading-bot/internal/marketdata"
-	core "bcs-trading-bot/internal/optimizer/core"
+	"bcs-trading-bot/internal/engine/execution"
 	"bcs-trading-bot/internal/engine/risk"
+	"bcs-trading-bot/internal/marketdata"
+	"bcs-trading-bot/internal/models"
+	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/simulation"
 	"bcs-trading-bot/internal/storage/memory"
-	"bcs-trading-bot/internal/models"
 )
 
 // PortfolioBacktestResult — метрики единого счёта по нескольким FROZEN-экспериментам.
@@ -150,7 +150,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 	}
 
 	store := memory.NewTradeStore()
-	executor := bcs.NewVirtualExecutor(deposit)
+	executor := execution.NewVirtualExecutor(deposit)
 	globalRisk := risk.NewGlobalRiskController(deposit, dailyLossPct, riskPerTrade, maxParallel)
 
 	portfolio, err := simulation.NewPortfolioRunner(simulation.PortfolioRunnerConfig{

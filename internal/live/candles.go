@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"bcs-trading-bot/internal/bcs"
+	"bcs-trading-bot/internal/engine/broker"
 	"bcs-trading-bot/internal/marketdata"
 	"bcs-trading-bot/internal/models"
 )
@@ -27,7 +27,7 @@ type CandleFetcher interface {
 
 // BCSCandleFetcher загружает свечи через BCS candles-chart API.
 type BCSCandleFetcher struct {
-	Client *bcs.BCSClient
+	Client *broker.BCSClient
 }
 
 func (f *BCSCandleFetcher) FetchCandles(ctx context.Context, classCode, ticker, timeFrame string, from, to time.Time) ([]models.Candle, error) {

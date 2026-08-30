@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"bcs-trading-bot/internal/bcs"
+	"bcs-trading-bot/internal/engine/broker"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
 )
@@ -38,12 +38,12 @@ type candleBar struct {
 }
 
 // FetchCandles загружает исторические свечи с пагинацией (до 1000 баров за запрос).
-func FetchCandles(ctx context.Context, client *bcs.BCSClient, classCode, ticker, timeFrame string, from, to time.Time) ([]models.Candle, error) {
+func FetchCandles(ctx context.Context, client *broker.BCSClient, classCode, ticker, timeFrame string, from, to time.Time) ([]models.Candle, error) {
 	return FetchCandlesWithConfig(ctx, client, classCode, ticker, timeFrame, from, to, DefaultFetchConfig())
 }
 
 // FetchCandlesWithConfig — FetchCandles с настраиваемым throttling/retry.
-func FetchCandlesWithConfig(ctx context.Context, client *bcs.BCSClient, classCode, ticker, timeFrame string, from, to time.Time, cfg FetchConfig) ([]models.Candle, error) {
+func FetchCandlesWithConfig(ctx context.Context, client *broker.BCSClient, classCode, ticker, timeFrame string, from, to time.Time, cfg FetchConfig) ([]models.Candle, error) {
 	if client.AccessToken() == "" {
 		return nil, fmt.Errorf("клиент не авторизован")
 	}
@@ -86,7 +86,7 @@ func FetchCandlesWithConfig(ctx context.Context, client *bcs.BCSClient, classCod
 }
 
 // fetchTickerRange загружает диапазон чанками с append-checkpoint в CSV после каждого чанка.
-func fetchTickerRange(ctx context.Context, client *bcs.BCSClient, path, ticker, classCode, timeFrame string, existing []models.Candle, from, to time.Time, cfg FetchConfig) (int, error) {
+func fetchTickerRange(ctx context.Context, client *broker.BCSClient, path, ticker, classCode, timeFrame string, existing []models.Candle, from, to time.Time, cfg FetchConfig) (int, error) {
 	cfg = cfg.Normalized()
 	throttle := cfg.ThrottleOrDefault()
 
@@ -163,7 +163,7 @@ func nextChunkStart(chunkStart, chunkEnd, lastBar time.Time, barDuration time.Du
 	return chunkStart.Add(barDuration * maxBarsPerReq)
 }
 
-func fetchCandlesChunk(ctx context.Context, client *bcs.BCSClient, classCode, ticker, timeFrame string, from, to time.Time, cfg FetchConfig) ([]models.Candle, error) {
+func fetchCandlesChunk(ctx context.Context, client *broker.BCSClient, classCode, ticker, timeFrame string, from, to time.Time, cfg FetchConfig) ([]models.Candle, error) {
 	cfg = cfg.Normalized()
 	throttle := cfg.ThrottleOrDefault()
 	var lastErr error
@@ -203,7 +203,7 @@ func fetchCandlesChunk(ctx context.Context, client *bcs.BCSClient, classCode, ti
 	return nil, fmt.Errorf("исчерпаны повторы (%d): %w", cfg.MaxRetries, lastErr)
 }
 
-func fetchCandlesChunkOnce(ctx context.Context, client *bcs.BCSClient, classCode, ticker, timeFrame string, from, to time.Time) ([]models.Candle, time.Duration, error) {
+func fetchCandlesChunkOnce(ctx context.Context, client *broker.BCSClient, classCode, ticker, timeFrame string, from, to time.Time) ([]models.Candle, time.Duration, error) {
 	q := url.Values{}
 	q.Set("ticker", ticker)
 	q.Set("classCode", classCode)

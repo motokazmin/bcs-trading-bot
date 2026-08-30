@@ -4,7 +4,7 @@
 // стратегия получает готовый канал свечей нужного (ticker, timeframe), но
 // не владеет подключением к бирже.
 //
-// Реализация — тонкая обвязка над bcs.BCSClient.SubscribeMarketDataFanOut,
+// Реализация — тонкая обвязка над broker.BCSClient.SubscribeMarketDataFanOut,
 // которая уже умеет мультиплексировать несколько таймфреймов на одном
 // WebSocket-соединении (см. internal/bcs/websocket.go, RouteKey).
 package datafeed
@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"sync"
 
-	"bcs-trading-bot/internal/bcs"
+	"bcs-trading-bot/internal/engine/broker"
 	"bcs-trading-bot/internal/models"
 )
 
@@ -30,19 +30,19 @@ import (
 // под все случаи"). Если понадобится динамическая пере-подписка на лету —
 // это отдельный шаг, не текущий.
 type Feed struct {
-	client *bcs.BCSClient
+	client *broker.BCSClient
 
 	mu      sync.Mutex
-	routes  map[bcs.RouteKey][]bcs.WorkerRoutes
+	routes  map[broker.RouteKey][]broker.WorkerRoutes
 	started bool
 }
 
 // New создаёт DataFeed поверх уже сконфигурированного BCSClient
 // (SetClassCode и т.д. должны быть вызваны до этого, как и раньше).
-func New(client *bcs.BCSClient) *Feed {
+func New(client *broker.BCSClient) *Feed {
 	return &Feed{
 		client: client,
-		routes: make(map[bcs.RouteKey][]bcs.WorkerRoutes),
+		routes: make(map[broker.RouteKey][]broker.WorkerRoutes),
 	}
 }
 
@@ -74,8 +74,8 @@ func (f *Feed) Subscribe(ticker, timeframe string, candleIn chan<- models.Candle
 		return fmt.Errorf("datafeed: Subscribe после Run не поддерживается (тикер %s, tf %s)", ticker, timeframe)
 	}
 
-	key := bcs.RouteKey{Ticker: ticker, Timeframe: timeframe}
-	f.routes[key] = append(f.routes[key], bcs.WorkerRoutes{
+	key := broker.RouteKey{Ticker: ticker, Timeframe: timeframe}
+	f.routes[key] = append(f.routes[key], broker.WorkerRoutes{
 		CandleChan: candleIn,
 		TickChan:   tickIn,
 	})

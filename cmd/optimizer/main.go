@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"bcs-trading-bot/internal/bcs"
+	"bcs-trading-bot/internal/engine/broker"
 	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/marketdata"
 	"bcs-trading-bot/internal/optimizer"
@@ -432,7 +432,7 @@ func syncHistoryCmd(args []string) {
 		years = *initialYears
 	}
 
-	client := bcs.NewBCSClient(token)
+	client := broker.NewBCSClient(token)
 	client.SetClassCode(u.ClassCode)
 	client.SetCandleTimeFrame(u.CandleTimeframe)
 

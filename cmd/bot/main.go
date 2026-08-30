@@ -13,17 +13,18 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/api"
-	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/datafeed"
 	"bcs-trading-bot/internal/engine"
-	"bcs-trading-bot/internal/live"
-	"bcs-trading-bot/internal/engine/risk"
-	"bcs-trading-bot/internal/storage/sqlite"
-	"bcs-trading-bot/internal/strategy/selfmanaged"
+	"bcs-trading-bot/internal/engine/broker"
 	"bcs-trading-bot/internal/engine/contract"
+	"bcs-trading-bot/internal/engine/execution"
+	"bcs-trading-bot/internal/engine/risk"
+	"bcs-trading-bot/internal/live"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
+	"bcs-trading-bot/internal/storage/sqlite"
+	"bcs-trading-bot/internal/strategy/selfmanaged"
 )
 
 func main() {
@@ -72,7 +73,7 @@ func main() {
 
 	experiments := cfg.ResolvedExperiments()
 
-	client := bcs.NewBCSClient(token)
+	client := broker.NewBCSClient(token)
 	client.SetClassCode(cfg.ClassCode)
 	client.SetCandleTimeFrame(cfg.CandleTimeFrame)
 
@@ -155,7 +156,7 @@ func main() {
 	switch cfg.TradingMode {
 	case config.TradingModeVirtual:
 		balance := cfg.AccountBalance()
-		executor = bcs.NewVirtualExecutor(balance)
+		executor = execution.NewVirtualExecutor(balance)
 		logx.Mode(true, fmt.Sprintf("баланс %.0f руб.", balance))
 
 	case config.TradingModeReal:
@@ -363,7 +364,7 @@ func ingestMarketToHub(
 	}
 }
 
-func runSmokeTest(ctx context.Context, cfg *config.Config, client *bcs.BCSClient) {
+func runSmokeTest(ctx context.Context, cfg *config.Config, client *broker.BCSClient) {
 	if cfg.TradingMode != config.TradingModeVirtual {
 		logx.Fatal("smoke-test: только trading_mode: virtual")
 	}
@@ -374,7 +375,7 @@ func runSmokeTest(ctx context.Context, cfg *config.Config, client *bcs.BCSClient
 	}
 	ticker := tickers[0]
 
-	executor := bcs.NewVirtualExecutor(cfg.AccountBalance())
+	executor := execution.NewVirtualExecutor(cfg.AccountBalance())
 
 	if err := engine.RunSmokeTest(ctx, client, ticker, executor); err != nil {
 		logx.Fatalf("smoke-test провален: %v", err)
