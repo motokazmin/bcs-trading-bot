@@ -20,6 +20,7 @@ SYNC_TICKERS_CONFIG ?= configs/shared/tickers.yaml
 # Алиас: UNIVERSE = TICKERS_CONFIG (локальные override).
 UNIVERSE          ?= $(TICKERS_CONFIG)
 HISTORY_DIR       ?= data/history
+TRADES_DB         ?= data/trades.db
 SEARCH_SPACE      ?= configs/strategies/orc.yaml
 OPTIMIZER_STRATEGY ?= opening_range_continuation
 OPTIMIZER_OUT     ?= results/orc/
@@ -35,7 +36,7 @@ LOG_FILE ?= /var/log/trading-bot/bot.log
 LOG_FILE_FLAG := -log-file $(LOG_FILE)
 BOT_PID_FILE ?= data/bot.pid
 
-.PHONY: build build-bot build-optimizer test \
+.PHONY: build build-bot build-optimizer test analyze \
         sync-history optimizer-run optimizer-orc optimizer-orc-research optimizer-momentum optimizer-or-fade optimizer-afternoon optimizer-focus strategy-matrix charts-all \
         bot bot-futures bot-real bot-smoke bot-stop bot-status help
 
@@ -45,6 +46,7 @@ help:
 	@echo ""
 	@echo "  make build              — собрать bot, optimizer"
 	@echo "  make test               — go test ./..."
+	@echo "  make analyze            — разбор закрытых сделок → data/analysis/ (docs/analysis/)"
 	@echo ""
 	@echo "  make sync-history       — догрузить полный universe (tickers.yaml), параллельно"
 	@echo "  make optimizer-run      — sync-history + walk-forward ORC"
@@ -82,6 +84,13 @@ build-optimizer:
 
 test:
 	$(GO) test ./...
+
+# --- Разбор сделок ---
+# Считает то, чего нет в БД: качество входа, геометрию стопа, недобор по выходу.
+# Дописывает снимок метрик в data/analysis/metrics.csv (журнал прогресса).
+# Пометить снимок: make analyze LABEL="после фикса фила"
+analyze:
+	python3 scripts/analyze-trades.py --db $(TRADES_DB) --history $(HISTORY_DIR) --label "$(LABEL)"
 
 # --- История для optimizer ---
 
