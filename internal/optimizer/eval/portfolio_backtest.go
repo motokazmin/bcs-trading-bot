@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
-	"bcs-trading-bot/internal/costs"
-	"bcs-trading-bot/internal/marketdata"
+	"bcs-trading-bot/internal/engine/costs"
+	"bcs-trading-bot/internal/engine/execution"
+	"bcs-trading-bot/internal/engine/risk"
+	"bcs-trading-bot/internal/engine/marketdata"
+	"bcs-trading-bot/internal/models"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/risk"
-	"bcs-trading-bot/internal/simulation"
-	"bcs-trading-bot/internal/storage/memory"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/backtest"
+	"bcs-trading-bot/internal/engine/storage/memory"
 )
 
 // PortfolioBacktestResult — метрики единого счёта по нескольким FROZEN-экспериментам.
@@ -44,6 +44,10 @@ type PortfolioBacktestOptions struct {
 	HistoryDir  string
 	Deposit     float64 // 0 = из первого experiment / 200k
 	MaxParallel int     // 0 = 5
+	// IntrabarOscillations — стресс-тест внутрибарного пути (см. position.IntrabarPathN).
+	IntrabarOscillations int
+	// SlippageBps — override проскальзывания из YAML (<0 = не переопределять).
+	SlippageBps float64
 	From        time.Time
 	To          time.Time
 }
@@ -78,6 +82,9 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 	}
 	maxDailyLoss := deposit * dailyLossPct / 100
 	costsCfg := cfg.CostsConfig()
+	if opts.SlippageBps >= 0 {
+		costsCfg.SlippageBps = opts.SlippageBps
+	}
 	riskPerTrade := accountRisk.RiskPerTradePercent
 	if riskPerTrade <= 0 {
 		riskPerTrade = 0.5
@@ -109,7 +116,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 			from.Format("2006-01-02"), to.Format("2006-01-02"))
 	}
 
-	runnerCfgs := make(map[string]simulation.RunnerConfig)
+	runnerCfgs := make(map[string]backtest.RunnerConfig)
 	for _, exp := range experiments {
 		session := cfg.SessionForExperiment(exp)
 		trailCfg := exp.Strategy.TrailingConfig(1.0, costsCfg, cfg.ClassCode)
@@ -126,7 +133,9 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 			}
 			slotTrail := trailCfg
 			slotTrail.StepPriceValue = step
-			runnerCfgs[slotKey] = simulation.RunnerConfig{
+			runnerCfgs[slotKey] = backtest.RunnerConfig{
+				IntrabarOscillations: opts.IntrabarOscillations,
+				CostsCfg:             costsCfg,
 				Ticker:          tc.Symbol,
 				ClassCode:       cfg.ClassCode,
 				CandleTimeframe: cfg.CandleTimeFrame,
@@ -150,10 +159,10 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 	}
 
 	store := memory.NewTradeStore()
-	executor := bcs.NewVirtualExecutor(deposit)
-	globalRisk := risk.NewGlobalRiskController(deposit, dailyLossPct, maxParallel)
+	executor := execution.NewVirtualExecutor(deposit)
+	globalRisk := risk.NewGlobalRiskController(deposit, dailyLossPct, riskPerTrade, maxParallel)
 
-	portfolio, err := simulation.NewPortfolioRunner(simulation.PortfolioRunnerConfig{
+	portfolio, err := backtest.NewPortfolioRunner(backtest.PortfolioRunnerConfig{
 		Tickers:    runnerCfgs,
 		SessionCfg: cfg.Session,
 		GlobalRisk: globalRisk,

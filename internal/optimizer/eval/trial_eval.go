@@ -5,16 +5,16 @@ import (
 	"sort"
 	"strings"
 
-	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
+	"bcs-trading-bot/internal/engine/execution"
+	"bcs-trading-bot/internal/engine/risk"
+	"bcs-trading-bot/internal/engine/trailing"
+	"bcs-trading-bot/internal/models"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/risk"
-	"bcs-trading-bot/internal/simulation"
-	"bcs-trading-bot/internal/storage/memory"
+	"bcs-trading-bot/internal/backtest"
+	"bcs-trading-bot/internal/engine/storage/memory"
 	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/internal/trailing"
-	"bcs-trading-bot/pkg/models"
 )
 
 // trialContext — параметры trial, вычисленные один раз на весь trial.
@@ -157,7 +157,7 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 
 	store := memory.NewTradeStore()
 	// Optimizer всегда считает в virtual-режиме, без реальных ордеров.
-	executor := bcs.NewVirtualExecutor(e.settings.Deposit)
+	executor := execution.NewVirtualExecutor(e.settings.Deposit)
 
 	maxParallel := 2
 	if e.space != nil {
@@ -168,11 +168,12 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 	globalRisk := risk.NewGlobalRiskController(
 		e.settings.Deposit,
 		e.fixedValue("dailyLossLimitPercent", 2.0),
+		tc.riskPct,
 		maxParallel,
 	)
 
 	// Собираем конфиги раннеров по тикерам для портфельного прогона в одном окне.
-	runnerCfgs := make(map[string]simulation.RunnerConfig, len(tickers))
+	runnerCfgs := make(map[string]backtest.RunnerConfig, len(tickers))
 	for _, ticker := range tickers {
 		filtered := candlesByTicker[ticker]
 		if len(filtered) == 0 {
@@ -184,7 +185,7 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 			continue
 		}
 
-		runnerCfgs[ticker] = simulation.RunnerConfig{
+		runnerCfgs[ticker] = backtest.RunnerConfig{
 			Ticker:             ticker,
 			ClassCode:          e.settings.ClassCode,
 			CandleTimeframe:    e.settings.CandleTimeframe,
@@ -212,7 +213,7 @@ func (e *Evaluator) evaluateCandles(ctx context.Context, tc trialContext, candle
 	}
 
 	// Портфельный раннер учитывает общий риск и конкурентные позиции между тикерами.
-	portfolio, err := simulation.NewPortfolioRunner(simulation.PortfolioRunnerConfig{
+	portfolio, err := backtest.NewPortfolioRunner(backtest.PortfolioRunnerConfig{
 		Tickers:    runnerCfgs,
 		SessionCfg: e.settings.Session,
 		GlobalRisk: globalRisk,

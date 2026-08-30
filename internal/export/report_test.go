@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/export"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func TestBuildExperimentReportSummary(t *testing.T) {

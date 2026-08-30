@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"bcs-trading-bot/internal/config"
@@ -39,8 +40,8 @@ func TestLoadPortfolioPaper(t *testing.T) {
 		t.Fatal(err)
 	}
 	exps := cfg.ResolvedExperiments()
-	if len(exps) != 5 {
-		t.Fatalf("experiments: got %d, want 5", len(exps))
+	if len(exps) != 6 {
+		t.Fatalf("experiments: got %d, want 6", len(exps))
 	}
 	if cfg.AccountRisk().Deposit != 200_000 {
 		t.Fatalf("account deposit: got %.0f, want 200000", cfg.AccountRisk().Deposit)
@@ -121,5 +122,56 @@ risk:
 	}
 	if cfg.Tickers[0].StepPriceValue != 2.5 {
 		t.Fatalf("step_price_value: %f", cfg.Tickers[0].StepPriceValue)
+	}
+}
+
+// Общие ручки геометрии стопа должны доезжать из YAML до strategy.Params,
+// иначе они молча не работают. take_profit_enabled — bool, и без явной
+// обработки в factory он терялся бы при конвертации в float-параметры.
+func TestCommonStopParamsReachStrategy(t *testing.T) {
+	sc := config.StrategyConfigFromFields(map[string]interface{}{
+		"type":                "opening_range_continuation",
+		"min_stop_bps":        35.0,
+		"take_profit_enabled": false,
+	}, "atr")
+
+	p, _ := sc.ToParams(config.SessionConfig{
+		Timezone: "Europe/Moscow", SessionOpenTime: "10:00",
+	})
+	if got := p["minStopBps"]; got != 35.0 {
+		t.Fatalf("minStopBps: got %v, want 35", got)
+	}
+	if got, ok := p["takeProfitEnabled"]; !ok || got != 0 {
+		t.Fatalf("takeProfitEnabled: got %v (present=%v), want 0", got, ok)
+	}
+}
+
+// Все чемпионские конфиги должны загружаться и собираться в стратегию.
+// Заодно фиксируем: у ORC-семейства фиксированный тейк выключен, а фильтр
+// узкого стопа выставлен — это результат разбора сделок 2026-08.
+func TestChampionConfigsBuild(t *testing.T) {
+	paths, err := filepath.Glob("../../configs/champions/*.yaml")
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("нет чемпионских конфигов: %v", err)
+	}
+	for _, path := range paths {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			cfg, err := config.Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := cfg.Strategy.BuildStrategy(cfg.Session); err != nil {
+				t.Fatalf("BuildStrategy: %v", err)
+			}
+			if got := cfg.Strategy.Float("min_stop_bps"); got <= 0 {
+				t.Errorf("min_stop_bps не задан (got %v)", got)
+			}
+			switch cfg.Strategy.Type {
+			case "opening_range_continuation", "session_orc":
+				if cfg.Strategy.Bool("take_profit_enabled") {
+					t.Error("для ORC фиксированный тейк должен быть выключен")
+				}
+			}
+		})
 	}
 }

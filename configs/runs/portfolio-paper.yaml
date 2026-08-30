@@ -1,5 +1,7 @@
-# Paper portfolio: 6 slots (5 legacy champions + ORC complement), один virtual-счёт 200k.
-# docs/portfolio.md · docs/baseline.md · docs/research-rolling.md
+# Paper portfolio: 6 слотов на одном virtual-счёте 200k.
+# Каждый слот (experiment) — одна стратегия на общем счёте (депозит, CB,
+# one-position-per-ticker). Граница движок/стратегия: docs/0001-engine-strategy-boundary.md.
+# docs/portfolio.md · docs/baseline.md · docs/strategies.md · docs/research-rolling.md
 # Запуск: make bot
 # Проверка: go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
 
@@ -22,6 +24,11 @@ candle_timeframe: M5
 
 costs:
   commission_rate_per_leg: 0.00008
+  # Проскальзывание + половина спреда на КАЖДОЙ ноге. 1 б.п. — консервативно-мягкая
+  # оценка для ликвидных TQBR. Для стратегий со входом лимитом на уровне (ORC) вход
+  # так оценивается с запасом: лимит не проскальзывает, он либо исполняется, либо нет.
+  # Стресс без правки конфига: portfolio-backtest -slippage-bps N
+  slippage_bps: 1
 
 risk:
   deposit: 200000

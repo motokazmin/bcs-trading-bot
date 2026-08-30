@@ -5,22 +5,23 @@ import (
 	"fmt"
 	"time"
 
-	"bcs-trading-bot/internal/bcs"
-	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/pkg/logx"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/engine/broker"
+	"bcs-trading-bot/internal/engine/contract"
+	"bcs-trading-bot/internal/logx"
+	"bcs-trading-bot/internal/models"
 )
 
 const smokeTestTimeout = 90 * time.Second
 
 // RunSmokeTest проверяет OAuth, WebSocket и виртуальное исполнение:
 // ждёт первую котировку, открывает и сразу закрывает 1 лот без записи в БД.
-func RunSmokeTest(ctx context.Context, client *bcs.BCSClient, ticker string, executor interfaces.OrderExecutor) error {
+func RunSmokeTest(ctx context.Context, client *broker.BCSClient, ticker string, executor contract.OrderExecutor) error {
 	logx.Info("Smoke-test: ожидание котировки по %s (таймаут %s)...", ticker, smokeTestTimeout)
 
 	tickCh := make(chan models.Tick, 8)
-	routes := map[string][]bcs.WorkerRoutes{
-		ticker: {{TickChan: tickCh}},
+	timeframe := broker.CandleTimeFrame
+	routes := map[broker.RouteKey][]broker.WorkerRoutes{
+		{Ticker: ticker, Timeframe: timeframe}: {{TickChan: tickCh}},
 	}
 
 	wsCtx, wsCancel := context.WithTimeout(ctx, smokeTestTimeout)
@@ -54,7 +55,7 @@ func RunSmokeTest(ctx context.Context, client *bcs.BCSClient, ticker string, exe
 	return nil
 }
 
-func runSmokeCycle(ctx context.Context, ticker string, price float64, executor interfaces.OrderExecutor) error {
+func runSmokeCycle(ctx context.Context, ticker string, price float64, executor contract.OrderExecutor) error {
 	const qty = 1
 	risk := price * 0.01
 

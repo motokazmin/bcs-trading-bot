@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func candle(ts time.Time, open, high, low, close float64) models.Candle {

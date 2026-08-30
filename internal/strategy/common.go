@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 const (
@@ -136,6 +136,41 @@ type stopConfig struct {
 	ATRMultiplier float64
 	RangeUseCap   bool
 	RewardRatio   float64
+	// MinStopBps — минимальная дистанция стопа в базисных пунктах от цены входа.
+	// Сигналы с более узким стопом отбрасываются: R внутри спреда и микроструктурного
+	// шума даёт стоп-аут по случайному тику, а не по инвалидации идеи. 0 = без фильтра.
+	MinStopBps float64
+	// NoTakeProfit — не выставлять фиксированный тейк (выход только по трейлингу/EOD).
+	NoTakeProfit bool
+}
+
+// commonStopOpts — общие для стратегий параметры геометрии стопа/тейка.
+// Встраивается в opts-структуры, чтобы одна и та же YAML-ручка работала везде,
+// а не молча игнорировалась частью стратегий.
+type commonStopOpts struct {
+	MinStopBps   float64
+	NoTakeProfit bool
+}
+
+func commonStopOptsFromParams(p Params) commonStopOpts {
+	return commonStopOpts{
+		MinStopBps:   p.Float("minStopBps"),
+		NoTakeProfit: !paramsBoolDefault(p, "takeProfitEnabled", true),
+	}
+}
+
+// applyTo переносит общие параметры в stopConfig конкретного сигнала.
+func (o commonStopOpts) applyTo(cfg stopConfig) stopConfig {
+	cfg.MinStopBps = o.MinStopBps
+	cfg.NoTakeProfit = o.NoTakeProfit
+	return cfg
+}
+
+// commonStopConfigFields — общие ручки для round-trip optimizer → YAML.
+func (o commonStopOpts) configFields(m map[string]interface{}) map[string]interface{} {
+	m["min_stop_bps"] = o.MinStopBps
+	m["take_profit_enabled"] = !o.NoTakeProfit
+	return m
 }
 
 func stopDistance(history []models.Candle, entry, upper, lower float64, cfg stopConfig) float64 {
@@ -178,7 +213,7 @@ func rangeStopDistance(entry, rangeSize float64, useCap bool) float64 {
 
 func calcStopTP(direction string, entry, upper, lower float64, history []models.Candle, cfg stopConfig) (stopLoss, takeProfit float64) {
 	dist := stopDistance(history, entry, upper, lower, cfg)
-	if dist <= 0 {
+	if dist <= 0 || !stopWideEnough(entry, dist, cfg.MinStopBps) {
 		return 0, 0
 	}
 	rr := cfg.RewardRatio
@@ -193,7 +228,18 @@ func calcStopTP(direction string, entry, upper, lower float64, history []models.
 		stopLoss = entry + dist
 		takeProfit = entry - dist*rr
 	}
+	if cfg.NoTakeProfit {
+		takeProfit = 0
+	}
 	return stopLoss, takeProfit
+}
+
+// stopWideEnough отсекает стопы уже minBps базисных пунктов от цены входа.
+func stopWideEnough(entry, dist, minBps float64) bool {
+	if minBps <= 0 || entry <= 0 {
+		return true
+	}
+	return dist/entry*1e4 >= minBps
 }
 
 func buildOrder(candle models.Candle, direction string, entry, stopLoss, takeProfit, upper, lower float64) *models.Order {
