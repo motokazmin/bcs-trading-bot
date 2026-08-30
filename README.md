@@ -10,6 +10,7 @@ Paper portfolio — **6 слотов** на едином счёте 200 000 
 | Портфель | [`docs/portfolio.md`](docs/portfolio.md) |
 | Baseline | [`docs/baseline.md`](docs/baseline.md) |
 | Система | [`docs/system.md`](docs/system.md) |
+| Архитектура | [`docs/architecture.md`](docs/architecture.md) · [`docs/0001-engine-strategy-boundary.md`](docs/0001-engine-strategy-boundary.md) |
 | Стратегии | [`docs/strategies.md`](docs/strategies.md) |
 | Optimizer | [`docs/optimizer-modes.md`](docs/optimizer-modes.md) · [`cmd/optimizer/README.md`](cmd/optimizer/README.md) |
 | План | [`Roadmap.md`](Roadmap.md) |
@@ -26,6 +27,8 @@ Paper portfolio — **6 слотов** на едином счёте 200 000 
 ---
 
 ## Архитектура
+
+Карта сущностей и их роли — [`docs/architecture.md`](docs/architecture.md).
 
 ```
 cmd/bot
@@ -89,7 +92,7 @@ make bot-smoke
 
 `internal/logx`: `[SYS]`, `[OPEN]`, `[TP]`/`[SL]`/`[EOD]`, `[TRAIL]`, `[SKIP]`, `[AUDIT]`, `[WS]`, `[ERR]`.
 
-Метка воркера: `[TATN]` или `[orc-wave2/TATN]`. Файл по умолчанию: `/var/log/trading-bot/bot.log`.
+Метка стратегии: `strategy/<experiment>/<ticker>` (напр. `strategy/orc-wave2/TATN`). Файл по умолчанию: `/var/log/trading-bot/bot.log`.
 
 Paper: SL/TP по уровню; после ORC limit-fill — same-bar проверка. Аномалии — `[AUDIT]` и поля `audit_*` в БД/export.
 

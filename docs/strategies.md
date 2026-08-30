@@ -10,7 +10,7 @@
 | Уровень | Интерфейс | Кто реализует |
 |---|---|---|
 | Сигнал | `strategy.CandleStrategy` (`ID`, `OnCandle`) | **ты** — файл в `internal/strategy/` |
-| Самодостаточная стратегия | `strategy.Strategy` (`ID`, `Run`) | `adapter.SelfManagedStrategy` — обёртка, писать не нужно |
+| Самодостаточная стратегия | `contract.Strategy` (`ID`, `Run`) | `selfmanaged.SelfManagedStrategy` (`internal/strategy/selfmanaged`) — обёртка, писать не нужно |
 | Каркас | `engine.StrategyRunner` | движок: даёт данные, `OrderExecutor`, портфельный риск, `TradeStore` |
 
 Почти всегда добавляют только **сигнал** (`CandleStrategy`). `SelfManagedStrategy`

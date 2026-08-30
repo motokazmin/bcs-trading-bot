@@ -13,12 +13,12 @@
 
 | Файл | Роль |
 |------|------|
-| [`configs/strategies/orc-research-rolling.yaml`](../configs/strategies/orc-research-rolling.yaml) | search space (orb / breakout / atr; risk fixed; `allowAllTickers: 1`) |
-| [`configs/research/orc-main-wide.yaml`](../configs/research/orc-main-wide.yaml) | полный wide snapshot (все 10) для A/B |
-| [`configs/champions/orc-complement-rolling.yaml`](../configs/champions/orc-complement-rolling.yaml) | complement в paper (`orc-complement`) |
-| [`configs/runs/portfolio-paper.yaml`](../configs/runs/portfolio-paper.yaml) | paper: Main ORC + complement |
-| [`scripts/run-orc-research-rolling.sh`](../scripts/run-orc-research-rolling.sh) | обёртка optimizer |
-| [`configs/research/random-orc-main.yaml`](../configs/research/random-orc-main.yaml) | null-модель входа (опционально) |
+| [`configs/strategies/orc-research-rolling.yaml`](../../configs/strategies/orc-research-rolling.yaml) | search space (orb / breakout / atr; risk fixed; `allowAllTickers: 1`) |
+| [`configs/research/orc-main-wide.yaml`](../../configs/research/orc-main-wide.yaml) | полный wide snapshot (все 10) для A/B |
+| [`configs/champions/orc-complement-rolling.yaml`](../../configs/champions/orc-complement-rolling.yaml) | complement в paper (`orc-complement`) |
+| [`configs/runs/portfolio-paper.yaml`](../../configs/runs/portfolio-paper.yaml) | paper: Main ORC + complement |
+| [`scripts/run-orc-research-rolling.sh`](../../scripts/run-orc-research-rolling.sh) | обёртка optimizer |
+| [`configs/research/random-orc-main.yaml`](../../configs/research/random-orc-main.yaml) | null-модель входа (опционально) |
 
 ## Порядок (сначала optimizer)
 

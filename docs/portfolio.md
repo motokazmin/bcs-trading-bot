@@ -97,7 +97,7 @@ Solo walk-forward ищет параметры **одной** стратегии.
 | Документ | [`optimizer-modes.md`](optimizer-modes.md) | этот файл + [`baseline.md`](baseline.md) |
 
 Команды: `make optimizer-orc`, `make optimizer-or-fade`, `make optimizer-afternoon`.  
-Research (wide + rolling, не paper): `make optimizer-orc-research` — см. [`research-rolling.md`](research-rolling.md).
+Research (wide + rolling, не paper): `make optimizer-orc-research` — см. [`research/research-rolling.md`](research/research-rolling.md).
 Выход: `results/<name>/` (локально, в git не коммитится).
 
 Главная метрика решений — **`expectancy_r`** и net PnL в ₽, не только Calmar score.

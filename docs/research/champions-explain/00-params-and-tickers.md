@@ -5,7 +5,7 @@
 - Search space: `configs/strategies/*.yaml` → блок `search_space`
 - Зафиксированные чемпионы: `configs/champions/*.yaml`
 - Наборы тикеров для прогонов: `configs/shared/tickers-*.yaml`
-- Как искали: [`docs/optimizer-modes.md`](../optimizer-modes.md)
+- Как искали: [`docs/optimizer-modes.md`](../../optimizer-modes.md)
 
 Ниже — **какие параметры реально крутили** при поиске, а не все поля YAML подряд.
 
