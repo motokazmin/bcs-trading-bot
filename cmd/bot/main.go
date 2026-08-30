@@ -14,7 +14,7 @@ import (
 
 	"bcs-trading-bot/internal/api"
 	"bcs-trading-bot/internal/config"
-	"bcs-trading-bot/internal/datafeed"
+	"bcs-trading-bot/internal/engine/datafeed"
 	"bcs-trading-bot/internal/engine"
 	"bcs-trading-bot/internal/engine/broker"
 	"bcs-trading-bot/internal/engine/contract"

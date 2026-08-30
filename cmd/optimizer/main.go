@@ -13,7 +13,7 @@ import (
 
 	"bcs-trading-bot/internal/engine/broker"
 	"bcs-trading-bot/internal/engine/costs"
-	"bcs-trading-bot/internal/marketdata"
+	"bcs-trading-bot/internal/engine/marketdata"
 	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/internal/optimizer/charts"
 	"bcs-trading-bot/internal/optimizer/core"

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/engine/costs"
-	"bcs-trading-bot/internal/marketdata"
+	"bcs-trading-bot/internal/engine/marketdata"
 	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/optimizer/eval"

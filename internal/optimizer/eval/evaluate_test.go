@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/engine/costs"
-	"bcs-trading-bot/internal/marketdata"
+	"bcs-trading-bot/internal/engine/marketdata"
 	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/internal/models"
 )

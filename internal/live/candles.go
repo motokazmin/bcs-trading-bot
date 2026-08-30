@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/engine/broker"
-	"bcs-trading-bot/internal/marketdata"
+	"bcs-trading-bot/internal/engine/marketdata"
 	"bcs-trading-bot/internal/models"
 )
 

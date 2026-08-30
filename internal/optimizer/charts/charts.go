@@ -15,7 +15,7 @@ import (
 
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine/costs"
-	"bcs-trading-bot/internal/marketdata"
+	"bcs-trading-bot/internal/engine/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
 	evalpkg "bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/internal/logx"
