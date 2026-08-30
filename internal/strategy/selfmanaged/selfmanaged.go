@@ -1,4 +1,4 @@
-// Package adapter реализует SelfManagedStrategy (ADR 0001).
+// Package selfmanaged реализует SelfManagedStrategy (ADR 0001).
 // Оборачивает любой strategy.CandleStrategy (сигнальный "мозг") в
 // самодостаточную contract.Strategy: сама ведёт позицию, SL/TP/трейлинг,
 // EOD-закрытие, сайзинг и экспорт закрытой сделки.
@@ -9,7 +9,7 @@
 //   - ghost-handling: ErrNoOpenPosition → дроп позиции, прочие ошибки
 //     исполнителя на закрытии → восстановление позиции для повтора;
 //   - снапшот позиции для live-дашборда (contract.PositionSource → live.Hub).
-package adapter
+package selfmanaged
 
 import (
 	"context"
@@ -21,24 +21,23 @@ import (
 
 	"bcs-trading-bot/internal/costs"
 	"bcs-trading-bot/internal/engine"
+	"bcs-trading-bot/internal/engine/contract"
+	"bcs-trading-bot/internal/logx"
+	"bcs-trading-bot/internal/models"
 	"bcs-trading-bot/internal/position"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/tradeaudit"
 	"bcs-trading-bot/internal/trailing"
-	"bcs-trading-bot/internal/engine/contract"
-	"bcs-trading-bot/internal/logx"
-	"bcs-trading-bot/internal/models"
 )
 
 var _ contract.PositionSource = (*SelfManagedStrategy)(nil)
 
-// SessionClock — то подмножество internal/engine.SessionClock, которое
-// нужно адаптеру. Отдельный интерфейс здесь (а не прямой импорт
-// internal/engine) — потому что internal/engine импортирует internal/strategy
-// (за Strategy/CandleStrategy), и обратный импорт создал бы цикл. Реальная
-// реализация (*engine.SessionClock) передаётся из cmd/bot/main.go — она уже
-// удовлетворяет этому интерфейсу, ничего дублировать не нужно.
+// SessionClock — то подмножество engine.SessionClock, которое нужно
+// SelfManagedStrategy. Узкий интерфейс на стороне потребителя (а не импорт
+// конкретного *engine.SessionClock) держит контракт минимальным и облегчает
+// тесты. Реальная реализация (*engine.SessionClock) передаётся из
+// internal/app и удовлетворяет этому интерфейсу структурно.
 type SessionClock interface {
 	EntriesAllowed(now time.Time) bool
 	ShouldForceClose(now time.Time) bool

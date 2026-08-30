@@ -20,7 +20,7 @@ import (
 	"bcs-trading-bot/internal/live"
 	"bcs-trading-bot/internal/risk"
 	"bcs-trading-bot/internal/storage/sqlite"
-	"bcs-trading-bot/internal/strategies/adapter"
+	"bcs-trading-bot/internal/strategy/selfmanaged"
 	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
@@ -199,7 +199,7 @@ func main() {
 
 		for _, tc := range expTickers {
 			// Каждый (эксперимент × тикер) — самодостаточная стратегия
-			// (internal/strategies/adapter.SelfManagedStrategy): сама ведёт
+			// (internal/strategy/selfmanaged.SelfManagedStrategy): сама ведёт
 			// SL/TP/трейлинг/EOD/сайзинг. Каркас (StrategyRunner) даёт ей
 			// поток данных, OrderExecutor, портфельный риск и TradeStore.
 			label := fmt.Sprintf("strategy/%s/%s", exp.ID, tc.Symbol)
@@ -223,7 +223,7 @@ func main() {
 			}
 			trailCfg := exp.Strategy.TrailingConfig(step, cfg.CostsConfig(), cfg.ClassCode)
 
-			selfManaged := adapter.New(adapter.Config{
+			selfManaged := selfmanaged.New(selfmanaged.Config{
 				Signal:          signalStrategy,
 				Label:           label,
 				Ticker:          tc.Symbol,

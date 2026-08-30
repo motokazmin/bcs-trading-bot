@@ -38,7 +38,7 @@ func candleMaxAge(tf string) time.Duration {
 // CandleFreshForEntry — можно ли открывать позицию по бару с меткой barTime
 // на таймфрейме tf при текущем wall clock now. Порог — 3×TF (см. staleAgeBars):
 // защита от входа по переигранному/бэкфилл-бару после реконнекта WS.
-// Используется internal/strategies/adapter при обработке закрытой свечи.
+// Используется internal/strategy/selfmanaged при обработке закрытой свечи.
 func CandleFreshForEntry(now, barTime time.Time, tf string) bool {
 	return candleFresh(now, barTime, candleMaxAge(tf))
 }
