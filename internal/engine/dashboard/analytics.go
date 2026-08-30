@@ -20,7 +20,7 @@ func (s *Server) requireReader(w http.ResponseWriter) contract.TradeReader {
 	return s.reader
 }
 
-func parseFilter(r *http.Request) models.TradeFilter {
+func parseFilterQuery(r *http.Request) models.TradeFilter {
 	q := r.URL.Query()
 	return models.TradeFilter{
 		ExperimentID: strings.TrimSpace(q.Get("experiment_id")),
@@ -31,6 +31,44 @@ func parseFilter(r *http.Request) models.TradeFilter {
 		DateTo:       strings.TrimSpace(q.Get("date_to")),
 		CloseReason:  strings.TrimSpace(q.Get("close_reason")),
 	}
+}
+
+// parseFilter — фильтр из query плюс скрытие архивных периодов.
+// Все хендлеры аналитики ходят через него, иначе архив снова станет украшением.
+func (s *Server) parseFilter(r *http.Request) models.TradeFilter {
+	f := parseFilterQuery(r)
+	f.ExcludeRanges = s.hiddenArchiveRanges(r, f)
+	return f
+}
+
+// hiddenArchiveRanges — архивы, которые надо вырезать из выборки.
+// Архив показывается только когда выбран явно: period=<id> в query либо
+// запрошенный период целиком лежит внутри архива.
+func (s *Server) hiddenArchiveRanges(r *http.Request, f models.TradeFilter) []models.DateRange {
+	if s.archives == nil {
+		return nil
+	}
+	archives, err := s.archives.List()
+	if err != nil || len(archives) == 0 {
+		return nil
+	}
+	period := strings.TrimSpace(r.URL.Query().Get("period"))
+	var hidden []models.DateRange
+	for _, a := range archives {
+		if period == a.ID || rangeWithinArchive(f.DateFrom, f.DateTo, a) {
+			continue
+		}
+		hidden = append(hidden, models.DateRange{From: a.DateFrom, To: a.DateTo})
+	}
+	return hidden
+}
+
+// rangeWithinArchive — запрошенный период целиком внутри архива (даты ISO, сравнимы как строки).
+func rangeWithinArchive(from, to string, a models.ViewArchive) bool {
+	if from == "" || to == "" || a.DateFrom == "" || a.DateTo == "" {
+		return false
+	}
+	return from >= a.DateFrom && to <= a.DateTo
 }
 
 func parseExportMode(r *http.Request) (api.ExportMode, error) {
@@ -57,7 +95,7 @@ func (s *Server) handleAPISummary(w http.ResponseWriter, r *http.Request) {
 	if reader == nil {
 		return
 	}
-	summary, err := reader.GetSummary(r.Context(), parseFilter(r))
+	summary, err := reader.GetSummary(r.Context(), s.parseFilter(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -70,7 +108,7 @@ func (s *Server) handleAPIComparison(w http.ResponseWriter, r *http.Request) {
 	if reader == nil {
 		return
 	}
-	rows, err := reader.GetBreakdown(r.Context(), parseFilter(r), "experiment_id")
+	rows, err := reader.GetBreakdown(r.Context(), s.parseFilter(r), "experiment_id")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -84,7 +122,7 @@ func (s *Server) handleAPITrades(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit, offset := parseTradesPaging(r)
-	result, err := reader.ListClosedTrades(r.Context(), parseFilter(r), limit, offset)
+	result, err := reader.ListClosedTrades(r.Context(), s.parseFilter(r), limit, offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -97,7 +135,7 @@ func (s *Server) handleAPIAccountEquity(w http.ResponseWriter, r *http.Request) 
 	if reader == nil {
 		return
 	}
-	eq, err := reader.GetAccountEquity(r.Context(), parseFilter(r), s.deposit)
+	eq, err := reader.GetAccountEquity(r.Context(), s.parseFilter(r), s.deposit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -110,7 +148,7 @@ func (s *Server) handleAPIDateRange(w http.ResponseWriter, r *http.Request) {
 	if reader == nil {
 		return
 	}
-	dr, err := reader.GetDateRange(r.Context(), parseFilter(r))
+	dr, err := reader.GetDateRange(r.Context(), s.parseFilter(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -144,7 +182,7 @@ func (s *Server) handleAPIPrompt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	prompt, err := s.export.BuildPrompt(r.Context(), parseFilter(r), mode)
+	prompt, err := s.export.BuildPrompt(r.Context(), s.parseFilter(r), mode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -166,7 +204,7 @@ func (s *Server) handleExportData(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	data, err := s.export.BuildExportData(r.Context(), parseFilter(r), mode)
+	data, err := s.export.BuildExportData(r.Context(), s.parseFilter(r), mode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

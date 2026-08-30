@@ -181,6 +181,9 @@
     }
 
     function applyPeriodAndSubmit(period, from, to) {
+      if ([...periodSelect.options].some((o) => o.value === period)) {
+        periodSelect.value = period;
+      }
       setPeriodIntent(period);
       dateFrom.value = from;
       dateTo.value = to;
@@ -257,6 +260,9 @@
         }
         closeModal();
         await loadArchives();
+        // Заархивированный период уезжает из общей выборки — возвращаемся на «Все»,
+        // иначе на экране остаётся период, которого в «Все» уже нет.
+        applyPeriodAndSubmit('all', '', '');
       } catch (e) {
         errorEl.textContent = 'Ошибка: ' + e;
         errorEl.hidden = false;

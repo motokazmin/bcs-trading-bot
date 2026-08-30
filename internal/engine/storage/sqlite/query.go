@@ -40,6 +40,20 @@ func buildWhere(f models.TradeFilter) (string, []any) {
 		clauses = append(clauses, "trading_date <= ?")
 		args = append(args, f.DateTo)
 	}
+	// Архивные периоды: вырезаем целиком, чтобы их не было ни в списке, ни в агрегатах.
+	for _, ex := range f.ExcludeRanges {
+		switch {
+		case ex.From != "" && ex.To != "":
+			clauses = append(clauses, "NOT (trading_date >= ? AND trading_date <= ?)")
+			args = append(args, ex.From, ex.To)
+		case ex.From != "":
+			clauses = append(clauses, "trading_date < ?")
+			args = append(args, ex.From)
+		case ex.To != "":
+			clauses = append(clauses, "trading_date > ?")
+			args = append(args, ex.To)
+		}
+	}
 
 	if len(clauses) == 0 {
 		return "", nil

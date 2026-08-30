@@ -11,6 +11,9 @@ type TradeFilter struct {
 	DateFrom     string // YYYY-MM-DD
 	DateTo       string
 	CloseReason  string
+	// ExcludeRanges — периоды, скрытые из выборки (архивы админки).
+	// Сделка с trading_date внутри любого из них не попадает ни в список, ни в агрегаты.
+	ExcludeRanges []DateRange
 }
 
 // TradeListResult — страница сделок.

@@ -10,13 +10,18 @@
 metrics.csv — журнал прогресса: одна строка = (снимок, эксперимент). Сравнивая
 снимки, видно, двигают ли правки метрики в нужную сторону.
 
+Заархивированные в админке периоды по умолчанию исключаются — разбор идёт по той
+же выборке, что видна на экране. Вернуть их: --include-archived.
+
 Использование:
     python3 scripts/analyze-trades.py [--db data/trades.db] [--history data/history]
                                       [--label "после фикса фила"] [--no-write]
+                                      [--archives data/archives.json] [--include-archived]
 """
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sqlite3
 import subprocess
@@ -44,6 +49,31 @@ def load_trades(db: str) -> pd.DataFrame:
     t["sgn"] = np.where(t.direction == "BUY", 1, -1)
     t["level"] = np.where(t.direction == "BUY", t.breakout_upper, t.breakout_lower)
     return t
+
+
+def load_archives(path: str) -> list[dict]:
+    """Архивы админки (data/archives.json). Нет файла — нечего исключать."""
+    if not path or not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        return json.load(f) or []
+
+
+def drop_archived(t: pd.DataFrame, archives: list[dict]):
+    """Выкидывает сделки заархивированных периодов — ровно как их прячет админка.
+
+    Возвращает (оставшиеся сделки, [(date_from, date_to, сколько выкинуто)]).
+    """
+    dropped = []
+    keep = pd.Series(True, index=t.index)
+    for a in archives:
+        lo, hi = a.get("date_from", ""), a.get("date_to", "")
+        if not lo or not hi:
+            continue
+        inside = t.trading_date.between(lo, hi)
+        dropped.append((lo, hi, int((inside & keep).sum())))
+        keep &= ~inside
+    return t[keep].reset_index(drop=True), dropped
 
 
 def load_history(path: str) -> dict[str, pd.DataFrame]:
@@ -178,12 +208,29 @@ def main() -> None:
     ap.add_argument("--out", default="data/analysis")
     ap.add_argument("--label", default="", help="пометка снимка в metrics.csv")
     ap.add_argument("--no-write", action="store_true", help="только отчёт, ничего не писать")
+    ap.add_argument("--archives", default="data/archives.json",
+                    help="JSON с архивами админки; их периоды исключаются из разбора")
+    ap.add_argument("--include-archived", action="store_true",
+                    help="считать по всем сделкам, включая заархивированные")
     args = ap.parse_args()
 
     t = load_trades(args.db)
     if t.empty:
         print("В БД нет закрытых сделок.")
         return
+
+    if not args.include_archived:
+        t, dropped = drop_archived(t, load_archives(args.archives))
+        total_dropped = sum(n for _, _, n in dropped)
+        if total_dropped:
+            periods = ", ".join(f"{lo} — {hi} ({n})" for lo, hi, n in dropped if n)
+            print(f"Исключено архивных сделок: {total_dropped} [{periods}]")
+            print("Строки metrics.csv до и после архивации считаны по разным выборкам — "
+                  "сравнивать их напрямую нельзя.\n")
+        if t.empty:
+            print("После исключения архивов закрытых сделок не осталось.")
+            return
+
     t = enrich(t, load_history(args.history))
     m = per_experiment(t)
     report(t, m)

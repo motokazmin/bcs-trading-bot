@@ -30,7 +30,7 @@ func (s *Server) handleAPIDayTrades(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f := parseFilter(r)
+	f := s.parseFilter(r)
 	f.DateFrom = date
 	f.DateTo = date
 	f.Ticker = "" // все тикеры дня; experiment/mode и др. фильтры сохраняем
@@ -98,7 +98,7 @@ func (s *Server) handleAPIDayChart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f := parseFilter(r)
+	f := s.parseFilter(r)
 	f.DateFrom = date
 	f.DateTo = date
 	f.Ticker = ticker

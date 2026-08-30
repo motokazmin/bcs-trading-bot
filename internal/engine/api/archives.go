@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"bcs-trading-bot/internal/models"
@@ -22,7 +23,10 @@ var (
 )
 
 // ArchiveStore хранит закладки периодов в JSON-файле.
+// List читается на каждом запросе аналитики, Create/Delete — read-modify-write,
+// поэтому доступ к файлу под мьютексом.
 type ArchiveStore struct {
+	mu   sync.Mutex
 	path string
 }
 
@@ -92,6 +96,9 @@ func (s *ArchiveStore) save(archives []models.ViewArchive) error {
 }
 
 func (s *ArchiveStore) List() ([]models.ViewArchive, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	archives, err := s.load()
 	if err != nil {
 		return nil, err
@@ -106,6 +113,9 @@ func (s *ArchiveStore) Create(dateFrom, dateTo, comment string) (models.ViewArch
 	dateFrom = strings.TrimSpace(dateFrom)
 	dateTo = strings.TrimSpace(dateTo)
 	comment = strings.TrimSpace(comment)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if err := validateDateRange(dateFrom, dateTo); err != nil {
 		return models.ViewArchive{}, err
@@ -141,6 +151,10 @@ func (s *ArchiveStore) Delete(id string) error {
 	if id == "" {
 		return ErrArchiveNotFound
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	archives, err := s.load()
 	if err != nil {
 		return err

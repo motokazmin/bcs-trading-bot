@@ -11,6 +11,9 @@ configs/local*.yaml
 # Локальная история и runtime-артефакты SQLite (корень репозитория)
 /data/*
 !data/trades.db
+# Архивы периодов админки: определяют, какие сделки видит UI и make analyze.
+# Ходят вместе с trades.db, иначе выборка разъедется между машинами.
+!data/archives.json
 # Журнал прогресса разбора сделок — append-only, коммитится (docs/analysis/README.md).
 # trades_enriched.csv пересоздаётся каждым прогоном и остаётся локальным.
 !data/analysis/

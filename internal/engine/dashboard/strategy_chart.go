@@ -26,7 +26,7 @@ func (s *Server) handleAPIStrategyTrades(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	f := parseFilter(r)
+	f := s.parseFilter(r)
 	f.ExperimentID = experimentID
 
 	result, err := reader.ListClosedTrades(r.Context(), f, strategyTradesLimit, 0)
@@ -88,7 +88,7 @@ func (s *Server) handleAPIStrategyTradeChart(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	f := parseFilter(r)
+	f := s.parseFilter(r)
 	f.ExperimentID = experimentID
 	f.Ticker = ticker
 
