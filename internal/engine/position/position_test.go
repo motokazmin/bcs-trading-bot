@@ -3,7 +3,7 @@ package position_test
 import (
 	"testing"
 
-	"bcs-trading-bot/internal/position"
+	"bcs-trading-bot/internal/engine/position"
 	"bcs-trading-bot/internal/models"
 )
 

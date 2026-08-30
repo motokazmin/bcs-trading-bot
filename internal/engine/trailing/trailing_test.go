@@ -3,9 +3,9 @@ package trailing_test
 import (
 	"testing"
 
-	"bcs-trading-bot/internal/costs"
-	"bcs-trading-bot/internal/position"
-	"bcs-trading-bot/internal/trailing"
+	"bcs-trading-bot/internal/engine/costs"
+	"bcs-trading-bot/internal/engine/position"
+	"bcs-trading-bot/internal/engine/trailing"
 )
 
 func TestApplyTrailingStopBuy(t *testing.T) {

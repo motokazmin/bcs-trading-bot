@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/models"
 )
 

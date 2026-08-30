@@ -3,7 +3,7 @@ package risk_test
 import (
 	"testing"
 
-	"bcs-trading-bot/internal/risk"
+	"bcs-trading-bot/internal/engine/risk"
 )
 
 func TestResetDailyUnblocks(t *testing.T) {

@@ -1,8 +1,8 @@
 package trailing
 
 import (
-	"bcs-trading-bot/internal/costs"
-	"bcs-trading-bot/internal/position"
+	"bcs-trading-bot/internal/engine/costs"
+	"bcs-trading-bot/internal/engine/position"
 )
 
 // Config задаёт параметры дискретного и непрерывного трейлинг-стопа.

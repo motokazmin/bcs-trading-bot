@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 )
 
 func TestDefaultPerLotByClass(t *testing.T) {

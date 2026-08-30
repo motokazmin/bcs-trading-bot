@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 	core "bcs-trading-bot/internal/optimizer/core"
 	evalpkg "bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/internal/models"

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 
 	"gopkg.in/yaml.v3"
 )

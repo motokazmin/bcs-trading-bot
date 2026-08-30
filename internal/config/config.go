@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/strategy"
 
 	"gopkg.in/yaml.v3"

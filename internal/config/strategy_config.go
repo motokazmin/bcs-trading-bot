@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/internal/trailing"
+	"bcs-trading-bot/internal/engine/trailing"
 
 	"gopkg.in/yaml.v3"
 )

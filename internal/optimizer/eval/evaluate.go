@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/config"
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/internal/trailing"
+	"bcs-trading-bot/internal/engine/trailing"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
 )

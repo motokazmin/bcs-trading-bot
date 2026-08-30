@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"sort"
 
-	"bcs-trading-bot/internal/trailing"
+	"bcs-trading-bot/internal/engine/trailing"
 )
 
 // ParamsSnapshot — JSON-снимок параметров trial для привязки к сделке в backtest/export.

@@ -18,7 +18,7 @@ import (
 	"bcs-trading-bot/internal/datafeed"
 	"bcs-trading-bot/internal/engine"
 	"bcs-trading-bot/internal/live"
-	"bcs-trading-bot/internal/risk"
+	"bcs-trading-bot/internal/engine/risk"
 	"bcs-trading-bot/internal/storage/sqlite"
 	"bcs-trading-bot/internal/strategy/selfmanaged"
 	"bcs-trading-bot/internal/engine/contract"

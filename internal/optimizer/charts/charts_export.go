@@ -8,7 +8,7 @@ import (
 	"sort"
 
 	"bcs-trading-bot/internal/config"
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/export"
 	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/logx"

@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"bcs-trading-bot/internal/engine/contract"
+	"bcs-trading-bot/internal/engine/risk"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
-	"bcs-trading-bot/internal/risk"
 )
 
 // strategyContext — конкретная реализация contract.StrategyContext,

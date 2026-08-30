@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
-	"bcs-trading-bot/internal/position"
-	"bcs-trading-bot/internal/risk"
+	"bcs-trading-bot/internal/engine/position"
+	"bcs-trading-bot/internal/engine/risk"
 )
 
 // --- фейки каркаса ---------------------------------------------------------

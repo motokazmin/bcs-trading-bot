@@ -7,13 +7,13 @@ import (
 
 	"bcs-trading-bot/internal/bcs"
 	"bcs-trading-bot/internal/config"
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/internal/risk"
+	"bcs-trading-bot/internal/engine/risk"
 	"bcs-trading-bot/internal/simulation"
 	"bcs-trading-bot/internal/storage/memory"
 	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/internal/trailing"
+	"bcs-trading-bot/internal/engine/trailing"
 	"bcs-trading-bot/internal/models"
 )
 

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"bcs-trading-bot/internal/tradeaudit"
+	"bcs-trading-bot/internal/engine/tradeaudit"
 	"bcs-trading-bot/internal/models"
 )
 

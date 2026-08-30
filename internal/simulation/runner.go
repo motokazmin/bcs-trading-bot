@@ -7,11 +7,11 @@ import (
 
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine"
-	"bcs-trading-bot/internal/position"
-	"bcs-trading-bot/internal/risk"
+	"bcs-trading-bot/internal/engine/position"
+	"bcs-trading-bot/internal/engine/risk"
 	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/internal/tradeaudit"
-	"bcs-trading-bot/internal/trailing"
+	"bcs-trading-bot/internal/engine/tradeaudit"
+	"bcs-trading-bot/internal/engine/trailing"
 	"bcs-trading-bot/internal/engine/contract"
 	"bcs-trading-bot/internal/models"
 )
