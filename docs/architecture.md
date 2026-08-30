@@ -139,3 +139,44 @@ datafeed.Feed.Subscribe(ticker, timeframe, candleCh, tickCh)
 ```
 models ← engine/contract ← engine/* ← strategy/selfmanaged ← app ← cmd/bot
 ```
+
+---
+
+## Гейт входа (`engine/tradeaudit`)
+
+`tradeaudit` — не только аннотация сделок для БД, но и **точка отказа входа**.
+`ValidateOpen` вызывается до резервирования риска и исполнения ордера; при
+`Result.Rejects()` (severity `error` — вход уже за стопом относительно бара или
+лимит оторван от рынка) сигнал не исполняется.
+
+Гейт стоит в трёх местах и должен оставаться одинаковым во всех трёх, иначе
+оптимизатор подберёт параметры под сделки, которых живой бот не возьмёт:
+
+| Путь | Файл |
+|------|------|
+| live / virtual | `strategy/selfmanaged/selfmanaged.go` |
+| backtest, один тикер | `backtest/runner.go` |
+| backtest, портфель | `backtest/portfolio.go` |
+
+Разбор, из которого это выросло: [`analysis/0001-entry-fill-adverse-selection.md`](analysis/0001-entry-fill-adverse-selection.md).
+
+## Общая геометрия стопа (`strategy.commonStopOpts`)
+
+Встраивается в opts-структуры стратегий, чтобы YAML-ручка работала везде, а не
+молча игнорировалась частью стратегий. Сейчас подключена в ORC, OR Fade и
+momentum-семейство (`momentumBreakoutOpts` — значит и `momentum_filtered`,
+и `momentum_sber_daytrend`).
+
+| Ручка YAML | Смысл |
+|------------|-------|
+| `min_stop_bps` | минимальная дистанция стопа в б.п. от цены; сигнал с более узким стопом отбрасывается |
+| `take_profit_enabled` | `false` — фиксированного тейка нет, выход только по трейлингу/EOD |
+
+`take_profit_enabled: false` даёт `TakeProfit == 0` в ордере — `position.CheckExit`
+это учитывает явно.
+
+## Разбор сделок
+
+`make analyze` → `scripts/analyze-trades.py` → `data/analysis/`.
+Метрики, журнал прогресса и порядок работы: [`analysis/README.md`](analysis/README.md),
+текущее состояние — [`analysis/state.md`](analysis/state.md).
