@@ -17,10 +17,26 @@ import (
 	"bcs-trading-bot/internal/models"
 )
 
+// fetch.go — исторические свечи через REST (endpoint candles-chart):
+// запрос-ответ с пагинацией по диапазону from..to, throttle/retry/дедуп.
+// Отдаёт ТОЛЬКО свечи и ТОЛЬКО за прошлое. Потребители — оптимизатор
+// (SyncHistory → data/history/*.csv) и графики админки.
+//
+// Живой поток (текущие свечи по мере закрытия бара + котировки) — это
+// отдельный механизм на WebSocket: internal/engine/broker/websocket.go.
 const (
 	candlesChartURL = "https://be.broker.ru/trade-api-market-data-connector/api/v1/candles-chart"
 	maxBarsPerReq   = 1000
 )
+
+// Два входа с почти одинаковой начинкой, но под разных потребителей:
+//   - FetchCandlesWithConfig — отдаёт весь диапазон одним срезом в памяти
+//     (нужно графикам админки: небольшие окна, результат сразу в дело);
+//   - fetchTickerRange — пишет в CSV чанк за чанком с checkpoint после
+//     каждого (нужно SyncHistory: тянет годами, падение на середине не
+//     должно терять уже скачанное).
+// Общее ядро обоих — шаг по времени окнами по maxBarsPerReq баров, потому
+// что за один запрос API больше не отдаёт.
 
 var candlesHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
@@ -51,9 +67,13 @@ func FetchCandlesWithConfig(ctx context.Context, client *broker.BCSClient, class
 
 	var all []models.Candle
 	chunkStart := from
+	// barDuration — оценка шага между барами, нужна только чтобы прикинуть,
+	// какому интервалу времени соответствуют maxBarsPerReq баров.
 	barDuration := barDurationForTimeFrame(timeFrame)
 
 	for chunkStart.Before(to) {
+		// В неадаптивном режиме пауза между чанками фиксированная; в
+		// адаптивном ритм держит throttle внутри fetchCandlesChunk.
 		if !cfg.Adaptive {
 			if err := sleepCtx(ctx, cfg.ChunkDelay); err != nil {
 				return nil, err
@@ -70,11 +90,16 @@ func FetchCandlesWithConfig(ctx context.Context, client *broker.BCSClient, class
 			return nil, err
 		}
 		if len(bars) == 0 {
+			// Дырка в данных (ночь, выходные, инструмент ещё не торговался) —
+			// перешагиваем окно и идём дальше, а не крутимся на месте.
 			chunkStart = nextChunkStart(chunkStart, chunkEnd, time.Time{}, barDuration, false)
 			continue
 		}
 		all = append(all, bars...)
 
+		// Следующее окно начинаем от последней полученной свечи, а не от
+		// chunkEnd: API мог отдать меньше полного окна, и остаток нужно
+		// дозабрать, а не пропустить.
 		last := lastCandleTS(bars)
 		chunkStart = nextChunkStart(chunkStart, chunkEnd, last, barDuration, true)
 		if !chunkStart.Before(to) {
@@ -82,10 +107,18 @@ func FetchCandlesWithConfig(ctx context.Context, client *broker.BCSClient, class
 		}
 	}
 
+	// Окна на стыке перекрываются (начали от lastBar, который уже в выборке) —
+	// dedupe убирает дубли на швах.
 	return dedupeCandles(all), nil
 }
 
-// fetchTickerRange загружает диапазон чанками с append-checkpoint в CSV после каждого чанка.
+// fetchTickerRange загружает диапазон чанками, дописывая CSV после каждого
+// чанка. Смысл checkpoint'а: закачка истории идёт часами, и если процесс
+// упадёт (или упрётся в rate limit насмерть), уже скачанное останется на
+// диске — повторный запуск продолжит с того же места, а не с нуля.
+//
+// existing — то, что уже лежит в CSV; от его последней свечи считаем lastTS,
+// чтобы не переписывать имеющееся и не плодить дубли.
 func fetchTickerRange(ctx context.Context, client *broker.BCSClient, path, ticker, classCode, timeFrame string, existing []models.Candle, from, to time.Time, cfg FetchConfig) (int, error) {
 	cfg = cfg.Normalized()
 	throttle := cfg.ThrottleOrDefault()
@@ -119,6 +152,8 @@ func fetchTickerRange(ctx context.Context, client *broker.BCSClient, path, ticke
 			return added, err
 		}
 		if len(bars) == 0 {
+			// Дырка в данных — логируем окно (полезно для диагностики
+			// пропусков в истории) и перешагиваем.
 			logx.Info("[%s] пустой ответ API %s → %s, пропуск окна",
 				ticker, chunkStart.Format("2006-01-02 15:04"), chunkEnd.Format("2006-01-02 15:04"))
 			chunkStart = nextChunkStart(chunkStart, chunkEnd, time.Time{}, barDuration, false)
@@ -129,6 +164,9 @@ func fetchTickerRange(ctx context.Context, client *broker.BCSClient, path, ticke
 		}
 		chunkNum++
 
+		// Оставляем только то, что новее уже записанного: соседние окна
+		// перекрываются на шве, плюс повторный запуск sync частично
+		// пересекается со старым CSV. За счёт этого дозакачка идемпотентна.
 		newBars := candlesAfter(lastTS, bars)
 		if len(newBars) > 0 {
 			if err := writeOrAppendCSV(path, newBars, fileExists); err != nil {
@@ -152,7 +190,12 @@ func fetchTickerRange(ctx context.Context, client *broker.BCSClient, path, ticke
 	return added, nil
 }
 
-// nextChunkStart — следующее окно: по последней свече или сдвиг через пустой участок.
+// nextChunkStart — откуда начинать следующее окно.
+//   - были бары: от последнего бара + шаг (остаток окна дозаберём);
+//   - окно пустое, но непустое по времени: прыгаем на его конец (перешагнули
+//     дырку в данных);
+//   - вырожденный случай (chunkEnd <= chunkStart): двигаемся на полное окно
+//     вперёд, чтобы гарантированно не зациклиться.
 func nextChunkStart(chunkStart, chunkEnd, lastBar time.Time, barDuration time.Duration, hadBars bool) time.Time {
 	if hadBars {
 		return lastBar.Add(barDuration)
@@ -163,6 +206,15 @@ func nextChunkStart(chunkStart, chunkEnd, lastBar time.Time, barDuration time.Du
 	return chunkStart.Add(barDuration * maxBarsPerReq)
 }
 
+// fetchCandlesChunk — один чанк с повторами. Здесь сходятся два независимых
+// регулятора нагрузки:
+//   - throttle (адаптивный режим) — плавно подбирает паузу между запросами
+//     по факту успехов и отлупов, состояние живёт между вызовами;
+//   - retry-backoff — фиксированный экспоненциальный сон внутри одной серии
+//     повторов, начинается только после первой ошибки.
+//
+// Повторяем лишь то, что имеет смысл повторять (429/503/RATE_LIMIT); прочие
+// ошибки — сразу наверх, без повторов.
 func fetchCandlesChunk(ctx context.Context, client *broker.BCSClient, classCode, ticker, timeFrame string, from, to time.Time, cfg FetchConfig) ([]models.Candle, error) {
 	cfg = cfg.Normalized()
 	throttle := cfg.ThrottleOrDefault()
@@ -179,6 +231,7 @@ func fetchCandlesChunk(ctx context.Context, client *broker.BCSClient, classCode,
 				return nil, err
 			}
 		} else if cfg.Adaptive {
+			// Первая попытка в адаптивном режиме: выжидаем текущую паузу throttle.
 			if err := throttle.Wait(ctx); err != nil {
 				return nil, err
 			}
@@ -188,7 +241,7 @@ func fetchCandlesChunk(ctx context.Context, client *broker.BCSClient, classCode,
 		if err == nil {
 			sortCandlesByTime(bars)
 			if cfg.Adaptive {
-				throttle.OnSuccess()
+				throttle.OnSuccess() // отлупов нет — throttle ускоряется
 			}
 			return bars, nil
 		}
@@ -196,13 +249,15 @@ func fetchCandlesChunk(ctx context.Context, client *broker.BCSClient, classCode,
 			return nil, err
 		}
 		if cfg.Adaptive {
-			throttle.OnRateLimit(retryAfter)
+			throttle.OnRateLimit(retryAfter) // получили 429 — throttle тормозит
 		}
 		lastErr = err
 	}
 	return nil, fmt.Errorf("исчерпаны повторы (%d): %w", cfg.MaxRetries, lastErr)
 }
 
+// fetchCandlesChunkOnce — ровно один HTTP-запрос за окно [from, to], без
+// повторов. Второе возвращаемое значение — Retry-After с ответа (0, если нет).
 func fetchCandlesChunkOnce(ctx context.Context, client *broker.BCSClient, classCode, ticker, timeFrame string, from, to time.Time) ([]models.Candle, time.Duration, error) {
 	q := url.Values{}
 	q.Set("ticker", ticker)
@@ -229,6 +284,8 @@ func fetchCandlesChunkOnce(ctx context.Context, client *broker.BCSClient, classC
 		return nil, 0, err
 	}
 	if resp.StatusCode != http.StatusOK {
+		// Retry-After отдаём наверх отдельным значением — throttle учтёт его
+		// как подсказку, на сколько именно притормозить.
 		return nil, parseRetryAfter(resp.Header), fmt.Errorf("candles-chart %s: статус %d: %s", ticker, resp.StatusCode, string(body))
 	}
 
@@ -239,6 +296,7 @@ func fetchCandlesChunkOnce(ctx context.Context, client *broker.BCSClient, classC
 
 	out := make([]models.Candle, 0, len(parsed.Bars))
 	for _, bar := range parsed.Bars {
+		// Время бывает и с зоной (RFC3339), и голым — пробуем оба формата.
 		ts, err := time.Parse(time.RFC3339, bar.Time)
 		if err != nil {
 			ts, err = time.Parse("2006-01-02T15:04:05", strings.TrimSuffix(bar.Time, "Z"))
@@ -259,6 +317,8 @@ func fetchCandlesChunkOnce(ctx context.Context, client *broker.BCSClient, classC
 	return out, 0, nil
 }
 
+// parseRetryAfter — заголовок Retry-After бывает в двух видах: число секунд
+// либо HTTP-дата. Разбираем оба; 0 = сервер подсказки не дал.
 func parseRetryAfter(h http.Header) time.Duration {
 	ra := strings.TrimSpace(h.Get("Retry-After"))
 	if ra == "" {
@@ -281,6 +341,8 @@ func sortCandlesByTime(candles []models.Candle) {
 	})
 }
 
+// lastCandleTS — максимум по времени, а не последний элемент: порядок баров
+// в ответе API не гарантирован (сортировку делаем отдельно, здесь подстраховка).
 func lastCandleTS(bars []models.Candle) time.Time {
 	if len(bars) == 0 {
 		return time.Time{}
@@ -294,6 +356,8 @@ func lastCandleTS(bars []models.Candle) time.Time {
 	return max
 }
 
+// candlesAfter — строго то, что новее lastTS (нулевой lastTS = берём всё).
+// Отсекает перекрытие окон на шве и уже записанное в CSV.
 func candlesAfter(lastTS time.Time, bars []models.Candle) []models.Candle {
 	if len(bars) == 0 {
 		return nil
@@ -308,6 +372,9 @@ func candlesAfter(lastTS time.Time, bars []models.Candle) []models.Candle {
 	return dedupeCandles(out)
 }
 
+// isRetryableAPIError — решаем по тексту ошибки, стоит ли повторять запрос.
+// Хрупко (структурного признака нет), но повторять есть смысл только на
+// перегрузке/лимите; остальное — баг в запросе или данных, повтор не поможет.
 func isRetryableAPIError(err error) bool {
 	if err == nil {
 		return false
@@ -318,6 +385,9 @@ func isRetryableAPIError(err error) bool {
 		strings.Contains(msg, "RATE_LIMIT")
 }
 
+// barDurationForTimeFrame — номинальный шаг между барами для таймфрейма.
+// Используется только для арифметики окон (сколько времени ≈ 1000 баров) и
+// для сдвига через дырки, точность до бара тут не важна. Неизвестный tf → M5.
 func barDurationForTimeFrame(tf string) time.Duration {
 	switch strings.ToUpper(tf) {
 	case "M1":
