@@ -128,6 +128,19 @@ type RiskConfig struct {
 	MaxDailyLossPercent float64 `yaml:"max_daily_loss_percent"`
 	RiskPerTradePercent float64 `yaml:"risk_per_trade_percent"`
 	MaxParallelTrades   int     `yaml:"max_parallel_trades"`
+	// CashUtilizationPercent — сколько от свободного кэша можно резервировать под одну
+	// позицию (0-100]. Буфер защищает от отказов на границе (slippage/комиссия/раунд-off
+	// между капом и фактическим ордером) и оставляет кэш другим параллельным слотам на
+	// общем virtual-счёте. 0 или не задано → дефолт 95.
+	CashUtilizationPercent float64 `yaml:"cash_utilization_percent"`
+}
+
+// EffectiveCashUtilization возвращает долю кэша (0;1], доступную под одну позицию.
+func (r RiskConfig) EffectiveCashUtilization() float64 {
+	if r.CashUtilizationPercent <= 0 || r.CashUtilizationPercent > 100 {
+		return 0.95
+	}
+	return r.CashUtilizationPercent / 100
 }
 
 type VirtualConfig struct {

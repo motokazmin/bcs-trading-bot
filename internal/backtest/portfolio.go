@@ -218,8 +218,14 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	if qty <= 0 {
 		return
 	}
+	entryAtClose := signal.Price == candle.Close
+	// Проскальзывание на входе — см. комментарий в runner.go. Считаем fillPrice
+	// ДО капа по кэшу: иначе для BUY (fill дороже сигнала) notional ордера может
+	// превысить остаток, закэпленный по старой, более низкой цене (см. живой баг,
+	// ADR/фикс от 2026-09-03).
+	fillPrice := costs.FillPrice(st.cfg.CostsCfg, signal.Direction, signal.Price)
 	if bal, err := executor.GetBalance(ctx); err == nil {
-		qty = risk.CapQuantityByCash(qty, signal.Price, bal, st.cfg.StepPriceValue)
+		qty = risk.CapQuantityByCash(qty, fillPrice, bal, st.cfg.StepPriceValue)
 		if qty <= 0 {
 			return
 		}
@@ -229,9 +235,7 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	if signal.Ticker == "" {
 		signal.Ticker = st.cfg.Ticker
 	}
-	entryAtClose := signal.Price == candle.Close
-	// Проскальзывание на входе — см. комментарий в runner.go.
-	signal.Price = costs.FillPrice(st.cfg.CostsCfg, signal.Direction, signal.Price)
+	signal.Price = fillPrice
 
 	tradeRisk := abs(signal.Price-signal.StopLoss) * float64(qty) * st.cfg.StepPriceValue
 	if p.global != nil {

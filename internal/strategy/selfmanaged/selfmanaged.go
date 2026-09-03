@@ -62,6 +62,9 @@ type Config struct {
 	RiskPerTradePct float64
 	Deposit         float64
 	MaxDailyLoss    float64
+	// CashUtilizationPct — доля свободного кэша (0;1], которую можно резервировать
+	// под одну позицию. 0 → дефолт 0.95 (см. config.RiskConfig.EffectiveCashUtilization).
+	CashUtilizationPct float64
 	TrailCfg        trailing.Config
 	CostsCfg        costs.Config
 	RewardRatio     float64
@@ -90,6 +93,9 @@ type SelfManagedStrategy struct {
 func New(cfg Config) *SelfManagedStrategy {
 	if cfg.StepPriceValue <= 0 {
 		cfg.StepPriceValue = 1.0
+	}
+	if cfg.CashUtilizationPct <= 0 || cfg.CashUtilizationPct > 1 {
+		cfg.CashUtilizationPct = 0.95
 	}
 	return &SelfManagedStrategy{
 		cfg:     cfg,
@@ -251,15 +257,37 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 		logx.SignalRejected(s.cfg.Label, signal.Direction, "нулевой объём позиции")
 		return
 	}
+
+	entryAtClose := signal.Price == candle.Close
+	// Проскальзывание на входе: позиция открывается хуже сигнальной цены.
+	// SL/TP остаются там, где их поставила стратегия.
+	// Считаем fill-цену ДО капа по кэшу: кап и фактический ордер должны
+	// смотреть на одну и ту же цену, иначе для BUY (fill дороже сигнала)
+	// notional ордера может незаметно превысить остаток, закэпленный по
+	// старой, более низкой цене.
+	fillPrice := costs.FillPrice(s.cfg.CostsCfg, signal.Direction, signal.Price)
+
 	if bal, err := sctx.Orders().GetBalance(ctx); err == nil {
-		quantity = risk.CapQuantityByCash(quantity, signal.Price, bal, s.cfg.StepPriceValue)
+		// Резервируем не весь кэш, а долю (см. CashUtilizationPct): запас на
+		// проскальзывание/раунд-off и на параллельные слоты, делящие один счёт.
+		riskQty := quantity
+		quantity = risk.CapQuantityByCash(quantity, fillPrice, bal*s.cfg.CashUtilizationPct, s.cfg.StepPriceValue)
 		if quantity <= 0 {
 			logx.SignalRejected(s.cfg.Label, signal.Direction, "недостаточно средств")
 			return
 		}
+		if quantity < riskQty {
+			// Кап реально сработал — статистика конкуренции за общий virtual-кэш,
+			// даже когда сделка всё же открылась (см. roadmap: потолок notional
+			// на позицию).
+			logx.CashCap(s.cfg.Ticker, s.cfg.Label, riskQty, quantity, fillPrice*float64(quantity)*s.cfg.StepPriceValue, bal)
+		}
 	}
 
-	tradeRisk := math.Abs(signal.Price-signal.StopLoss) * float64(quantity) * s.cfg.StepPriceValue
+	// Риск считаем по fill-цене (после slippage), иначе резерв в GlobalRiskController
+	// систематически расходится с фактическим |fillPrice-SL|: для BUY бюджет
+	// недооценивает риск, для SELL — переоценивает.
+	tradeRisk := math.Abs(fillPrice-signal.StopLoss) * float64(quantity) * s.cfg.StepPriceValue
 	if err := sctx.Risk().TryOpen(s.cfg.Ticker, tradeRisk); err != nil {
 		logx.SignalRejected(s.cfg.Label, signal.Direction, err.Error())
 		return
@@ -268,10 +296,7 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 	signal.Quantity = quantity
 	signal.OrderType = models.OrderTypeLimit
 	signal.Ticker = s.cfg.Ticker
-	entryAtClose := signal.Price == candle.Close
-	// Проскальзывание на входе: позиция открывается хуже сигнальной цены.
-	// SL/TP остаются там, где их поставила стратегия.
-	signal.Price = costs.FillPrice(s.cfg.CostsCfg, signal.Direction, signal.Price)
+	signal.Price = fillPrice
 
 	if err := sctx.Orders().ExecuteOrder(ctx, *signal); err != nil {
 		logx.Error("[%s] ошибка открытия позиции: %v", s.cfg.Label, err)

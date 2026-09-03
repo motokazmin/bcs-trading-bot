@@ -153,19 +153,21 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 	if qty <= 0 {
 		return
 	}
+	entryAtClose := signal.Price == candle.Close
+	// Проскальзывание на входе: позиция открывается хуже сигнальной цены.
+	// SL/TP остаются там, где их поставила стратегия, поэтому фактический R
+	// слегка отличается от задуманного — ровно как в реальном исполнении.
+	// Считаем fillPrice ДО капа по кэшу — см. комментарий в portfolio.go.
+	fillPrice := costs.FillPrice(r.cfg.CostsCfg, signal.Direction, signal.Price)
 	if bal, err := executor.GetBalance(ctx); err == nil {
-		qty = risk.CapQuantityByCash(qty, signal.Price, bal, r.cfg.StepPriceValue)
+		qty = risk.CapQuantityByCash(qty, fillPrice, bal, r.cfg.StepPriceValue)
 		if qty <= 0 {
 			return
 		}
 	}
 	signal.Quantity = qty
 	signal.OrderType = models.OrderTypeLimit
-	entryAtClose := signal.Price == candle.Close
-	// Проскальзывание на входе: позиция открывается хуже сигнальной цены.
-	// SL/TP остаются там, где их поставила стратегия, поэтому фактический R
-	// слегка отличается от задуманного — ровно как в реальном исполнении.
-	signal.Price = costs.FillPrice(r.cfg.CostsCfg, signal.Direction, signal.Price)
+	signal.Price = fillPrice
 
 	if err := executor.ExecuteOrder(ctx, *signal); err != nil {
 		return

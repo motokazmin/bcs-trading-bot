@@ -205,6 +205,22 @@ func TradeOpen(ticker, direction string, qty int, price, sl, tp float64) {
 	)
 }
 
+// CashCap — кап по кэшу реально урезал объём позиции (даже если сделка всё
+// равно открылась) — сигнал конкуренции за общий virtual-баланс. riskQty —
+// объём, посчитанный риск-моделью; cappedQty — фактический после капа.
+func CashCap(ticker, label string, riskQty, cappedQty int, notional, balance float64) {
+	pct := 0.0
+	if balance > 0 {
+		pct = notional / balance * 100
+	}
+	write(
+		tickerLabel(ticker),
+		tag("CASHCAP", yellow),
+		paint(dim, label),
+		fmt.Sprintf("qty %d→%d notional=%.2f/%.2f (%.1f%%)", riskQty, cappedQty, notional, balance, pct),
+	)
+}
+
 // SignalRejected — сигнал отклонён.
 func SignalRejected(ticker, direction, reason string) {
 	write(
