@@ -35,12 +35,21 @@
     return overlay;
   }
 
+  // Несколько параллельных запросов (Promise.all в dashboard.js и т.п.) могут
+  // словить 401 одновременно и каждый вызвать promptToken(true). Без общего
+  // промиса каждый вызов перезаписывал бы save.onclick/input.onkeydown друг
+  // друга, и один клик «Войти» резолвил бы только последний вызов — остальные
+  // зависали бы навсегда, а Promise.all-запросы (например, дашборд) не
+  // рендерились до перезахода на страницу.
+  let pendingPrompt = null;
+
   function promptToken(force) {
-    return new Promise((resolve) => {
-      if (!force && getToken()) {
-        resolve(getToken());
-        return;
-      }
+    if (!force && getToken()) {
+      return Promise.resolve(getToken());
+    }
+    if (pendingPrompt) return pendingPrompt;
+
+    pendingPrompt = new Promise((resolve) => {
       const overlay = ensureTokenUI();
       const input = document.getElementById('auth-token-input');
       const save = document.getElementById('auth-save');
@@ -59,6 +68,7 @@
         }
         setToken(value);
         overlay.hidden = true;
+        pendingPrompt = null;
         resolve(value);
       };
       save.onclick = finish;
@@ -66,6 +76,7 @@
         if (e.key === 'Enter') finish();
       };
     });
+    return pendingPrompt;
   }
 
   async function api(url, opts = {}) {
