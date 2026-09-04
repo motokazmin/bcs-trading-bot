@@ -4,7 +4,7 @@
   const summaryEl = document.getElementById('strategy-summary');
   const statusEl = document.getElementById('strategy-status');
   const errEl = document.getElementById('page-error');
-  const itemsEl = document.getElementById('strategy-items');
+  const tradesBody = document.getElementById('strategy-trades-body');
   const countEl = document.getElementById('strategy-trade-count');
   const chartEl = document.getElementById('strategy-chart');
   const titleEl = document.getElementById('strategy-chart-title');
@@ -159,7 +159,7 @@
   function renderTrades() {
     countEl.textContent = String(trades.length);
     if (!trades.length) {
-      itemsEl.innerHTML = '<p class="muted" style="padding:1rem">Нет сделок</p>';
+      tradesBody.innerHTML = '<tr><td colspan="10" class="muted">Нет сделок</td></tr>';
       selectedTradeId = null;
       selectedTicker = null;
       return;
@@ -174,33 +174,32 @@
       selectedTicker = tickerOf(trades[0]);
     }
 
-    itemsEl.innerHTML = trades.map((t) => {
+    tradesBody.innerHTML = trades.map((t) => {
       const tid = tradeIdOf(t);
       const tk = tickerOf(t);
       const dirClass = t.direction === 'BUY' ? 'dir-buy' : 'dir-sell';
       const pnl = Number(t.pnl ?? t.PnL ?? 0);
-      const pnlClass = pnl >= 0 ? 'positive' : 'negative';
-      const active = tid === selectedTradeId ? 'active' : '';
-      const date = t.tradingDate ?? t.trading_date ?? '';
       const pnlR = Number(t.pnlR ?? t.pnl_r ?? 0);
+      const active = tid === selectedTradeId ? 'active' : '';
       return `
-        <button type="button" class="open-item ${active}" data-trade-id="${tid}" data-ticker="${tk}">
-          <div class="open-item-header">
-            <span>#${t.index} · ${t.ticker}</span>
-            <span class="${dirClass}">${t.direction}</span>
-          </div>
-          <div class="open-item-meta">
-            ${date} · ${t.entryLabel} → ${t.exitLabel}
-            · <span class="${pnlClass}">${App.fmtMoney(pnl)}</span> (${pnlR.toFixed(2)} R)
-            <br>${t.closeReasonLabel || t.closeReason || ''}
-          </div>
-        </button>`;
+        <tr class="row-selectable ${active}" data-trade-id="${tid}" data-ticker="${tk}">
+          <td class="num muted">${t.index}</td>
+          <td>${tk}</td>
+          <td class="${dirClass}">${t.direction || ''}</td>
+          <td>${t.entryLabel || ''}</td>
+          <td>${t.exitLabel || ''}</td>
+          <td class="num">${Number(t.entryPrice || 0).toFixed(2)}</td>
+          <td class="num">${Number(t.exitPrice || 0).toFixed(2)}</td>
+          <td class="num ${App.pnlClass(pnl)}">${App.fmtMoney(pnl)}</td>
+          <td class="num ${App.pnlClass(pnlR)}">${pnlR.toFixed(2)}</td>
+          <td>${t.closeReasonLabel || t.closeReason || ''}</td>
+        </tr>`;
     }).join('');
 
-    itemsEl.querySelectorAll('.open-item').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        selectedTradeId = btn.dataset.tradeId;
-        selectedTicker = btn.dataset.ticker;
+    tradesBody.querySelectorAll('tr.row-selectable').forEach((row) => {
+      row.addEventListener('click', async () => {
+        selectedTradeId = row.dataset.tradeId;
+        selectedTicker = row.dataset.ticker;
         await loadTradeChart();
         renderTrades();
       });

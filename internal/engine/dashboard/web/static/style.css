@@ -477,3 +477,7 @@ code { background: #243044; padding: 0.1rem 0.35rem; border-radius: 3px; }
   border-bottom: 1px solid var(--border);
 }
 .day-trades-panel .table-scroll { max-height: 360px; }
+
+table.data-table tbody tr.row-selectable { cursor: pointer; }
+table.data-table tbody tr.row-selectable:hover { background: #1e2a3d; }
+table.data-table tbody tr.row-selectable.active { background: #23284a; box-shadow: inset 3px 0 0 var(--accent); }

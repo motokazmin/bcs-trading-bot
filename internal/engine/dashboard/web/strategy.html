@@ -29,18 +29,36 @@
     </div>
     <p id="strategy-status" class="open-status">Выберите стратегию</p>
     <p id="page-error" class="muted" hidden></p>
-    <div class="open-layout strategy-layout">
-      <aside class="open-list strategy-list">
-        <h2>Сделки (<span id="strategy-trade-count">0</span>)</h2>
-        <div id="strategy-items"></div>
-      </aside>
-      <section class="open-chart-panel">
+    <div class="day-layout strategy-layout">
+      <section class="open-chart-panel day-chart-panel">
         <div class="open-chart-toolbar">
           <span id="strategy-chart-title">Выберите сделку</span>
           <span id="strategy-chart-meta" class="muted"></span>
         </div>
         <div id="strategy-chart"></div>
       </section>
+      <aside class="day-trades-panel">
+        <h2>Сделки (<span id="strategy-trade-count">0</span>)</h2>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="num">№</th>
+                <th>Тикер</th>
+                <th>Напр.</th>
+                <th>Вход</th>
+                <th>Выход</th>
+                <th class="num">Цена вх.</th>
+                <th class="num">Цена вых.</th>
+                <th class="num">PnL</th>
+                <th class="num">R</th>
+                <th>Причина</th>
+              </tr>
+            </thead>
+            <tbody id="strategy-trades-body"></tbody>
+          </table>
+        </div>
+      </aside>
     </div>
   </main>
   <script src="/static/vendor/lightweight-charts.standalone.production.js"></script>
