@@ -41,6 +41,33 @@ MSK_OFFSET = pd.Timedelta(hours=3)
 def load_trades(db: str) -> pd.DataFrame:
     with sqlite3.connect(db) as con:
         t = pd.read_sql("SELECT * FROM closed_trades", con)
+    return _prepare(t)
+
+
+def load_trades_json(path: str) -> pd.DataFrame:
+    """Сделки из incident.json (кнопка «Скачать incident.json» на /export).
+
+    Имена полей в выгрузке один-в-один с колонками closed_trades — это держит
+    тест TestВыгрузкаЗеркалитСхемуТаблицы, поэтому дальше данные обрабатываются
+    тем же кодом, что и прочитанные из БД, без таблицы соответствий.
+    """
+    with open(path, encoding="utf-8") as fh:
+        bundle = json.load(fh)
+    if bundle.get("truncated"):
+        print("ВНИМАНИЕ: выгрузка обрезана по лимиту — период неполон, сузьте даты.\n")
+    return _prepare(pd.DataFrame(bundle.get("trades") or []))
+
+
+def load_rejected_json(path: str) -> pd.DataFrame:
+    """Отклонённые сигналы из той же выгрузки. Из БД их читать нечем: --db
+    работает с closed_trades, отдельного пути к rejected_signals здесь нет."""
+    with open(path, encoding="utf-8") as fh:
+        bundle = json.load(fh)
+    return pd.DataFrame(bundle.get("rejected_signals") or [])
+
+
+def _prepare(t: pd.DataFrame) -> pd.DataFrame:
+    """Общая подготовка: одна для БД и для JSON, иначе метрики разъедутся."""
     if t.empty:
         return t
     t = t.sort_values("opened_at").reset_index(drop=True)
@@ -281,7 +308,8 @@ def load_review_state(path: str) -> dict:
         return {}
 
 
-def report_review_delta(t_all: pd.DataFrame, state: dict, digest: str, summary: str) -> None:
+def report_review_delta(t_all: pd.DataFrame, state: dict, digest: str, summary: str,
+                        partial: bool = False) -> None:
     """Печатает, что накопилось с прошлого разбора, и ругается на смену механики."""
     if not state:
         print("Прошлого разбора нет: водяной знак не выставлен "
@@ -292,7 +320,8 @@ def report_review_delta(t_all: pd.DataFrame, state: dict, digest: str, summary: 
     fresh = int((t_all["id"] > last_id).sum()) if "id" in t_all.columns else 0
     print(f"Прошлый разбор: {state.get('last_review_at', '?')} "
           f"({state.get('label') or 'без пометки'}), последняя сделка id={last_id}.")
-    print(f"С тех пор новых сделок: {fresh}.")
+    print(f"С тех пор новых сделок: {fresh}." + (
+        "  (по выгрузке — она уже сужена фильтром дат, это не вся база)" if partial else ""))
 
     was = state.get("config_fingerprint", "")
     if digest and was and digest != was:
@@ -328,6 +357,9 @@ def write_review_state(path: str, t_all: pd.DataFrame, label: str,
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="data/trades.db")
+    ap.add_argument("--from-json", default="",
+                    help="incident.json с /export вместо копии БД "
+                         "(тогда --db не используется)")
     ap.add_argument("--history", default="data/history")
     ap.add_argument("--out", default="data/analysis")
     ap.add_argument("--label", default="", help="пометка снимка в metrics.csv")
@@ -346,16 +378,32 @@ def main() -> None:
                     help="записать водяной знак: дата, последняя сделка, отпечаток конфига")
     args = ap.parse_args()
 
-    t = load_trades(args.db)
-    if t.empty:
-        print("В БД нет закрытых сделок.")
-        return
+    src_json = bool(args.from_json)
+    if src_json:
+        t = load_trades_json(args.from_json)
+        rejected = load_rejected_json(args.from_json)
+        print(f"Источник: {args.from_json} "
+              f"(сделок {len(t)}, отклонённых сигналов {len(rejected)})")
+        if len(rejected):
+            top = rejected.reason.value_counts().head(3)
+            print("  причины отказов: "
+                  + ", ".join(f"{r} — {n}" for r, n in top.items()))
+        print()
+        if t.empty:
+            print("В выгрузке нет закрытых сделок.")
+            return
+    else:
+        t = load_trades(args.db)
+        if t.empty:
+            print("В БД нет закрытых сделок.")
+            return
 
-    # Водяной знак считается по ВСЕЙ базе, до вырезания архивов: иначе «новых
-    # сделок» станет ноль просто потому, что свежий период кто-то заархивировал.
+    # Дельта считается до вырезания архивов: иначе «новых сделок» станет ноль
+    # просто потому, что свежий период кто-то заархивировал. В JSON-режиме
+    # выборка уже сужена фильтром выгрузки — об этом говорится явно.
     digest, summary = config_fingerprint(args.config)
     state = load_review_state(args.review_state)
-    report_review_delta(t, state, digest, summary)
+    report_review_delta(t, state, digest, summary, partial=src_json)
 
     if args.since_review:
         last_id = int(state.get("last_trade_id", 0))
@@ -379,7 +427,8 @@ def main() -> None:
             # Знак ставится и по пустой выборке: он про всю базу, а пустая
             # выборка после архивации — это ровно момент чистого старта.
             if args.mark_reviewed and not args.no_write:
-                st = write_review_state(args.review_state, load_trades(args.db),
+                full = load_trades_json(args.from_json) if src_json else load_trades(args.db)
+                st = write_review_state(args.review_state, full,
                                         args.label, digest, summary, reviewed=0)
                 print(f"Водяной знак выставлен: {args.review_state} "
                       f"(последняя сделка id={st['last_trade_id']}, {st['config_summary']})")
@@ -396,7 +445,7 @@ def main() -> None:
         if args.no_write:
             print("\n--mark-reviewed несовместим с --no-write: знак не выставлен.")
         else:
-            full = load_trades(args.db)
+            full = load_trades_json(args.from_json) if src_json else load_trades(args.db)
             st = write_review_state(args.review_state, full, args.label,
                                     digest, summary, reviewed=len(t))
             print(f"\nВодяной знак обновлён: {args.review_state} "

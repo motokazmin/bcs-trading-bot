@@ -301,7 +301,7 @@ func (s *Server) handleAPIArchivesDelete(w http.ResponseWriter, r *http.Request)
 type IncidentBundle struct {
 	GeneratedAt time.Time               `json:"generated_at"`
 	Filter      models.TradeFilter      `json:"filter"`
-	Trades      []models.ClosedTrade    `json:"trades"`
+	Trades      []ExportTrade           `json:"trades"`
 	Rejected    []models.RejectedSignal `json:"rejected_signals"`
 	Counts      IncidentCounts          `json:"counts"`
 	// Truncated — выборка упёрлась в потолок и неполна. Молча обрезать нельзя:
@@ -357,10 +357,14 @@ func (s *Server) handleExportIncident(w http.ResponseWriter, r *http.Request) {
 			capped++
 		}
 	}
+	out := make([]ExportTrade, 0, len(all))
+	for _, t := range all {
+		out = append(out, toExportTrade(t))
+	}
 	writeJSON(w, IncidentBundle{
 		GeneratedAt: time.Now().UTC(),
 		Filter:      f,
-		Trades:      all,
+		Trades:      out,
 		Rejected:    rejected,
 		Truncated:   truncated,
 		Counts: IncidentCounts{

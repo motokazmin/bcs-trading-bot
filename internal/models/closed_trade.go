@@ -4,6 +4,10 @@ import "time"
 
 // ClosedTrade — снимок закрытой позиции для анализа эффективности.
 type ClosedTrade struct {
+	// ID — rowid в closed_trades. Заполняется только при чтении; нужен как
+	// граница «новых сделок» в data/analysis/review-state.json.
+	ID                int64
+	RecordedAt        string
 	TradingMode       string
 	RunID             string
 	ExperimentID      string

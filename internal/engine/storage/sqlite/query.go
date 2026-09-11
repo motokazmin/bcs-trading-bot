@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -81,47 +82,47 @@ func scanClosedTrade(scanner interface {
 	Scan(dest ...any) error
 }) (models.ClosedTrade, error) {
 	var (
-		id               int
-		tradingMode      string
-		runID            string
-		experimentID     string
-		stopMode         string
-		recordedAt       string
-		ticker           string
-		classCode        string
-		stepPriceValue   float64
-		direction        string
-		quantity         int
-		entryPrice       float64
-		exitPrice        float64
-		initialStopLoss  float64
+		id                int
+		tradingMode       string
+		runID             string
+		experimentID      string
+		stopMode          string
+		recordedAt        string
+		ticker            string
+		classCode         string
+		stepPriceValue    float64
+		direction         string
+		quantity          int
+		entryPrice        float64
+		exitPrice         float64
+		initialStopLoss   float64
 		initialTakeProfit float64
-		finalStopLoss    float64
-		rDistance        float64
-		grossPnL         float64
-		pnlR             float64
-		mfeInR           float64
-		maeInR           float64
-		breakoutUpper    float64
-		breakoutLower    float64
-		closeReason      string
-		trailStage       int
-		isWinner         int
-		openedAt         string
-		closedAt         string
-		holdSeconds      int
-		tradingDate      string
-		candleTimeframe  string
-		lookback         int
-		riskPerTradePct  float64
-		depositPerTicker float64
-		auditSeverity    string
-		auditCodes       string
-		entryBarTime     string
-		entryBarClose    float64
-		requestedQty     int
-		cashAtOpen       float64
-		barAgeSeconds    float64
+		finalStopLoss     float64
+		rDistance         float64
+		grossPnL          float64
+		pnlR              float64
+		mfeInR            float64
+		maeInR            float64
+		breakoutUpper     float64
+		breakoutLower     float64
+		closeReason       string
+		trailStage        int
+		isWinner          int
+		openedAt          string
+		closedAt          string
+		holdSeconds       int
+		tradingDate       string
+		candleTimeframe   string
+		lookback          int
+		riskPerTradePct   float64
+		depositPerTicker  float64
+		auditSeverity     string
+		auditCodes        string
+		entryBarTime      string
+		entryBarClose     float64
+		requestedQty      int
+		cashAtOpen        float64
+		barAgeSeconds     float64
 	)
 
 	err := scanner.Scan(
@@ -186,6 +187,8 @@ func scanClosedTrade(scanner interface {
 		AuditSeverity:     auditSeverity,
 		AuditCodes:        auditCodes,
 		EntryBarTime:      entryBarTime,
+		ID:                int64(id),
+		RecordedAt:        recordedAt,
 		EntryBarClose:     entryBarClose,
 		RequestedQuantity: requestedQty,
 		CashAtOpen:        cashAtOpen,
@@ -221,7 +224,7 @@ func (s *Store) ListRejectedSignals(_ context.Context, f models.TradeFilter) ([]
 	var out []models.RejectedSignal
 	for rows.Next() {
 		var (
-			r         models.RejectedSignal
+			r          models.RejectedSignal
 			rejectedAt string
 		)
 		if err := rows.Scan(&r.ID, &r.TradingMode, &r.RunID, &r.ExperimentID, &r.Ticker,
@@ -233,6 +236,31 @@ func (s *Store) ListRejectedSignals(_ context.Context, f models.TradeFilter) ([]
 			r.RejectedAt = t
 		}
 		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// ColumnNames — имена колонок таблицы. Нужны тестам, которые держат внешние
+// представления (выгрузка, CSV) в соответствии со схемой.
+func (s *Store) ColumnNames(table string) ([]string, error) {
+	rows, err := s.db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return nil, fmt.Errorf("pragma table_info %s: %w", table, err)
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var (
+			cid                 int
+			name, ctype         string
+			notnull, primaryKey int
+			dflt                sql.NullString
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &primaryKey); err != nil {
+			return nil, err
+		}
+		out = append(out, name)
 	}
 	return out, rows.Err()
 }

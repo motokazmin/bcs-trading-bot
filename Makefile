@@ -92,6 +92,11 @@ test:
 analyze:
 	python3 scripts/analyze-trades.py --db $(TRADES_DB) --history $(HISTORY_DIR) --label "$(LABEL)"
 
+# Разбор по выгрузке incident.json с /export — без копирования БД с хоста.
+# Путь: make analyze-json JSON=~/Downloads/incident.json
+analyze-json:
+	python3 scripts/analyze-trades.py --from-json "$(JSON)" --history $(HISTORY_DIR) --label "$(LABEL)"
+
 # Разбор только по сделкам, появившимся после прошлого разбора.
 analyze-new:
 	python3 scripts/analyze-trades.py --db $(TRADES_DB) --history $(HISTORY_DIR) \
