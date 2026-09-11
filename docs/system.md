@@ -9,7 +9,7 @@
 
 Рынок непредсказуем — контролируются убытки. Прибыль на дистанции за счёт асимметрии R:R и лимитов капитала, не за счёт «точного прогноза».
 
-Production: дейтрейдинг акций MOEX (**TQBR**), M5, paper portfolio 5 champions на счёте 200k.
+Production: дейтрейдинг акций MOEX (**TQBR**), M5, paper portfolio из 6 слотов на счёте 200k.
 
 ---
 
@@ -20,7 +20,7 @@ Production: дейтрейдинг акций MOEX (**TQBR**), M5, paper portfol
 | R:R | `strategy.reward_ratio` (у champions ~1,2–1,8). Фактический R:R сделки = \|TP−entry\| / RDistance |
 | Размер позиции | риск **0,5%** депозита на сделку |
 | Circuit Breaker | дневной убыток ≥ **2%** → новые входы запрещены до следующего `session_open` |
-| Изоляция | один `TickerWorker` на пару experiment×тикер |
+| Изоляция | одна `SelfManagedStrategy` (+ `StrategyRunner`) на пару experiment×тикер |
 
 ---
 
@@ -46,7 +46,8 @@ Production: дейтрейдинг акций MOEX (**TQBR**), M5, paper portfol
 4. Трейлинг: `trail_activation_r`, `trail_breakeven_r`, `trail_stage_max`; стоп только в сторону прибыли.
 5. EOD принудительно закрывает остаток.
 
-Код: `internal/engine/worker.go`, `internal/position`, `internal/simulation`, `internal/trailing`, `internal/tradeaudit`.
+Код live: `internal/strategy/selfmanaged` (`SelfManagedStrategy`) + `internal/engine` (`StrategyRunner`, `SessionClock`).
+Backtest: `internal/backtest`. Общее: `internal/engine/position`, `internal/engine/trailing`, `internal/engine/tradeaudit`, `internal/engine/risk`.
 
 ---
 
@@ -63,4 +64,4 @@ Production: дейтрейдинг акций MOEX (**TQBR**), M5, paper portfol
 
 ## Paper trading
 
-`trading_mode: virtual` — котировки с BCS, исполнение в `VirtualExecutor`. Сделки → `data/trades.db`. Админка: `-http-listen` (дефолт `127.0.0.1:8091`). Логи: `pkg/logx` (`[OPEN]` / `[TP]` / `[SL]` / `[EOD]` / `[AUDIT]`).
+`trading_mode: virtual` — котировки с BCS, исполнение в `VirtualExecutor`. Сделки → `data/trades.db`. Админка: `-http-listen` (дефолт `127.0.0.1:8091`). Логи: `internal/logx` (`[OPEN]` / `[TP]` / `[SL]` / `[EOD]` / `[AUDIT]`).

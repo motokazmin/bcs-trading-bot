@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func init() {

@@ -3,7 +3,7 @@ package strategy
 import (
 	"sync"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func init() {

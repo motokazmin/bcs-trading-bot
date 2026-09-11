@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"bcs-trading-bot/internal/config"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 // StrategyContextFromConfig описывает стратегию для ИИ-анализа.

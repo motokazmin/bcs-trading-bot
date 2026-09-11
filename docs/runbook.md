@@ -40,7 +40,7 @@ make bot-stop
 
 | Команда | Что делает |
 |---|---|
-| `make bot` | Paper portfolio в **фоне**, 5 champions |
+| `make bot` | Paper portfolio в **фоне**, 6 слотов |
 | `make bot-stop` / `make bot-status` | Остановка / статус |
 | `make bot-real` | Реал в фоне (осторожно; сейчас 1 experiment) |
 | `make bot-smoke` | Smoke OAuth+WS (**foreground**) |
@@ -62,6 +62,39 @@ make bot
 ```
 
 Без `ADMIN_TOKEN` процесс не стартует с `0.0.0.0`. Firewall: TCP **8091**.
+
+## Выгрузка периода для разбора
+
+Забрать сделки и отклонённые сигналы за период одним запросом, не останавливая бота
+и не копируя `data/trades.db`:
+
+```bash
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://ХОСТ:8091/api/export/incident?date_from=2026-09-08&date_to=2026-09-11" \
+  > incident.json
+```
+
+Параметры те же, что у остальной аналитики: `date_from`, `date_to`, `experiment_id`,
+`ticker`, `trading_mode`, `run_id`, `period` (явный выбор архива). Фильтр идёт через
+`s.parseFilter`, поэтому архивные периоды скрыты так же, как в админке.
+
+В ответе: `trades` (все поля `closed_trades`, включая `requested_quantity`,
+`cash_at_open`, `bar_age_seconds`), `rejected_signals` и сводка `counts`
+(`trades`, `cash_capped`, `rejected_signals`). Поле `truncated: true` означает, что
+выборка упёрлась в потолок 50 000 строк и неполна — сузить период.
+
+**Почему так, а не копированием файла.** База в режиме WAL: `scp` одного `trades.db`
+без `trades.db-wal` отдаёт состояние на последний чекпоинт. Однажды это выглядело как
+«сделок нет в базе» — локальная копия обрывалась на 2026-09-04 при сделках по 09-11 в
+логе (разбор [`analysis/0002`](analysis/0002-live-config-drift-and-cash-sizing.md)).
+Ручка отдаёт данные из открытого хендла работающего процесса, недокоммиченного
+состояния для читателя не существует.
+
+Если файл базы всё же нужен целиком — только онлайн-бэкапом, не `scp`:
+
+```bash
+sqlite3 ~/bcs-trading-bot/data/trades.db ".backup '/tmp/snap.db'"
+```
 
 Логи по умолчанию: `/var/log/trading-bot/bot.log`. `LOG_FILE=-` → stdout в `data/bot.stdout.log`. PID: `data/bot.pid` (`BOT_PID_FILE`).
 
@@ -119,3 +152,20 @@ go run ./cmd/optimizer portfolio-backtest \
 | Connection refused на PUBLIC_IP | открыть TCP 8091 |
 | `sync-history` падает | задать `BCS_REFRESH_TOKEN` |
 | Optimizer «нет истории» | `make sync-history` |
+
+
+## Цикл разбора
+
+```bash
+make analyze          # что накопилось + предупреждение о смене конфига
+make analyze-new      # только сделки после прошлого разбора
+make analyze-mark LABEL="что разобрали"   # сдвинуть границу
+```
+
+`data/analysis/review-state.json` коммитится: он определяет, что считается «новым»,
+и на другой машине без него границы не будет. Отпечаток конфига в нём — страховка от
+того, что механику поменяли, старый период не заархивировали, а `expectancy_r`
+в соседних строках `metrics.csv` выглядит прогрессом.
+
+Менял `configs/runs/portfolio-paper.yaml` — заархивируй прошлый период
+(`data/archives.json`) и поставь знак заново.

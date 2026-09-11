@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Стратегия — BCS Admin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="page-strategy" data-nav="strategy">
+  <header class="topbar">
+    <div class="brand">BCS Trading Bot</div>
+    <nav>
+      <a href="/">Дашборд</a>
+      <a href="/open">Открытые</a>
+      <a href="/day">День</a>
+      <a href="/strategy" class="active">Стратегия</a>
+      <a href="/trades">Сделки</a>
+      <a href="/export">Экспорт для ИИ</a>
+    </nav>
+  </header>
+  <main class="container">
+    <h1>Анализ стратегии</h1>
+    <p class="muted">Выберите experiment_id · список сделок · график одной сделки с контекстом (BCS API)</p>
+    <div class="day-controls strategy-controls">
+      <label>Стратегия (experiment_id)
+        <select id="strategy-select"></select>
+      </label>
+      <span id="strategy-summary" class="muted"></span>
+    </div>
+    <p id="strategy-status" class="open-status">Выберите стратегию</p>
+    <p id="page-error" class="muted" hidden></p>
+    <div class="day-layout strategy-layout">
+      <section class="open-chart-panel day-chart-panel">
+        <div class="open-chart-toolbar">
+          <span id="strategy-chart-title">Выберите сделку</span>
+          <span id="strategy-chart-meta" class="muted"></span>
+        </div>
+        <div id="strategy-chart"></div>
+      </section>
+      <aside class="day-trades-panel">
+        <h2>Сделки (<span id="strategy-trade-count">0</span>)</h2>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="num">№</th>
+                <th>Тикер</th>
+                <th>Напр.</th>
+                <th>Вход</th>
+                <th>Выход</th>
+                <th class="num">Цена вх.</th>
+                <th class="num">Цена вых.</th>
+                <th class="num">PnL</th>
+                <th class="num">R</th>
+                <th>Причина</th>
+              </tr>
+            </thead>
+            <tbody id="strategy-trades-body"></tbody>
+          </table>
+        </div>
+      </aside>
+    </div>
+  </main>
+  <script src="/static/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/static/app.js"></script>
+  <script src="/static/strategy-chart.js"></script>
+</body>
+</html>

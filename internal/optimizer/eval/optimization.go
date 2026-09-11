@@ -11,7 +11,7 @@ import (
 	"time"
 
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/pkg/logx"
+	"bcs-trading-bot/internal/logx"
 )
 
 // OptimizationConfig — параметры walk-forward random search.
