@@ -47,6 +47,16 @@
         </div>
         <textarea class="prompt-box prompt-preview" data-mode="detailed" readonly spellcheck="false">Загрузка…</textarea>
       </section>
+      <section class="export-variant" data-mode="incident">
+        <div class="export-variant-header">
+          <h2>Разбор — сделки и отклонённые сигналы</h2>
+          <p class="muted">Всё из <code>closed_trades</code> (включая объём до капа по кэшу, свободный кэш и возраст свечи входа) плюс сигналы, не дошедшие до сделки. Файл: <code>incident.json</code></p>
+        </div>
+        <div class="export-variant-actions">
+          <button type="button" class="btn primary download-incident-btn">Скачать incident.json</button>
+        </div>
+        <p class="muted">Забирает данные из работающего процесса — копировать <code>trades.db</code> с хоста не нужно. Гейт <code>min_stop_bps</code> в отказы не попадает: он внутри стратегии, сигнал не рождается.</p>
+      </section>
     </div>
     <section>
       <h2>Как использовать</h2>

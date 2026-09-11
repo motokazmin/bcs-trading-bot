@@ -98,6 +98,20 @@
     });
   });
 
+  // Выгрузка разбора: фильтры те же, но без mode — у ручки его нет.
+  document.querySelectorAll('.download-incident-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const p = App.filterParamsFromURL();
+      const s = p.toString();
+      try {
+        await App.downloadJSON('/api/export/incident' + (s ? '?' + s : ''), 'incident.json');
+      } catch (e) {
+        flashButton(btn, 'Ошибка');
+        console.error(e);
+      }
+    });
+  });
+
   try {
     await loadMeta();
     await loadPrompts();
