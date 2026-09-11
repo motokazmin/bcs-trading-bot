@@ -22,6 +22,16 @@ tickers:
 class_code: TQBR
 candle_timeframe: M5
 
+# `min_stop_bps: 20` в каждом слоте — гейт по стоимости сделки, не подгонка: комиссия
+# 1.6 б.п. round-trip плюс спред 1–5 б.п., то есть стоп в 20 б.п. ≈ 10x издержек.
+# Портфельный бэктест 2024-07→2026-09: сделок 1829→1171, exp_R +0.440→+0.423
+# (в рублях на сделку +383→+385), max_dd 15720→12978 — режет объём, не качество.
+# Ключ обязан совпадать с configs/champions/*; однажды он туда не доехал и полтора
+# месяца не работал в live. Разбор: docs/analysis/0002-live-config-drift-and-cash-sizing.md
+#
+# `take_profit_enabled: false` из ORC-чемпионов сюда НЕ переносить без переподбора
+# блока выхода: на том же бэктесте exp_R +0.440→+0.342, PF 2.08→1.72.
+
 costs:
   commission_rate_per_leg: 0.00008
   # Проскальзывание + половина спреда на КАЖДОЙ ноге. 1 б.п. — консервативно-мягкая
@@ -33,7 +43,13 @@ costs:
 risk:
   deposit: 200000
   max_daily_loss_percent: 2.0
-  risk_per_trade_percent: 0.5
+  # Инвариант: кап по кэшу не срабатывает, пока risk_per_trade_percent <= min_stop_bps/100.
+  # notional = (deposit * r/100) / stop_frac, и при stop_bps >= min_stop_bps он влезает
+  # в депозит ровно при этом условии. Гейт 20 б.п. => предел 0.20. Проверено развёрткой:
+  # при 0.5 кап съедал 15.1% прибыли, при 0.2 — 0.4%; при гейте 30 плато уезжает на 0.30.
+  # Цена честного сайзинга (2024-07→2026-09): net_pnl 450957 -> 211812, max_dd 12978 -> 5444,
+  # exp_R и PF не меняются. Поднимать вместе с min_stop_bps, не по отдельности.
+  risk_per_trade_percent: 0.20
   max_parallel_trades: 5
 
 virtual:
@@ -73,6 +89,7 @@ experiments:
       trail_breakeven_r: 0.04905400993316018
       trail_stage_max: 3
       max_trades_per_ticker_per_day: 1
+      min_stop_bps: 20      # гейт по издержкам, см. шапку файла
 
   - id: orc-wave2
     name: "ORC Champion (10:00–10:30)"
@@ -92,6 +109,7 @@ experiments:
       trail_breakeven_r: 0.01394552332498874
       trail_stage_max: 1
       max_trades_per_ticker_per_day: 1
+      min_stop_bps: 20      # гейт по издержкам, см. шапку файла
 
   - id: orc-complement
     name: "ORC Complement rolling (excl. MGNT/ROSN/TATN)"
@@ -116,6 +134,7 @@ experiments:
       trail_stage_max: 1
       max_trades_per_ticker_per_day: 1
       allow_all_tickers: true
+      min_stop_bps: 20      # гейт по издержкам, см. шапку файла
 
   - id: or-fade-conservative
     name: "OR Fade Champion (10:15–12:30)"
@@ -139,6 +158,7 @@ experiments:
       trail_breakeven_r: 0.017723090353826982
       trail_stage_max: 3
       max_trades_per_ticker_per_day: 2
+      min_stop_bps: 20      # гейт по издержкам, см. шапку файла
 
   - id: mf-afternoon
     name: "MF Afternoon Champion (12:30–18:40)"
@@ -163,6 +183,7 @@ experiments:
       trail_discrete_step_r: 0.29059433907203625
       trail_stage_max: 2
       max_trades_per_ticker_per_day: 2
+      min_stop_bps: 20      # гейт по издержкам, см. шапку файла
 
   - id: session-orc-evening
     name: "Evening Session ORC (19:05–23:50)"
@@ -188,3 +209,4 @@ experiments:
       trail_activation_r: 2.051353601580733
       trail_stage_max: 1
       orb_minutes: 11
+      min_stop_bps: 20      # гейт по издержкам, см. шапку файла

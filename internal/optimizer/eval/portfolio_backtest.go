@@ -146,6 +146,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 				Deposit:         deposit,
 				MaxDailyLoss:    maxDailyLoss,
 				RiskPerTradePct: riskPerTrade,
+				CashUtilizationPct: accountRisk.EffectiveCashUtilization(),
 				MaxTradesPerDay: exp.Strategy.MaxTradesPerTickerPerDay,
 				Strategy:        rcStrat,
 				StrategyID:      exp.Strategy.TypeOrDefault(),

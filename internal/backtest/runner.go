@@ -44,6 +44,29 @@ type RunnerConfig struct {
 	// CostsCfg — модель издержек. В backtest из неё используется только
 	// SlippageBps: комиссия применяется позже, на агрегации (eval.AggregateTrades).
 	CostsCfg costs.Config
+	// CashUtilizationPct — доля свободного кэша (0;1], резервируемая под одну
+	// позицию. 0 → дефолт 0.95, как в selfmanaged.Config. Live и backtest обязаны
+	// резервировать одинаково: иначе backtest считает объём, которого живой бот
+	// не возьмёт (см. docs/analysis/0002-live-config-drift-and-cash-sizing.md).
+	CashUtilizationPct float64
+}
+
+// effectiveCashUtilization — доля кэша под одну позицию с тем же дефолтом, что
+// в selfmanaged.Config. Правило намеренно живёт в одном месте: обе ветки backtest
+// (тикерная и портфельная) обязаны считать кап одинаково.
+func (c RunnerConfig) effectiveCashUtilization() float64 {
+	if c.CashUtilizationPct <= 0 || c.CashUtilizationPct > 1 {
+		return 0.95
+	}
+	return c.CashUtilizationPct
+}
+
+// capQuantityByCash — кап объёма по кэшу, общий для обеих веток backtest.
+// Резервирует не весь баланс, а долю (см. CashUtilizationPct) — так же, как
+// selfmanaged.go в live. Вынесен в один метод намеренно: пока обе ветки зовут
+// его, разъехаться они не могут.
+func (c RunnerConfig) capQuantityByCash(qty int, fillPrice, bal float64) int {
+	return risk.CapQuantityByCash(qty, fillPrice, bal*c.effectiveCashUtilization(), c.StepPriceValue)
 }
 
 // Runner воспроизводит торговый цикл воркера на исторических свечах.
@@ -160,7 +183,7 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 	// Считаем fillPrice ДО капа по кэшу — см. комментарий в portfolio.go.
 	fillPrice := costs.FillPrice(r.cfg.CostsCfg, signal.Direction, signal.Price)
 	if bal, err := executor.GetBalance(ctx); err == nil {
-		qty = risk.CapQuantityByCash(qty, fillPrice, bal, r.cfg.StepPriceValue)
+		qty = r.cfg.capQuantityByCash(qty, fillPrice, bal)
 		if qty <= 0 {
 			return
 		}

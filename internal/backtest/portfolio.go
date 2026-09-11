@@ -225,7 +225,7 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	// ADR/фикс от 2026-09-03).
 	fillPrice := costs.FillPrice(st.cfg.CostsCfg, signal.Direction, signal.Price)
 	if bal, err := executor.GetBalance(ctx); err == nil {
-		qty = risk.CapQuantityByCash(qty, fillPrice, bal, st.cfg.StepPriceValue)
+		qty = st.cfg.capQuantityByCash(qty, fillPrice, bal)
 		if qty <= 0 {
 			return
 		}
