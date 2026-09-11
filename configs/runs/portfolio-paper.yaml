@@ -125,9 +125,9 @@ experiments:
       type: opening_range_continuation
       stop_mode: atr
       atr_period: 14
-      orb_minutes: 12
-      atr_multiplier: 0.8481945297174166
-      breakout_threshold: 0.003393790484079248
+      orb_minutes: 22
+      atr_multiplier: 0.8255005415774227
+      breakout_threshold: 0.0038093119295890838
       reward_ratio: 1.6410674740062587
       trail_activation_r: 1.5150736483279235
       trail_breakeven_r: 0.01394552332498874
