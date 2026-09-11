@@ -224,7 +224,11 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	// превысить остаток, закэпленный по старой, более низкой цене (см. живой баг,
 	// ADR/фикс от 2026-09-03).
 	fillPrice := costs.FillPrice(st.cfg.CostsCfg, signal.Direction, signal.Price)
+	// requestedQty/cashAtOpen — см. комментарий в runner.go.
+	requestedQty := qty
+	cashAtOpen := 0.0
 	if bal, err := executor.GetBalance(ctx); err == nil {
+		cashAtOpen = bal
 		qty = st.cfg.capQuantityByCash(qty, fillPrice, bal)
 		if qty <= 0 {
 			return
@@ -259,6 +263,8 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	st.position.EntryBarTime = candle.Timestamp
 	st.position.EntryBarClose = candle.Close
 	st.position.EntryAtBarClose = entryAtClose
+	st.position.RequestedQuantity = requestedQty
+	st.position.CashAtOpen = cashAtOpen
 
 	if reason := position.SameBarExitAfterFill(st.position, candle); reason != "" {
 		exitPx := position.ExitFillPrice(st.position, reason, candle.Close)
@@ -396,6 +402,9 @@ func (p *PortfolioRunner) closePosition(ctx context.Context, executor contract.O
 		DepositPerTicker:   st.cfg.Deposit,
 		StrategyParamsJSON: st.cfg.StrategyParamsJSON,
 		EntryBarClose:      pos.EntryBarClose,
+		RequestedQuantity:  pos.RequestedQuantity,
+		CashAtOpen:         pos.CashAtOpen,
+		BarAgeSeconds:      pos.BarAgeSeconds,
 	}
 	if !pos.EntryBarTime.IsZero() {
 		trade.EntryBarTime = pos.EntryBarTime.UTC().Format(time.RFC3339)

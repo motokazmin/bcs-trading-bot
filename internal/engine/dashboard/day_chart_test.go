@@ -50,6 +50,10 @@ func (stubTradeReader) GetAccountEquity(context.Context, models.TradeFilter, flo
 func (stubTradeReader) GetDateRange(context.Context, models.TradeFilter) (models.DateRange, error) {
 	return models.DateRange{}, nil
 }
+func (stubTradeReader) ListRejectedSignals(context.Context, models.TradeFilter) ([]models.RejectedSignal, error) {
+	return nil, nil
+}
+
 func (stubTradeReader) ListExperimentIDs(context.Context, models.TradeFilter) ([]string, error) {
 	return nil, nil
 }

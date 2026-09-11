@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"bcs-trading-bot/internal/engine/api"
 	"bcs-trading-bot/internal/engine/contract"
@@ -287,4 +288,85 @@ func (s *Server) handleAPIArchivesDelete(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// IncidentBundle — всё, что нужно для разбора периода одним запросом: сделки
+// со всеми полями плюс сигналы, не дошедшие до сделки.
+//
+// Существует, чтобы не копировать data/trades.db с боевого хоста: копия одного
+// файла без trades.db-wal даёт состояние на последний чекпоинт (однажды это
+// выглядело как «сделок нет в базе», см. docs/analysis/0002-...). Здесь данные
+// отдаёт работающий процесс через свой открытый хендл — недокоммиченного
+// состояния для читателя не существует.
+type IncidentBundle struct {
+	GeneratedAt time.Time               `json:"generated_at"`
+	Filter      models.TradeFilter      `json:"filter"`
+	Trades      []models.ClosedTrade    `json:"trades"`
+	Rejected    []models.RejectedSignal `json:"rejected_signals"`
+	Counts      IncidentCounts          `json:"counts"`
+	// Truncated — выборка упёрлась в потолок и неполна. Молча обрезать нельзя:
+	// частичные данные, принятые за полные, дают неверные доли и средние.
+	Truncated bool `json:"truncated,omitempty"`
+}
+
+// IncidentCounts — сводка, чтобы не считать её на клиенте.
+type IncidentCounts struct {
+	Trades     int `json:"trades"`
+	CashCapped int `json:"cash_capped"`
+	Rejected   int `json:"rejected_signals"`
+}
+
+func (s *Server) handleExportIncident(w http.ResponseWriter, r *http.Request) {
+	reader := s.requireReader(w)
+	if reader == nil {
+		return
+	}
+	// Фильтр только через s.parseFilter — иначе выборка проскочит мимо архивов.
+	f := s.parseFilter(r)
+
+	// ListClosedTrades при limit<=0 молча ставит 50 — для выгрузки периода это
+	// тихая потеря данных, поэтому страницы забираем явно.
+	const pageSize = 1000
+	const hardCap = 50000
+	var all []models.ClosedTrade
+	truncated := false
+	for offset := 0; ; offset += pageSize {
+		page, err := reader.ListClosedTrades(r.Context(), f, pageSize, offset)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		all = append(all, page.Trades...)
+		if len(page.Trades) < pageSize || len(all) >= page.Total {
+			break
+		}
+		if len(all) >= hardCap {
+			truncated = true
+			break
+		}
+	}
+	rejected, err := reader.ListRejectedSignals(r.Context(), f)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	capped := 0
+	for _, t := range all {
+		if t.CashCapped() {
+			capped++
+		}
+	}
+	writeJSON(w, IncidentBundle{
+		GeneratedAt: time.Now().UTC(),
+		Filter:      f,
+		Trades:      all,
+		Rejected:    rejected,
+		Truncated:   truncated,
+		Counts: IncidentCounts{
+			Trades:     len(all),
+			CashCapped: capped,
+			Rejected:   len(rejected),
+		},
+	})
 }

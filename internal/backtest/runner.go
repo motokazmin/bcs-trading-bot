@@ -182,7 +182,12 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 	// слегка отличается от задуманного — ровно как в реальном исполнении.
 	// Считаем fillPrice ДО капа по кэшу — см. комментарий в portfolio.go.
 	fillPrice := costs.FillPrice(r.cfg.CostsCfg, signal.Direction, signal.Price)
+	// requestedQty/cashAtOpen едут в ClosedTrade наравне с live: колонки должны
+	// совпадать, иначе make analyze считает по разным полям (см. разбор 0002).
+	requestedQty := qty
+	cashAtOpen := 0.0
 	if bal, err := executor.GetBalance(ctx); err == nil {
+		cashAtOpen = bal
 		qty = r.cfg.capQuantityByCash(qty, fillPrice, bal)
 		if qty <= 0 {
 			return
@@ -201,6 +206,10 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 	r.position.EntryBarTime = candle.Timestamp
 	r.position.EntryBarClose = candle.Close
 	r.position.EntryAtBarClose = entryAtClose
+	r.position.RequestedQuantity = requestedQty
+	r.position.CashAtOpen = cashAtOpen
+	// BarAgeSeconds в backtest всегда 0: свеча приходит без задержки фида.
+	// Это и есть измеряемая разница с live, а не пропуск.
 
 	if reason := position.SameBarExitAfterFill(r.position, candle); reason != "" {
 		exitPx := position.ExitFillPrice(r.position, reason, candle.Close)
@@ -330,6 +339,9 @@ func (r *Runner) closePosition(ctx context.Context, executor contract.OrderExecu
 		DepositPerTicker:     r.cfg.Deposit,
 		StrategyParamsJSON:   r.cfg.StrategyParamsJSON,
 		EntryBarClose:        pos.EntryBarClose,
+		RequestedQuantity:    pos.RequestedQuantity,
+		CashAtOpen:           pos.CashAtOpen,
+		BarAgeSeconds:        pos.BarAgeSeconds,
 	}
 	if !pos.EntryBarTime.IsZero() {
 		trade.EntryBarTime = pos.EntryBarTime.UTC().Format(time.RFC3339)

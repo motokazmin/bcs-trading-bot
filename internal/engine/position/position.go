@@ -30,6 +30,12 @@ type State struct {
 	// candle.Close нельзя — проскальзывание сдвигает цену фила и сравнение врёт.
 	EntryAtBarClose bool
 	SameBarExit     bool // закрытие same-bar после limit-fill
+	// RequestedQuantity — объём до капа по кэшу; CashAtOpen — свободный кэш на
+	// момент расчёта; BarAgeSeconds — возраст свечи входа. Ставятся вызывающим
+	// кодом сразу после открытия и едут в ClosedTrade (см. models.ClosedTrade).
+	RequestedQuantity int
+	CashAtOpen        float64
+	BarAgeSeconds     float64
 }
 
 // NewFromSignal создаёт состояние позиции из исполненного сигнала.

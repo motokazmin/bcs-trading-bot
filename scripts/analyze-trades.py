@@ -185,6 +185,37 @@ def report(t: pd.DataFrame, m: pd.DataFrame) -> None:
     print("\n— Геометрия стопа —")
     print(f"  медиана R: {t.r_bps.median():.1f} б.п.   нижний квартиль: {t.r_bps.quantile(.25):.1f} б.п.")
 
+    # Сайзинг: с миграции 007 в БД есть объём ДО капа по кэшу. Без него факт капа
+    # выводился только косвенно — через разброс gross_pnl/pnl_r между сделками,
+    # и стоил целого круга разбирательств (docs/analysis/0002-...).
+    # ВНИМАНИЕ: в metrics.csv эти поля не добавлять — файл дописывается без
+    # заголовка, новая колонка сдвинет поля в уже записанных строках.
+    if "requested_quantity" in t.columns:
+        sized = t[t.requested_quantity > 0]
+        if len(sized):
+            capped = sized[sized.quantity < sized.requested_quantity]
+            print("\n— Сайзинг —")
+            print(f"  кап по кэшу срезал объём: {len(capped)}/{len(sized)}"
+                  f" ({len(capped) / len(sized):.0%})")
+            r_rub = (sized.gross_pnl / sized.pnl_r).abs()
+            r_rub = r_rub[r_rub.notna() & (r_rub > 0)]
+            if len(r_rub):
+                spread = r_rub.max() / r_rub.min() if r_rub.min() > 0 else float("inf")
+                print(f"  цена 1R, руб: медиана {r_rub.median():.0f},"
+                      f" от {r_rub.min():.0f} до {r_rub.max():.0f} (разброс x{spread:.1f})")
+                if spread > 1.5:
+                    print("  ВНИМАНИЕ: цена R гуляет между сделками — risk_per_trade_percent"
+                          " не управляет размером, см. docs/analysis/0002-*")
+            if len(capped):
+                share = (capped.quantity / capped.requested_quantity)
+                print(f"  на закэпленных взято от запрошенного: медиана {share.median():.0%},"
+                      f" минимум {share.min():.0%}")
+
+    if "bar_age_seconds" in t.columns and (t.bar_age_seconds > 0).any():
+        ba = t.bar_age_seconds[t.bar_age_seconds > 0]
+        print(f"\n— Лаг свечного фида —\n  возраст свечи входа: медиана {ba.median():.0f}с,"
+              f" максимум {ba.max():.0f}с")
+
     print("\n— Выход —")
     tp = t[t.close_reason == "TAKE_PROFIT"]
     if len(tp) and tp.left_on_table_r.notna().any():

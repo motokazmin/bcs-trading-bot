@@ -120,6 +120,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/experiments", s.withAuth(s.handleAPIExperiments))
 	mux.HandleFunc("GET /api/prompt", s.withAuth(s.handleAPIPrompt))
 	mux.HandleFunc("GET /api/export/data", s.withAuth(s.handleExportData))
+	mux.HandleFunc("GET /api/export/incident", s.withAuth(s.handleExportIncident))
 	mux.HandleFunc("GET /api/archives", s.withAuth(s.handleAPIArchivesList))
 	mux.HandleFunc("POST /api/archives", s.withAuth(s.handleAPIArchivesCreate))
 	mux.HandleFunc("DELETE /api/archives/{id}", s.withAuth(s.handleAPIArchivesDelete))

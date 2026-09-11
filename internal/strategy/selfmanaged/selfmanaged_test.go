@@ -17,8 +17,9 @@ import (
 // --- фейки каркаса ---------------------------------------------------------
 
 type recordingTradeStore struct {
-	mu     sync.Mutex
-	trades []models.ClosedTrade
+	mu       sync.Mutex
+	trades   []models.ClosedTrade
+	rejected []models.RejectedSignal
 }
 
 func (s *recordingTradeStore) SaveClosedTrade(_ context.Context, t models.ClosedTrade) error {
@@ -26,6 +27,21 @@ func (s *recordingTradeStore) SaveClosedTrade(_ context.Context, t models.Closed
 	defer s.mu.Unlock()
 	s.trades = append(s.trades, t)
 	return nil
+}
+
+func (s *recordingTradeStore) SaveRejectedSignal(_ context.Context, r models.RejectedSignal) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.rejected = append(s.rejected, r)
+	return nil
+}
+
+func (s *recordingTradeStore) Rejected() []models.RejectedSignal {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]models.RejectedSignal, len(s.rejected))
+	copy(out, s.rejected)
+	return out
 }
 
 func (s *recordingTradeStore) count() int {

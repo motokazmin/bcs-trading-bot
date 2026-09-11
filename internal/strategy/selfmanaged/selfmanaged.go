@@ -226,7 +226,7 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 	}
 
 	if err := s.riskMgr.CheckCircuitBreaker(); err != nil {
-		logx.SignalRejected(s.cfg.Label, signal.Direction, err.Error())
+		s.rejectSignal(sctx, signal, err.Error(), 0, 0)
 		return
 	}
 
@@ -247,14 +247,14 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 		logx.Audit(s.cfg.Label, openAudit.Severity, openAudit.CodesCSV(), openAudit.DetailsString())
 	}
 	if openAudit.Rejects() {
-		logx.SignalRejected(s.cfg.Label, signal.Direction,
-			"вход отклонён аудитом: "+openAudit.CodesCSV()+" "+openAudit.DetailsString())
+		s.rejectSignal(sctx, signal,
+			"вход отклонён аудитом: "+openAudit.CodesCSV()+" "+openAudit.DetailsString(), 0, 0)
 		return
 	}
 
 	quantity := s.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if quantity <= 0 {
-		logx.SignalRejected(s.cfg.Label, signal.Direction, "нулевой объём позиции")
+		s.rejectSignal(sctx, signal, "нулевой объём позиции", 0, 0)
 		return
 	}
 
@@ -267,13 +267,18 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 	// старой, более низкой цене.
 	fillPrice := costs.FillPrice(s.cfg.CostsCfg, signal.Direction, signal.Price)
 
+	// requestedQty/cashAtOpen едут в ClosedTrade: без них факт капа виден только
+	// косвенно, через разброс GrossPnL/PnLR между сделками (см. разбор 0002).
+	requestedQty := quantity
+	cashAtOpen := 0.0
 	if bal, err := sctx.Orders().GetBalance(ctx); err == nil {
 		// Резервируем не весь кэш, а долю (см. CashUtilizationPct): запас на
 		// проскальзывание/раунд-off и на параллельные слоты, делящие один счёт.
+		cashAtOpen = bal
 		riskQty := quantity
 		quantity = risk.CapQuantityByCash(quantity, fillPrice, bal*s.cfg.CashUtilizationPct, s.cfg.StepPriceValue)
 		if quantity <= 0 {
-			logx.SignalRejected(s.cfg.Label, signal.Direction, "недостаточно средств")
+			s.rejectSignal(sctx, signal, "недостаточно средств", riskQty, bal)
 			return
 		}
 		if quantity < riskQty {
@@ -289,7 +294,7 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 	// недооценивает риск, для SELL — переоценивает.
 	tradeRisk := math.Abs(fillPrice-signal.StopLoss) * float64(quantity) * s.cfg.StepPriceValue
 	if err := sctx.Risk().TryOpen(s.cfg.Ticker, tradeRisk); err != nil {
-		logx.SignalRejected(s.cfg.Label, signal.Direction, err.Error())
+		s.rejectSignal(sctx, signal, err.Error(), requestedQty, cashAtOpen)
 		return
 	}
 
@@ -308,6 +313,9 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 	pos.EntryBarTime = candle.Timestamp
 	pos.EntryBarClose = candle.Close
 	pos.EntryAtBarClose = entryAtClose
+	pos.RequestedQuantity = requestedQty
+	pos.CashAtOpen = cashAtOpen
+	pos.BarAgeSeconds = now.Sub(candle.Timestamp).Seconds()
 	s.mu.Lock()
 	s.pos = pos
 	s.mu.Unlock()
@@ -317,7 +325,7 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 	logx.Info("[%s] bar_age=%s bar_time=%s",
 		s.cfg.Label, now.Sub(candle.Timestamp).Round(time.Second), candle.Timestamp.Format(time.RFC3339))
 
-	// Limit-fill на баре: если на том же баре уже пробит SL/TP — закрыть по
+		// Limit-fill на баре: если на том же баре уже пробит SL/TP — закрыть по
 	// уровню, не ждать adverse tick.
 	if reason := position.SameBarExitAfterFill(pos, candle); reason != "" {
 		exitPx := position.ExitFillPrice(pos, reason, candle.Close)
@@ -334,6 +342,37 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 	}
 	if last := s.currentLastPrice(); last > 0 {
 		s.checkSLTP(ctx, sctx, last)
+	}
+}
+
+// rejectSignal пишет отказ и в лог, и в БД. Раньше отказы жили только в логе,
+// и вопрос «почему сделок мало» по базе не отвечался вовсе.
+//
+// ВНИМАНИЕ: сюда не попадают отказы гейта min_stop_bps — он внутри слоя стратегии
+// (calcStopTP возвращает нулевые SL/TP), сигнал не рождается и до этой функции
+// не доходит. См. models.RejectedSignal.
+func (s *SelfManagedStrategy) rejectSignal(sctx contract.StrategyContext, signal *models.Order, reason string, requestedQty int, cash float64) {
+	logx.SignalRejected(s.cfg.Label, signal.Direction, reason)
+	if sctx == nil || sctx.Trades() == nil {
+		return
+	}
+	now := time.Now()
+	rej := models.RejectedSignal{
+		TradingMode:  s.cfg.TradingMode,
+		RunID:        s.cfg.RunID,
+		ExperimentID: s.cfg.ExperimentID,
+		Ticker:       s.cfg.Ticker,
+		Direction:    signal.Direction,
+		Reason:       reason,
+		SignalPrice:  signal.Price,
+		StopLoss:     signal.StopLoss,
+		RequestedQty: requestedQty,
+		CashAtCheck:  cash,
+		TradingDate:  s.cfg.Session.Today(now),
+		RejectedAt:   now,
+	}
+	if err := sctx.Trades().SaveRejectedSignal(context.Background(), rej); err != nil {
+		logx.Error("[%s] ошибка сохранения отклонённого сигнала: %v", s.cfg.Label, err)
 	}
 }
 
@@ -497,6 +536,9 @@ func (s *SelfManagedStrategy) closePosition(ctx context.Context, sctx contract.S
 		RiskPerTradePct:   s.cfg.RiskPerTradePct,
 		DepositPerTicker:  s.cfg.Deposit,
 		EntryBarClose:     pos.EntryBarClose,
+		RequestedQuantity: pos.RequestedQuantity,
+		CashAtOpen:        pos.CashAtOpen,
+		BarAgeSeconds:     pos.BarAgeSeconds,
 	}
 	if !pos.EntryBarTime.IsZero() {
 		trade.EntryBarTime = pos.EntryBarTime.UTC().Format(time.RFC3339)

@@ -98,4 +98,8 @@ type RiskPort interface {
 // циклом БД.
 type TradeRecorder interface {
 	SaveClosedTrade(ctx context.Context, trade models.ClosedTrade) error
+	// SaveRejectedSignal — сигнал, не дошедший до сделки. Нужен прикладному коду
+	// ровно там же, где и закрытая сделка: без него «почему сделок мало» по базе
+	// не отвечается (см. models.RejectedSignal).
+	SaveRejectedSignal(ctx context.Context, rej models.RejectedSignal) error
 }

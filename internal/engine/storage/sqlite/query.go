@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -72,7 +73,8 @@ const closedTradeSelectCols = `
 	opened_at, closed_at, hold_seconds, trading_date,
 	candle_timeframe, lookback, risk_per_trade_pct, deposit_per_ticker,
 	COALESCE(audit_severity, ''), COALESCE(audit_codes, ''),
-	COALESCE(entry_bar_time, ''), COALESCE(entry_bar_close, 0)
+	COALESCE(entry_bar_time, ''), COALESCE(entry_bar_close, 0),
+	COALESCE(requested_quantity, 0), COALESCE(cash_at_open, 0), COALESCE(bar_age_seconds, 0)
 `
 
 func scanClosedTrade(scanner interface {
@@ -117,6 +119,9 @@ func scanClosedTrade(scanner interface {
 		auditCodes       string
 		entryBarTime     string
 		entryBarClose    float64
+		requestedQty     int
+		cashAtOpen       float64
+		barAgeSeconds    float64
 	)
 
 	err := scanner.Scan(
@@ -130,6 +135,7 @@ func scanClosedTrade(scanner interface {
 		&openedAt, &closedAt, &holdSeconds, &tradingDate,
 		&candleTimeframe, &lookback, &riskPerTradePct, &depositPerTicker,
 		&auditSeverity, &auditCodes, &entryBarTime, &entryBarClose,
+		&requestedQty, &cashAtOpen, &barAgeSeconds,
 	)
 	if err != nil {
 		return models.ClosedTrade{}, err
@@ -181,6 +187,9 @@ func scanClosedTrade(scanner interface {
 		AuditCodes:        auditCodes,
 		EntryBarTime:      entryBarTime,
 		EntryBarClose:     entryBarClose,
+		RequestedQuantity: requestedQty,
+		CashAtOpen:        cashAtOpen,
+		BarAgeSeconds:     barAgeSeconds,
 	}, nil
 }
 
@@ -190,4 +199,40 @@ func parseDBTime(value string) (time.Time, error) {
 		return time.ParseInLocation("2006-01-02 15:04:05.999999999", value, dbLoc)
 	}
 	return t, nil
+}
+
+// ListRejectedSignals — сигналы, не дошедшие до сделки, за период фильтра.
+// Фильтр тот же, что у сделок (включая вырезание архивов): иначе выборки
+// «сделки» и «отказы» разъедутся и сравнивать их будет нельзя.
+// CloseReason к отказам неприменим и обнуляется.
+func (s *Store) ListRejectedSignals(_ context.Context, f models.TradeFilter) ([]models.RejectedSignal, error) {
+	f.CloseReason = ""
+	where, args := buildWhere(f)
+	rows, err := s.db.Query(`
+		SELECT id, trading_mode, run_id, experiment_id, ticker, direction, reason,
+		       signal_price, stop_loss, requested_qty, cash_at_check,
+		       trading_date, rejected_at
+		FROM rejected_signals `+where+` ORDER BY rejected_at`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("select rejected_signals: %w", err)
+	}
+	defer rows.Close()
+
+	var out []models.RejectedSignal
+	for rows.Next() {
+		var (
+			r         models.RejectedSignal
+			rejectedAt string
+		)
+		if err := rows.Scan(&r.ID, &r.TradingMode, &r.RunID, &r.ExperimentID, &r.Ticker,
+			&r.Direction, &r.Reason, &r.SignalPrice, &r.StopLoss, &r.RequestedQty,
+			&r.CashAtCheck, &r.TradingDate, &rejectedAt); err != nil {
+			return nil, fmt.Errorf("scan rejected_signal: %w", err)
+		}
+		if t, err := time.ParseInLocation(timeLayout, rejectedAt, dbLoc); err == nil {
+			r.RejectedAt = t
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }

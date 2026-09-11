@@ -25,6 +25,9 @@ func applyMigrations(db *sql.DB) error {
 	if err := applyMigration006(db); err != nil {
 		return fmt.Errorf("миграция 006: %w", err)
 	}
+	if err := applyMigration007(db); err != nil {
+		return fmt.Errorf("миграция 007: %w", err)
+	}
 	// Идемпотентно: подхватывает новые строки, если старый бинарник снова записал closed_at в Local.
 	if err := normalizeClosedAtSkew(db); err != nil {
 		return fmt.Errorf("normalize closed_at: %w", err)
@@ -94,6 +97,45 @@ func applyMigration006(db *sql.DB) error {
 		return err
 	}
 	return addColumnIfMissing(db, "closed_trades", "entry_bar_close", `REAL NOT NULL DEFAULT 0`)
+}
+
+// applyMigration007 добавляет факты, которые раньше существовали только в логе:
+// объём до капа по кэшу, свободный кэш на входе, возраст свечи входа — и таблицу
+// отклонённых сигналов. См. docs/analysis/0002-live-config-drift-and-cash-sizing.md
+func applyMigration007(db *sql.DB) error {
+	if err := addColumnIfMissing(db, "closed_trades", "requested_quantity", `INTEGER NOT NULL DEFAULT 0`); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(db, "closed_trades", "cash_at_open", `REAL NOT NULL DEFAULT 0`); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(db, "closed_trades", "bar_age_seconds", `REAL NOT NULL DEFAULT 0`); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS rejected_signals (
+		    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+		    trading_mode  TEXT NOT NULL DEFAULT '',
+		    run_id        TEXT NOT NULL DEFAULT '',
+		    experiment_id TEXT NOT NULL DEFAULT 'default',
+		    ticker        TEXT NOT NULL DEFAULT '',
+		    direction     TEXT NOT NULL DEFAULT '',
+		    reason        TEXT NOT NULL DEFAULT '',
+		    signal_price  REAL NOT NULL DEFAULT 0,
+		    stop_loss     REAL NOT NULL DEFAULT 0,
+		    requested_qty INTEGER NOT NULL DEFAULT 0,
+		    cash_at_check REAL NOT NULL DEFAULT 0,
+		    trading_date  TEXT NOT NULL DEFAULT '',
+		    rejected_at   TEXT NOT NULL
+		)`); err != nil {
+		return fmt.Errorf("create rejected_signals: %w", err)
+	}
+	if _, err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_rejected_signals_date
+		    ON rejected_signals (trading_date, experiment_id)`); err != nil {
+		return fmt.Errorf("index rejected_signals: %w", err)
+	}
+	return nil
 }
 
 // normalizeClosedAtSkew выравнивает closed_at/recorded_at по hold_seconds, если они разъехались

@@ -88,8 +88,9 @@ func (s *Store) SaveClosedTrade(_ context.Context, trade models.ClosedTrade) err
 			close_reason, trail_stage, is_winner,
 			opened_at, closed_at, hold_seconds, trading_date,
 			candle_timeframe, lookback, risk_per_trade_pct, deposit_per_ticker,
-			audit_severity, audit_codes, entry_bar_time, entry_bar_close
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			audit_severity, audit_codes, entry_bar_time, entry_bar_close,
+			requested_quantity, cash_at_open, bar_age_seconds
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		trade.TradingMode,
 		trade.RunID,
 		experimentID,
@@ -127,9 +128,38 @@ func (s *Store) SaveClosedTrade(_ context.Context, trade models.ClosedTrade) err
 		trade.AuditCodes,
 		trade.EntryBarTime,
 		trade.EntryBarClose,
+		trade.RequestedQuantity,
+		trade.CashAtOpen,
+		trade.BarAgeSeconds,
 	)
 	if err != nil {
 		return fmt.Errorf("insert closed_trade: %w", err)
+	}
+	return nil
+}
+
+// SaveRejectedSignal сохраняет сигнал, не дошедший до сделки.
+func (s *Store) SaveRejectedSignal(_ context.Context, rej models.RejectedSignal) error {
+	experimentID := rej.ExperimentID
+	if experimentID == "" {
+		experimentID = "default"
+	}
+	at := rej.RejectedAt
+	if at.IsZero() {
+		at = time.Now()
+	}
+	_, err := s.db.Exec(`
+		INSERT INTO rejected_signals (
+			trading_mode, run_id, experiment_id, ticker, direction, reason,
+			signal_price, stop_loss, requested_qty, cash_at_check,
+			trading_date, rejected_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		rej.TradingMode, rej.RunID, experimentID, rej.Ticker, rej.Direction, rej.Reason,
+		rej.SignalPrice, rej.StopLoss, rej.RequestedQty, rej.CashAtCheck,
+		rej.TradingDate, at.In(dbLoc).Format(timeLayout),
+	)
+	if err != nil {
+		return fmt.Errorf("insert rejected_signal: %w", err)
 	}
 	return nil
 }
