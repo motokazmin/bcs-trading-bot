@@ -128,10 +128,10 @@ experiments:
       orb_minutes: 22
       atr_multiplier: 0.8255005415774227
       breakout_threshold: 0.0038093119295890838
-      reward_ratio: 1.6410674740062587
-      trail_activation_r: 1.5150736483279235
-      trail_breakeven_r: 0.01394552332498874
-      trail_stage_max: 1
+      reward_ratio: 1.2252486811670087
+      trail_activation_r: 0.36444625770407696
+      trail_breakeven_r: 0.05609400652974883
+      trail_stage_max: 4
       max_trades_per_ticker_per_day: 1
       allow_all_tickers: true
       min_stop_bps: 20      # гейт по издержкам, см. шапку файла

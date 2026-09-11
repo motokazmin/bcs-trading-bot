@@ -23,6 +23,16 @@ type ParamBounds struct {
 	Type ParamType `yaml:"type"`
 	Min  float64   `yaml:"min"`
 	Max  float64   `yaml:"max"`
+	// Of — имя другого параметра, ДОЛЕЙ которого задаётся этот. Тогда Min/Max —
+	// границы доли, а значение = доля × значение Of.
+	//
+	// Нужно для зависимостей, которые нельзя выразить независимыми диапазонами.
+	// Пример: trailActivationR должен быть НИЖЕ rewardRatio, иначе позиция закроется
+	// по тейку раньше, чем включится трейл, — параметр мёртв, градиента по нему нет,
+	// и оптимизатор берёт его случайным. Так уже вышло дважды: у живого чемпиона
+	// or-fade активация 2.0039 при тейке 1.2710, и переподбор выбрал такое же снова
+	// (docs/analysis/0003-reoptimization-protocol.md).
+	Of string `yaml:"of"`
 }
 
 // SearchSpace описывает пространство поиска и фиксированные константы.
@@ -96,21 +106,45 @@ func (s *SearchSpace) ApplyFixed(out ParameterSet) {
 // Sample случайную точку из search space + fixed-константы.
 func (s *SearchSpace) Sample(rng *rand.Rand) ParameterSet {
 	out := make(ParameterSet, len(s.Parameters)+len(s.Fixed))
+
+	// Сначала независимые параметры: относительные ссылаются на их значения.
 	for name, bounds := range s.Parameters {
-		switch bounds.Type {
-		case ParamInt:
-			lo := int(bounds.Min)
-			hi := int(bounds.Max)
-			if hi < lo {
-				lo, hi = hi, lo
-			}
-			out[name] = float64(lo + rng.Intn(hi-lo+1))
-		default:
-			out[name] = bounds.Min + rng.Float64()*(bounds.Max-bounds.Min)
+		if bounds.Of != "" {
+			continue
 		}
+		out[name] = sampleBounds(rng, bounds)
 	}
+	// Fixed до относительных: база может быть константой, а не поиском.
 	s.ApplyFixed(out)
+
+	for name, bounds := range s.Parameters {
+		if bounds.Of == "" {
+			continue
+		}
+		if _, fixed := s.Fixed[name]; fixed {
+			continue // явная константа сильнее вычисленной доли
+		}
+		base, ok := out[bounds.Of]
+		if !ok {
+			// Ссылка в никуда: молча дать ноль — значит тихо убить параметр,
+			// поэтому берём долю как абсолютное значение и это видно в отчёте.
+			out[name] = sampleBounds(rng, bounds)
+			continue
+		}
+		out[name] = sampleBounds(rng, bounds) * base
+	}
 	return out
+}
+
+func sampleBounds(rng *rand.Rand, b ParamBounds) float64 {
+	if b.Type == ParamInt {
+		lo, hi := int(b.Min), int(b.Max)
+		if hi < lo {
+			lo, hi = hi, lo
+		}
+		return float64(lo + rng.Intn(hi-lo+1))
+	}
+	return b.Min + rng.Float64()*(b.Max-b.Min)
 }
 
 // IntParam возвращает целочисленный параметр.
