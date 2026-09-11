@@ -265,7 +265,7 @@ def report(t: pd.DataFrame, m: pd.DataFrame) -> None:
 REVIEW_STATE = "data/analysis/review-state.json"
 
 
-def config_fingerprint(cfg_path: str) -> tuple[str, str]:
+def config_fingerprint(cfg_path: str) -> tuple[str, str, dict]:
     """Отпечаток боевого конфига: блоки strategy и risk, без комментариев.
 
     Считается по разобранному YAML, а не по тексту файла: иначе правка
@@ -276,12 +276,12 @@ def config_fingerprint(cfg_path: str) -> tuple[str, str]:
     try:
         import yaml
     except ImportError:
-        return "", "PyYAML не установлен — отпечаток конфига не считается"
+        return "", "PyYAML не установлен — отпечаток конфига не считается", {}
     try:
         with open(cfg_path, encoding="utf-8") as fh:
             cfg = yaml.safe_load(fh)
     except OSError:
-        return "", f"конфиг не найден: {cfg_path}"
+        return "", f"конфиг не найден: {cfg_path}", {}
 
     material = {
         "risk": cfg.get("risk", {}),
@@ -297,7 +297,15 @@ def config_fingerprint(cfg_path: str) -> tuple[str, str]:
     gate = gates.pop() if len(gates) == 1 else "разные"
     summary = (f"min_stop_bps={gate} risk={risk.get('risk_per_trade_percent')} "
                f"slippage={material['costs'].get('slippage_bps')}")
-    return digest, summary
+    # Отпечаток каждого слота отдельно: без него предупреждение сообщает «конфиг
+    # изменился» и показывает одинаковые строки, потому что общая сводка не видит
+    # параметров стратегий. Детектор, который не говорит ЧТО изменилось, читают
+    # как ложную тревогу и через раз игнорируют.
+    slots = {}
+    for sid, params in material["experiments"].items():
+        blob_s = json.dumps(params, sort_keys=True, ensure_ascii=False, default=str)
+        slots[sid] = hashlib.sha256(blob_s.encode("utf-8")).hexdigest()[:12]
+    return digest, summary, slots
 
 
 def load_review_state(path: str) -> dict:
@@ -309,7 +317,7 @@ def load_review_state(path: str) -> dict:
 
 
 def report_review_delta(t_all: pd.DataFrame, state: dict, digest: str, summary: str,
-                        partial: bool = False) -> None:
+                        slots: dict | None = None, partial: bool = False) -> None:
     """Печатает, что накопилось с прошлого разбора, и ругается на смену механики."""
     if not state:
         print("Прошлого разбора нет: водяной знак не выставлен "
@@ -327,8 +335,23 @@ def report_review_delta(t_all: pd.DataFrame, state: dict, digest: str, summary: 
     if digest and was and digest != was:
         print()
         print("!!! КОНФИГ ИЗМЕНИЛСЯ С ПРОШЛОГО РАЗБОРА !!!")
-        print(f"    было:  {state.get('config_summary', was)}")
-        print(f"    стало: {summary}")
+        old_slots = state.get("config_slots") or {}
+        new_slots = slots or {}
+        changed = sorted(k for k in set(old_slots) | set(new_slots)
+                         if old_slots.get(k) != new_slots.get(k))
+        if changed:
+            for k in changed:
+                if k not in old_slots:
+                    print(f"    + слот {k}: добавлен")
+                elif k not in new_slots:
+                    print(f"    − слот {k}: удалён")
+                else:
+                    print(f"    ~ слот {k}: параметры стратегии изменены")
+        if state.get("config_summary") != summary:
+            print(f"    механика: {state.get('config_summary', was)} → {summary}")
+        elif not changed:
+            print(f"    отпечаток {was} → {digest}, но сводка та же — "
+                  f"изменилось что-то вне risk/costs/experiments")
         print("    Сделки до и после несравнимы: параметры чемпионов и docs/baseline.md")
         print("    недействительны, старый период нужно заархивировать "
               "(data/archives.json).")
@@ -336,7 +359,8 @@ def report_review_delta(t_all: pd.DataFrame, state: dict, digest: str, summary: 
 
 
 def write_review_state(path: str, t_all: pd.DataFrame, label: str,
-                       digest: str, summary: str, reviewed: int) -> dict:
+                       digest: str, summary: str, reviewed: int,
+                       slots: dict | None = None) -> dict:
     last = t_all.iloc[t_all["id"].idxmax()] if "id" in t_all.columns and len(t_all) else None
     state = {
         "last_review_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -346,6 +370,7 @@ def write_review_state(path: str, t_all: pd.DataFrame, label: str,
         "label": label,
         "config_fingerprint": digest,
         "config_summary": summary,
+        "config_slots": slots or {},
     }
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
@@ -401,9 +426,9 @@ def main() -> None:
     # Дельта считается до вырезания архивов: иначе «новых сделок» станет ноль
     # просто потому, что свежий период кто-то заархивировал. В JSON-режиме
     # выборка уже сужена фильтром выгрузки — об этом говорится явно.
-    digest, summary = config_fingerprint(args.config)
+    digest, summary, slots = config_fingerprint(args.config)
     state = load_review_state(args.review_state)
-    report_review_delta(t, state, digest, summary, partial=src_json)
+    report_review_delta(t, state, digest, summary, slots=slots, partial=src_json)
 
     if args.since_review:
         last_id = int(state.get("last_trade_id", 0))
@@ -429,7 +454,7 @@ def main() -> None:
             if args.mark_reviewed and not args.no_write:
                 full = load_trades_json(args.from_json) if src_json else load_trades(args.db)
                 st = write_review_state(args.review_state, full,
-                                        args.label, digest, summary, reviewed=0)
+                                        args.label, digest, summary, reviewed=0, slots=slots)
                 print(f"Водяной знак выставлен: {args.review_state} "
                       f"(последняя сделка id={st['last_trade_id']}, {st['config_summary']})")
             return
@@ -447,7 +472,7 @@ def main() -> None:
         else:
             full = load_trades_json(args.from_json) if src_json else load_trades(args.db)
             st = write_review_state(args.review_state, full, args.label,
-                                    digest, summary, reviewed=len(t))
+                                    digest, summary, reviewed=len(t), slots=slots)
             print(f"\nВодяной знак обновлён: {args.review_state} "
                   f"(последняя сделка id={st['last_trade_id']}, "
                   f"разобрано {st['trades_reviewed']}, {st['config_summary']})")

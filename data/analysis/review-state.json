@@ -1,9 +1,17 @@
 {
-  "last_review_at": "2026-09-11T13:39:01Z",
+  "last_review_at": "2026-09-11T18:49:21Z",
   "last_trade_id": 106,
   "last_trade_closed_at": "2026-09-11 12:04:28",
   "trades_reviewed": 0,
-  "label": "старт на новой механике: гейт 20 б.п., риск 0.20, синхронный кап",
-  "config_fingerprint": "sha256:9e8651f94c99d29e",
-  "config_summary": "min_stop_bps=20 risk=0.2 slippage=1"
+  "label": "чемпионы после переоптимизации orc-complement (вход+выход), перед деплоем",
+  "config_fingerprint": "sha256:e9c876a9650e636d",
+  "config_summary": "min_stop_bps=20 risk=0.2 slippage=1",
+  "config_slots": {
+    "session-orc-morning": "062b0702d1ac",
+    "orc-wave2": "3c863027db56",
+    "orc-complement": "6eaef78b7094",
+    "or-fade-conservative": "8e679dbfc375",
+    "mf-afternoon": "8f0d1c3eeb38",
+    "session-orc-evening": "3e15c4c88f00"
+  }
 }

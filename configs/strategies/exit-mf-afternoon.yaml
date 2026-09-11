@@ -1,0 +1,58 @@
+# Переподбор блока ВЫХОДА слота mf-afternoon (momentum_filtered).
+# Вход зафиксирован текущими значениями — иначе результат нельзя отнести
+# к выходу. trailActivationR — доля от тейка (`of`), поэтому трейл
+# достижим по построению. Протокол: docs/analysis/0003-*.
+trading_mode: virtual
+class_code: TQBR
+candle_timeframe: M5
+session:
+  timezone: Europe/Moscow
+  session_open_time: '10:00'
+  eod_close_time: '18:40'
+  entry_delay_minutes: 150
+strategy:
+  type: momentum_filtered
+  stop_mode: atr
+search_space:
+  strategy: momentum_filtered
+  parameters:
+    rewardRatio:
+      type: float
+      min: 1.0
+      max: 3.0
+    trailActivationR:
+      type: float
+      min: 0.2
+      max: 0.95
+      of: rewardRatio
+    trailBreakevenR:
+      type: float
+      min: 0.0
+      max: 0.2
+    trailStageMax:
+      type: int
+      min: 1
+      max: 4
+  fixed:
+    atrPeriod: 14
+    lookback: 39
+    breakoutThreshold: 0.007659168048723002
+    volumeFilter: 0
+    volumeMinRatio: 1.2806021030773282
+    longOnly: 1
+    trendSmaPeriod: 37
+    strategyEntryDelayMinutes: 26
+    atrMultiplier: 2.656226764423858
+    maxEntriesPerTickerPerDay: 2
+    minStopBps: 20
+    riskPerTradePercent: 0.2
+    dailyLossLimitPercent: 2.0
+    maxParallelTrades: 5
+    takeProfitEnabled: 1
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.2
+  max_parallel_trades: 5
+virtual:
+  balance: 200000
