@@ -139,6 +139,21 @@ Bearer `ADMIN_TOKEN`) → `make analyze-json JSON=путь`. Отчёт поби
 автоматически, **но bool надо добавить в switch в `internal/config/strategy_factory.go`** —
 иначе `toFloat64` его не возьмёт и параметр молча потеряется.
 
+**Механика исполнения живёт в ЧЕТЫРЁХ местах, не в двух.** К паре
+«чемпионы ↔ `configs/runs/*`» добавляются входы оптимизатора:
+
+| место | что держать |
+|-------|-------------|
+| `configs/runs/portfolio-paper.yaml` | `min_stop_bps`, `risk_per_trade_percent`, `costs.slippage_bps` |
+| `configs/champions/*` | то же |
+| `configs/strategies/*` → `search_space.fixed` | `minStopBps`, `riskPerTradePercent` |
+| `configs/shared/tickers*.yaml` → `costs` | `slippage_bps` |
+
+`costs.Config.SlippageBps` по умолчанию **0**, поэтому без явной строки оптимизатор
+молча подбирал параметры под идеальный фил. Включение гейта и издержек на одном
+прогоне дало 667 → 293 сделки — то есть подбор шёл по выборке, которой бот не увидит.
+Держит `TestИздержкиОбъявленыЯвно` и `TestSearchSpaceФиксируетМеханику`.
+
 **Ручка работает во всех живых стратегиях или нигде.** Молчаливый no-op в YAML хуже,
 чем отсутствие ручки. Общие параметры геометрии стопа — в `strategy.commonStopOpts`
 (встроена в ORC, OR Fade и `momentumBreakoutOpts`).
