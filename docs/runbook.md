@@ -152,3 +152,20 @@ go run ./cmd/optimizer portfolio-backtest \
 | Connection refused на PUBLIC_IP | открыть TCP 8091 |
 | `sync-history` падает | задать `BCS_REFRESH_TOKEN` |
 | Optimizer «нет истории» | `make sync-history` |
+
+
+## Цикл разбора
+
+```bash
+make analyze          # что накопилось + предупреждение о смене конфига
+make analyze-new      # только сделки после прошлого разбора
+make analyze-mark LABEL="что разобрали"   # сдвинуть границу
+```
+
+`data/analysis/review-state.json` коммитится: он определяет, что считается «новым»,
+и на другой машине без него границы не будет. Отпечаток конфига в нём — страховка от
+того, что механику поменяли, старый период не заархивировали, а `expectancy_r`
+в соседних строках `metrics.csv` выглядит прогрессом.
+
+Менял `configs/runs/portfolio-paper.yaml` — заархивируй прошлый период
+(`data/archives.json`) и поставь знак заново.

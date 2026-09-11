@@ -21,6 +21,7 @@ metrics.csv — журнал прогресса: одна строка = (сни
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sqlite3
@@ -232,6 +233,98 @@ def report(t: pd.DataFrame, m: pd.DataFrame) -> None:
     print(m[cols].to_string(index=False, float_format=lambda v: f"{v:.3f}"))
 
 
+# --- водяной знак разбора ------------------------------------------------
+
+REVIEW_STATE = "data/analysis/review-state.json"
+
+
+def config_fingerprint(cfg_path: str) -> tuple[str, str]:
+    """Отпечаток боевого конфига: блоки strategy и risk, без комментариев.
+
+    Считается по разобранному YAML, а не по тексту файла: иначе правка
+    комментария выглядела бы как смена механики. Ловит ровно то, что однажды
+    стоило дня разбирательств — незамеченное расхождение конфига со сделками
+    (docs/analysis/0002-live-config-drift-and-cash-sizing.md).
+    """
+    try:
+        import yaml
+    except ImportError:
+        return "", "PyYAML не установлен — отпечаток конфига не считается"
+    try:
+        with open(cfg_path, encoding="utf-8") as fh:
+            cfg = yaml.safe_load(fh)
+    except OSError:
+        return "", f"конфиг не найден: {cfg_path}"
+
+    material = {
+        "risk": cfg.get("risk", {}),
+        "costs": cfg.get("costs", {}),
+        "experiments": {e.get("id"): e.get("strategy", {})
+                        for e in cfg.get("experiments", [])},
+    }
+    blob = json.dumps(material, sort_keys=True, ensure_ascii=False, default=str)
+    digest = "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+    risk = material["risk"]
+    gates = {e.get("min_stop_bps") for e in material["experiments"].values()}
+    gate = gates.pop() if len(gates) == 1 else "разные"
+    summary = (f"min_stop_bps={gate} risk={risk.get('risk_per_trade_percent')} "
+               f"slippage={material['costs'].get('slippage_bps')}")
+    return digest, summary
+
+
+def load_review_state(path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def report_review_delta(t_all: pd.DataFrame, state: dict, digest: str, summary: str) -> None:
+    """Печатает, что накопилось с прошлого разбора, и ругается на смену механики."""
+    if not state:
+        print("Прошлого разбора нет: водяной знак не выставлен "
+              "(поставить: make analyze-mark LABEL=\"...\").\n")
+        return
+
+    last_id = int(state.get("last_trade_id", 0))
+    fresh = int((t_all["id"] > last_id).sum()) if "id" in t_all.columns else 0
+    print(f"Прошлый разбор: {state.get('last_review_at', '?')} "
+          f"({state.get('label') or 'без пометки'}), последняя сделка id={last_id}.")
+    print(f"С тех пор новых сделок: {fresh}.")
+
+    was = state.get("config_fingerprint", "")
+    if digest and was and digest != was:
+        print()
+        print("!!! КОНФИГ ИЗМЕНИЛСЯ С ПРОШЛОГО РАЗБОРА !!!")
+        print(f"    было:  {state.get('config_summary', was)}")
+        print(f"    стало: {summary}")
+        print("    Сделки до и после несравнимы: параметры чемпионов и docs/baseline.md")
+        print("    недействительны, старый период нужно заархивировать "
+              "(data/archives.json).")
+    print()
+
+
+def write_review_state(path: str, t_all: pd.DataFrame, label: str,
+                       digest: str, summary: str, reviewed: int) -> dict:
+    last = t_all.iloc[t_all["id"].idxmax()] if "id" in t_all.columns and len(t_all) else None
+    state = {
+        "last_review_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "last_trade_id": int(last["id"]) if last is not None else 0,
+        "last_trade_closed_at": str(last["closed_at"]) if last is not None else "",
+        "trades_reviewed": int(reviewed),
+        "label": label,
+        "config_fingerprint": digest,
+        "config_summary": summary,
+    }
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(state, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    return state
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="data/trades.db")
@@ -243,12 +336,35 @@ def main() -> None:
                     help="JSON с архивами админки; их периоды исключаются из разбора")
     ap.add_argument("--include-archived", action="store_true",
                     help="считать по всем сделкам, включая заархивированные")
+    ap.add_argument("--review-state", default=REVIEW_STATE,
+                    help="файл с водяным знаком прошлого разбора")
+    ap.add_argument("--config", default="configs/runs/portfolio-paper.yaml",
+                    help="боевой конфиг: с него снимается отпечаток механики")
+    ap.add_argument("--since-review", action="store_true",
+                    help="считать только сделки, появившиеся после прошлого разбора")
+    ap.add_argument("--mark-reviewed", action="store_true",
+                    help="записать водяной знак: дата, последняя сделка, отпечаток конфига")
     args = ap.parse_args()
 
     t = load_trades(args.db)
     if t.empty:
         print("В БД нет закрытых сделок.")
         return
+
+    # Водяной знак считается по ВСЕЙ базе, до вырезания архивов: иначе «новых
+    # сделок» станет ноль просто потому, что свежий период кто-то заархивировал.
+    digest, summary = config_fingerprint(args.config)
+    state = load_review_state(args.review_state)
+    report_review_delta(t, state, digest, summary)
+
+    if args.since_review:
+        last_id = int(state.get("last_trade_id", 0))
+        before = len(t)
+        t = t[t["id"] > last_id]
+        print(f"--since-review: осталось {len(t)} из {before} сделок (id > {last_id}).\n")
+        if t.empty:
+            print("С прошлого разбора новых сделок нет.")
+            return
 
     if not args.include_archived:
         t, dropped = drop_archived(t, load_archives(args.archives))
@@ -260,11 +376,32 @@ def main() -> None:
                   "сравнивать их напрямую нельзя.\n")
         if t.empty:
             print("После исключения архивов закрытых сделок не осталось.")
+            # Знак ставится и по пустой выборке: он про всю базу, а пустая
+            # выборка после архивации — это ровно момент чистого старта.
+            if args.mark_reviewed and not args.no_write:
+                st = write_review_state(args.review_state, load_trades(args.db),
+                                        args.label, digest, summary, reviewed=0)
+                print(f"Водяной знак выставлен: {args.review_state} "
+                      f"(последняя сделка id={st['last_trade_id']}, {st['config_summary']})")
             return
 
     t = enrich(t, load_history(args.history))
     m = per_experiment(t)
     report(t, m)
+
+    # Водяной знак ставится ТОЛЬКО явным флагом. Если двигать его на каждом
+    # прогоне, первый же случайный запуск съест границу и «новых сделок» больше
+    # не будет — а именно ради них файл и заводился.
+    if args.mark_reviewed:
+        if args.no_write:
+            print("\n--mark-reviewed несовместим с --no-write: знак не выставлен.")
+        else:
+            full = load_trades(args.db)
+            st = write_review_state(args.review_state, full, args.label,
+                                    digest, summary, reviewed=len(t))
+            print(f"\nВодяной знак обновлён: {args.review_state} "
+                  f"(последняя сделка id={st['last_trade_id']}, "
+                  f"разобрано {st['trades_reviewed']}, {st['config_summary']})")
 
     if args.no_write:
         return

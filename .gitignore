@@ -19,6 +19,9 @@ configs/local*.yaml
 !data/analysis/
 data/analysis/*
 !data/analysis/metrics.csv
+# Водяной знак разбора: дата, last_trade_id и отпечаток конфига. Определяет, что
+# считается «новыми сделками», — без него на другой машине границы не будет.
+!data/analysis/review-state.json
 data/*.db-wal
 data/*.db-shm
 bin/

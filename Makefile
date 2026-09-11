@@ -92,6 +92,17 @@ test:
 analyze:
 	python3 scripts/analyze-trades.py --db $(TRADES_DB) --history $(HISTORY_DIR) --label "$(LABEL)"
 
+# Разбор только по сделкам, появившимся после прошлого разбора.
+analyze-new:
+	python3 scripts/analyze-trades.py --db $(TRADES_DB) --history $(HISTORY_DIR) \
+		--since-review --label "$(LABEL)"
+
+# Зафиксировать водяной знак: дата разбора, последняя сделка, отпечаток конфига.
+# Ставится только этой командой — иначе случайный прогон съест границу.
+analyze-mark:
+	python3 scripts/analyze-trades.py --db $(TRADES_DB) --history $(HISTORY_DIR) \
+		--mark-reviewed --label "$(LABEL)"
+
 # --- История для optimizer ---
 
 sync-history: build-optimizer
