@@ -28,6 +28,7 @@ const (
 	defaultEODCloseTime    = "23:40"
 	defaultSessionOpenTime = "10:00"
 	defaultStoragePath     = "data/trades.db"
+	defaultRecordingDir    = "data/ws-raw"
 	defaultATRPeriod       = 14
 	defaultATRMultiplier   = 2.0
 )
@@ -44,6 +45,7 @@ type Config struct {
 	Virtual     VirtualConfig      `yaml:"virtual"`
 	Session     SessionConfig      `yaml:"session"`
 	Storage     StorageConfig      `yaml:"storage"`
+	Recording   RecordingConfig    `yaml:"recording"`
 	Experiments []ExperimentConfig `yaml:"experiments"`
 }
 
@@ -86,6 +88,21 @@ type ResolvedExperiment struct {
 type StorageConfig struct {
 	Enabled *bool  `yaml:"enabled"`
 	Path    string `yaml:"path"`
+}
+
+// RecordingConfig — запись сырого WS-потока на диск (internal/engine/wsrecord).
+type RecordingConfig struct {
+	Enabled *bool  `yaml:"enabled"`
+	Dir     string `yaml:"dir"`
+}
+
+// RecordingEnabled возвращает true, если запись потока включена (по умолчанию — да:
+// каждый день без записи — потерянные данные, задним числом их не достать).
+func (c *Config) RecordingEnabled() bool {
+	if c.Recording.Enabled == nil {
+		return true
+	}
+	return *c.Recording.Enabled
 }
 
 // StorageEnabled возвращает true, если персистентность включена (по умолчанию — да).
@@ -358,6 +375,9 @@ func (c *Config) applyDefaults() {
 
 	if c.Storage.Path == "" {
 		c.Storage.Path = defaultStoragePath
+	}
+	if c.Recording.Dir == "" {
+		c.Recording.Dir = defaultRecordingDir
 	}
 
 	for i := range c.Tickers {

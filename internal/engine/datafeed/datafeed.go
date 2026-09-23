@@ -32,6 +32,7 @@ import (
 // это отдельный шаг, не текущий.
 type Feed struct {
 	client *broker.BCSClient
+	tap    broker.RawTap
 
 	mu      sync.Mutex
 	routes  map[broker.RouteKey][]broker.WorkerRoutes
@@ -50,9 +51,12 @@ type closerRoute struct {
 
 // New создаёт DataFeed поверх уже сконфигурированного BCSClient
 // (SetClassCode и т.д. должны быть вызваны до этого, как и раньше).
-func New(client *broker.BCSClient) *Feed {
+// tap получает сырой поток до разбора (запись на диск, internal/engine/wsrecord);
+// nil — без отвода.
+func New(client *broker.BCSClient, tap broker.RawTap) *Feed {
 	return &Feed{
 		client: client,
+		tap:    tap,
 		routes: make(map[broker.RouteKey][]broker.WorkerRoutes),
 	}
 }
@@ -149,5 +153,5 @@ func (f *Feed) Run(ctx context.Context) error {
 	for _, cr := range closers {
 		go runBarCloser(ctx, cr.label, engine.CandleBarDuration(cr.tf), cr.raw, cr.out)
 	}
-	return f.client.SubscribeMarketDataFanOut(ctx, routes)
+	return f.client.SubscribeMarketDataFanOut(ctx, routes, f.tap)
 }

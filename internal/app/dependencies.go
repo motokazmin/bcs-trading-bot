@@ -12,6 +12,7 @@ import (
 	"bcs-trading-bot/internal/engine/execution"
 	"bcs-trading-bot/internal/engine/risk"
 	"bcs-trading-bot/internal/engine/storage/sqlite"
+	"bcs-trading-bot/internal/engine/wsrecord"
 	"bcs-trading-bot/internal/logx"
 )
 
@@ -31,6 +32,7 @@ type Dependencies struct {
 	Reader    contract.TradeReader // nil, если storage выключен (тогда админ-аналитика недоступна)
 	Portfolio *risk.GlobalRiskController
 	RunID     string // ярлык прогона, штампуется в сделки: <имя конфига>-<timestamp>
+	RawTap    broker.RawTap // запись сырого WS-потока; nil, если выключена
 
 	closers []func()
 }
@@ -69,11 +71,33 @@ func BuildDependencies(ctx context.Context, opts Options, cfg *config.Config, cl
 		logx.Info("Хранилище сделок: %s", cfg.Storage.Path)
 	}
 
+	if cfg.RecordingEnabled() {
+		d.RawTap = d.buildRecorder(cfg)
+	}
+
 	d.Portfolio = buildPortfolioRisk(cfg)
 	d.Executor = buildExecutor(ctx, cfg, client)
 	// Дальше эти три объекта связываются со стратегиями и движком в
 	// internal/app (trader.go) и engine.StrategyRunner — здесь только сборка.
 	return d
+}
+
+// buildRecorder поднимает запись сырого WS-потока. Не смогли — торгуем без
+// записи: это данные для исследования, не повод не стартовать.
+func (d *Dependencies) buildRecorder(cfg *config.Config) broker.RawTap {
+	loc, err := time.LoadLocation(cfg.Session.Timezone)
+	if err != nil {
+		logx.Warn("запись WS-потока: таймзона %q: %v — день файла по UTC", cfg.Session.Timezone, err)
+		loc = time.UTC
+	}
+	rec, err := wsrecord.New(cfg.Recording.Dir, loc)
+	if err != nil {
+		logx.Error("запись WS-потока выключена: %v", err)
+		return nil
+	}
+	d.closers = append(d.closers, rec.Close)
+	logx.Info("Запись WS-потока: %s", cfg.Recording.Dir)
+	return rec.Record
 }
 
 // buildPortfolioRisk собирает единый на весь прогон риск-контроллер: один

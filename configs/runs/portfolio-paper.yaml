@@ -64,6 +64,11 @@ session:
 storage:
   path: data/trades.db
 
+# Сырой WS-поток на диск: <dir>/<YYYY-MM-DD>.jsonl.gz, для модели фила по тикам и
+# прогона записанного дня через live-код (docs/analysis/0004, п. 2).
+recording:
+  dir: data/ws-raw
+
 experiments:
   - id: session-orc-morning
     name: "Morning Session ORC (07:00–09:50)"

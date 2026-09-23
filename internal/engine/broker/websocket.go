@@ -181,12 +181,21 @@ type quoteWSMessage struct {
 	} `json:"errors"`
 }
 
+// RawTap получает каждое входящее WS-сообщение как есть, до разбора, вместе со
+// временем получения. Вызывается в цикле чтения, поэтому обязан не блокироваться
+// (см. internal/engine/wsrecord). nil — отвода нет.
+type RawTap func(recv time.Time, raw []byte)
+
+// sessionMarker — служебное сообщение в отвод при каждой новой WS-сессии: по
+// нему в записи видны переподключения и дыры в потоке.
+var sessionMarker = []byte(`{"responseType":"_session","event":"subscribed"}`)
+
 // SubscribeMarketDataFanOut подписывается на свечи и котировки для набора
 // маршрутов, каждый ключ которых — пара (тикер, таймфрейм). Один тикер может
 // одновременно иметь несколько маршрутов с разными таймфреймами (разные
 // стратегии) — все они уходят на одно WebSocket-соединение отдельными
 // subscribe-сообщениями с нужным TimeFrame.
-func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[RouteKey][]WorkerRoutes) error {
+func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[RouteKey][]WorkerRoutes, tap RawTap) error {
 	if len(routes) == 0 {
 		return fmt.Errorf("список маршрутов пуст")
 	}
@@ -202,7 +211,7 @@ func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[Ro
 			return err
 		}
 
-		err := c.runMarketDataSession(ctx, routes)
+		err := c.runMarketDataSession(ctx, routes, tap)
 		if err != nil {
 			// Отмену не считаем сбоем — это штатное завершение.
 			if ctx.Err() != nil {
@@ -256,7 +265,7 @@ func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[Ro
 //  3. поднять keepalive (свой ping, иначе сервер молча отвалится);
 //  4. крутить цикл чтения, раздавая каждое сообщение в каналы воркеров,
 //     пока соединение живо.
-func (c *BCSClient) runMarketDataSession(ctx context.Context, routes map[RouteKey][]WorkerRoutes) error {
+func (c *BCSClient) runMarketDataSession(ctx context.Context, routes map[RouteKey][]WorkerRoutes, tap RawTap) error {
 	// --- 1. Подключение ---
 	token := c.AccessToken()
 	if token == "" {
@@ -327,6 +336,9 @@ func (c *BCSClient) runMarketDataSession(ctx context.Context, routes map[RouteKe
 		return fmt.Errorf("ошибка подписки на котировки: %w", err)
 	}
 	logx.WS("подписка %d инструмент(ов) — котировки", len(allTickers))
+	if tap != nil {
+		tap(time.Now(), sessionMarker)
+	}
 
 	// Развёртка маршрутов для котировок: тик прилетает без таймфрейма, поэтому
 	// его надо отдать всем подписчикам тикера, какой бы таймфрейм они ни ждали.
@@ -380,6 +392,9 @@ func (c *BCSClient) runMarketDataSession(ctx context.Context, routes map[RouteKe
 		_, raw, err := conn.ReadMessage()
 		if err != nil {
 			return fmt.Errorf("ошибка чтения: %w", err)
+		}
+		if tap != nil {
+			tap(time.Now(), raw)
 		}
 
 		if err := c.dispatchMarketMessage(ctx, raw, routes, tickRoutes); err != nil {

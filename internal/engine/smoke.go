@@ -29,7 +29,7 @@ func RunSmokeTest(ctx context.Context, client *broker.BCSClient, ticker string, 
 
 	wsDone := make(chan error, 1)
 	go func() {
-		wsDone <- client.SubscribeMarketDataFanOut(wsCtx, routes)
+		wsDone <- client.SubscribeMarketDataFanOut(wsCtx, routes, nil)
 	}()
 
 	var tick models.Tick

@@ -31,7 +31,8 @@ cmd/bot/main.go
 │  InitLogging                                                              │
 │  config.Load ──────────────► *config.Config     YAML: experiments[],      │
 │                                                 risk.*, session.*,        │
-│                                                 tickers, storage          │
+│                                                 tickers, storage,         │
+│                                                 recording                 │
 │  MustConnectBroker ────────► broker.BCSClient    ◄── BCS Trade API        │
 │                                                 OAuth2, WS (свечи+квоты), │
 │                                                 real-ордера               │
@@ -44,6 +45,8 @@ cmd/bot/main.go
 │     ├─ Portfolio : *risk.GlobalRiskController    ЕДИНЫЙ СЧЁТ:             │
 │     │              circuit breaker 2%/день, риск-бюджет открытых          │
 │     │              позиций, one-position-per-ticker                       │
+│     ├─ RawTap    : broker.RawTap = wsrecord.Recorder.Record | nil         │
+│     │              сырой WS-поток на диск (recording.dir)                 │
 │     └─ RunID                                                              │
 │                                                                          │
 │  BuildTrader ─────────────► app.Trader                                    │
@@ -125,6 +128,7 @@ WS БКС шлёт бар много раз, пока он формируетс�
 |----------|-------|------|
 | `BCSClient` | `engine/broker` | единственный выход наружу: OAuth2, WS-данные, real-ордера |
 | `datafeed.Feed` | `engine/datafeed` | одна WS-подписка → fan-out каналов по `(ticker, timeframe)`; стратегиям — закрытые бары (`barCloser`), hub — формирующиеся |
+| `wsrecord.Recorder` | `engine/wsrecord` | сырой WS-поток до разбора → `<recording.dir>/<день МСК>.jsonl.gz`; неблокирующий, переполнение буфера → отброс + счётчик. Подключён отводом `broker.RawTap` через `datafeed.New` |
 | `GlobalRiskController` | `engine/risk` | единый счёт: circuit breaker, риск-бюджет открытых позиций, one-position-per-ticker; финальное «можно открыться» |
 | `VirtualExecutor` | `engine/execution` | paper-исполнитель (симуляция fill) |
 | `TradeStore` (sqlite) | `engine/storage/sqlite` | запись `closed_trades` |

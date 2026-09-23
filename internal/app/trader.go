@@ -34,7 +34,7 @@ func (t *Trader) Hub() *dashboard.Hub { return t.hub }
 // DataFeed и регистрирует в live-Hub. При ошибке конфигурации — logx.Fatal.
 func BuildTrader(cfg *config.Config, client *broker.BCSClient, deps *Dependencies) *Trader {
 	t := &Trader{
-		feed:    datafeed.New(client),
+		feed:    datafeed.New(client, deps.RawTap),
 		hub:     dashboard.NewHub(),
 		expN:    len(cfg.ResolvedExperiments()),
 		eodTime: cfg.Session.EODCloseTime,
