@@ -88,11 +88,18 @@ engine.StrategyRunner         каркасный клей:
      │                              Trades = Store }
      │   Start(ctx): go globalDailyResetLoop(); strategy.Run(ctx, sctx)
      ▼
-datafeed.Feed.Subscribe(ticker, timeframe, candleCh, tickCh)
+datafeed.Feed.Subscribe(ticker, timeframe, candleCh, tickCh)   — только ЗАКРЫТЫЕ бары
 ```
 
-Отдельный consumer той же пары `(ticker, timeframe)` через fan-out `datafeed.Feed`
-кладёт свечи/тики в `dashboard.Hub` — для `/positions`, `/candles`, `/chart`.
+WS БКС шлёт бар много раз, пока он формируется (метка — начало бара). `Subscribe`
+пропускает поток через `barCloser`: стратегия получает бар, когда пришла следующая
+метка или истёк таймер конец + 10 с, — так же, как backtest кормит её закрытыми
+барами из CSV. Раньше стратегия решала по первому обновлению бара, и live торговал
+не то, что тестировалось ([0004](analysis/0004-live-decides-on-forming-bar.md)).
+
+Отдельный consumer той же пары `(ticker, timeframe)` через `datafeed.Feed.SubscribeForming`
+кладёт формирующиеся свечи и тики в `dashboard.Hub` — для `/positions`, `/candles`,
+`/chart`. Решения по этому потоку не принимаются.
 
 ---
 
@@ -117,7 +124,7 @@ datafeed.Feed.Subscribe(ticker, timeframe, candleCh, tickCh)
 | Сущность | Пакет | Роль |
 |----------|-------|------|
 | `BCSClient` | `engine/broker` | единственный выход наружу: OAuth2, WS-данные, real-ордера |
-| `datafeed.Feed` | `engine/datafeed` | одна WS-подписка → fan-out каналов по `(ticker, timeframe)` |
+| `datafeed.Feed` | `engine/datafeed` | одна WS-подписка → fan-out каналов по `(ticker, timeframe)`; стратегиям — закрытые бары (`barCloser`), hub — формирующиеся |
 | `GlobalRiskController` | `engine/risk` | единый счёт: circuit breaker, риск-бюджет открытых позиций, one-position-per-ticker; финальное «можно открыться» |
 | `VirtualExecutor` | `engine/execution` | paper-исполнитель (симуляция fill) |
 | `TradeStore` (sqlite) | `engine/storage/sqlite` | запись `closed_trades` |

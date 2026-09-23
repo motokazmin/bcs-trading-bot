@@ -111,11 +111,12 @@ func BuildTrader(cfg *config.Config, client *broker.BCSClient, deps *Dependencie
 			// live-дашборд: отдельный consumer той же пары (ticker, timeframe)
 			// через fan-out DataFeed — свечи/тики в hub для /positions,
 			// /candles, /chart. Один на пару, не на каждый эксперимент.
+			// Формирующиеся бары: графику нужна текущая свеча, стратегии — нет.
 			if key := [2]string{tc.Symbol, timeframe}; !hubFeeds[key] {
 				hubFeeds[key] = true
 				hubCandleCh := make(chan models.Candle, 128)
 				hubTickCh := make(chan models.Tick, 256)
-				if err := t.feed.Subscribe(tc.Symbol, timeframe, hubCandleCh, hubTickCh); err != nil {
+				if err := t.feed.SubscribeForming(tc.Symbol, timeframe, hubCandleCh, hubTickCh); err != nil {
 					logx.Fatalf("ошибка подписки hub %s (%s): %v", label, timeframe, err)
 				}
 				t.registerHubFeed(tc.Symbol, hubCandleCh, hubTickCh)

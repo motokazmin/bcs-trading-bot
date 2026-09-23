@@ -315,7 +315,9 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 	pos.EntryAtBarClose = entryAtClose
 	pos.RequestedQuantity = requestedQty
 	pos.CashAtOpen = cashAtOpen
-	pos.BarAgeSeconds = now.Sub(candle.Timestamp).Seconds()
+	// Метка бара — его начало, а приходит он закрытым: лаг фида считаем от конца бара.
+	barEnd := candle.Timestamp.Add(engine.CandleBarDuration(s.cfg.CandleTimeframe))
+	pos.BarAgeSeconds = now.Sub(barEnd).Seconds()
 	s.mu.Lock()
 	s.pos = pos
 	s.mu.Unlock()
@@ -323,7 +325,7 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 
 	logx.TradeOpen(s.cfg.Label, signal.Direction, signal.Quantity, signal.Price, signal.StopLoss, signal.TakeProfit)
 	logx.Info("[%s] bar_age=%s bar_time=%s",
-		s.cfg.Label, now.Sub(candle.Timestamp).Round(time.Second), candle.Timestamp.Format(time.RFC3339))
+		s.cfg.Label, now.Sub(barEnd).Round(time.Second), candle.Timestamp.Format(time.RFC3339))
 
 		// Limit-fill на баре: если на том же баре уже пробит SL/TP — закрыть по
 	// уровню, не ждать adverse tick.

@@ -51,7 +51,8 @@ type ClosedTrade struct {
 	RequestedQuantity int `json:"requested_quantity,omitempty"`
 	// CashAtOpen — свободный кэш на момент расчёта объёма (до резервирования доли).
 	CashAtOpen float64 `json:"cash_at_open,omitempty"`
-	// BarAgeSeconds — возраст свечи входа на момент открытия: лаг свечного фида.
+	// BarAgeSeconds — сколько прошло от КОНЦА свечи входа до открытия: лаг свечного
+	// фида. До 2026-09-23 считалось от начала свечи по формирующемуся бару (0004).
 	BarAgeSeconds float64 `json:"bar_age_seconds,omitempty"`
 }
 

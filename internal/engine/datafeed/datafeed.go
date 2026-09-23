@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"sync"
 
+	"bcs-trading-bot/internal/engine"
 	"bcs-trading-bot/internal/engine/broker"
 	"bcs-trading-bot/internal/models"
 )
@@ -34,7 +35,17 @@ type Feed struct {
 
 	mu      sync.Mutex
 	routes  map[broker.RouteKey][]broker.WorkerRoutes
+	closers []closerRoute
 	started bool
+}
+
+// closerRoute — подписчик на закрытые бары: WS пишет обновления в raw,
+// runBarCloser перекладывает закрытые бары в out.
+type closerRoute struct {
+	label string
+	tf    string
+	raw   chan models.Candle
+	out   chan<- models.Candle
 }
 
 // New создаёт DataFeed поверх уже сконфигурированного BCSClient
@@ -46,8 +57,10 @@ func New(client *broker.BCSClient) *Feed {
 	}
 }
 
-// Subscribe регистрирует маршрут для (ticker, timeframe): свечи/тики,
-// приходящие с биржи по этой паре, будут писаться в candleIn/tickIn.
+// Subscribe регистрирует маршрут для (ticker, timeframe): в candleIn приходят
+// только ЗАКРЫТЫЕ бары (см. barCloser), тики — как есть. Это единственный
+// режим для стратегий: backtest кормит их закрытыми барами, и live обязан
+// так же (docs/analysis/0004-live-decides-on-forming-bar.md).
 // Один и тот же (ticker, timeframe) может быть зарегистрирован несколько раз
 // разными подписчиками — каждый получит свою копию потока (fan-out на уровне
 // BCSClient, не на уровне Feed). tickIn может быть nil, если тики не нужны
@@ -67,6 +80,38 @@ func (f *Feed) Subscribe(ticker, timeframe string, candleIn chan<- models.Candle
 		return fmt.Errorf("datafeed: candleIn == nil для %s/%s", ticker, timeframe)
 	}
 
+	raw := make(chan models.Candle, 64)
+	if err := f.subscribe(ticker, timeframe, raw, tickIn); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	f.closers = append(f.closers, closerRoute{
+		label: ticker + "/" + timeframe,
+		tf:    timeframe,
+		raw:   raw,
+		out:   candleIn,
+	})
+	f.mu.Unlock()
+	return nil
+}
+
+// SubscribeForming — как Subscribe, но в candleIn идёт каждое обновление
+// формирующегося бара (метка — начало бара). Только для отображения
+// (live-график админки); решения по такому потоку принимать нельзя.
+func (f *Feed) SubscribeForming(ticker, timeframe string, candleIn chan<- models.Candle, tickIn chan<- models.Tick) error {
+	if ticker == "" {
+		return fmt.Errorf("datafeed: пустой ticker")
+	}
+	if timeframe == "" {
+		return fmt.Errorf("datafeed: пустой timeframe для %s (нет дефолта — передайте явно)", ticker)
+	}
+	if candleIn == nil {
+		return fmt.Errorf("datafeed: candleIn == nil для %s/%s", ticker, timeframe)
+	}
+	return f.subscribe(ticker, timeframe, candleIn, tickIn)
+}
+
+func (f *Feed) subscribe(ticker, timeframe string, candleIn chan<- models.Candle, tickIn chan<- models.Tick) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -98,7 +143,11 @@ func (f *Feed) Run(ctx context.Context) error {
 	}
 	f.started = true
 	routes := f.routes
+	closers := f.closers
 	f.mu.Unlock()
 
+	for _, cr := range closers {
+		go runBarCloser(ctx, cr.label, engine.CandleBarDuration(cr.tf), cr.raw, cr.out)
+	}
 	return f.client.SubscribeMarketDataFanOut(ctx, routes)
 }
