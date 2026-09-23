@@ -39,6 +39,9 @@ const (
 	// flushEvery — как часто сбрасывать gzip на диск. При падении процесса
 	// теряется не больше этого интервала.
 	flushEvery = 5 * time.Second
+	// reportEvery — период строки здоровья в логе. Пик очереди растёт раньше,
+	// чем начинаются потери, — по нему видно, что CPU/диск не успевают.
+	reportEvery = 5 * time.Minute
 )
 
 type message struct {
@@ -106,7 +109,10 @@ func (r *Recorder) run() {
 
 	flush := time.NewTicker(flushEvery)
 	defer flush.Stop()
+	report := time.NewTicker(reportEvery)
+	defer report.Stop()
 	var lastDropped int64
+	var written, maxQueue int
 
 	write := func(m message) {
 		day := m.recv.In(r.loc).Format("2006-01-02")
@@ -130,7 +136,18 @@ func (r *Recorder) run() {
 	for {
 		select {
 		case m := <-r.in:
+			if q := len(r.in) + 1; q > maxQueue {
+				maxQueue = q
+			}
 			write(m)
+			written++
+		case <-report.C:
+			// Ночью потока нет — и строки нет, чтобы не шуметь.
+			if written > 0 {
+				logx.Info("wsrecord: за %s записано %d сообщений, пик очереди %d/%d, отброшено всего %d",
+					reportEvery, written, maxQueue, bufferSize, r.dropped.Load())
+			}
+			written, maxQueue = 0, 0
 		case <-flush.C:
 			if f != nil {
 				if err := f.flush(); err != nil {
@@ -182,7 +199,13 @@ func openDay(dir, day string) (*dayFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("открытие %s: %w", path, err)
 	}
-	gz := gzip.NewWriter(file)
+	// BestSpeed: VM с долей vCPU 10%, на открытии поток идёт по всем тикерам
+	// разом. Файл немного больше, CPU заметно меньше.
+	gz, err := gzip.NewWriterLevel(file, gzip.BestSpeed)
+	if err != nil {
+		file.Close()
+		return nil, err
+	}
 	return &dayFile{day: day, path: path, file: file, gz: gz, buf: bufio.NewWriterSize(gz, 64<<10)}, nil
 }
 
