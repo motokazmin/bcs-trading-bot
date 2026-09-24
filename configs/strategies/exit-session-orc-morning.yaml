@@ -1,0 +1,53 @@
+# Переподбор блока ВЫХОДА слота session-orc-morning (session_orc).
+# Вход зафиксирован текущими значениями — иначе результат нельзя отнести
+# к выходу. trailActivationR — доля от тейка (`of`), поэтому трейл
+# достижим по построению. Протокол: docs/analysis/0003-*.
+trading_mode: virtual
+class_code: TQBR
+candle_timeframe: M5
+session:
+  timezone: Europe/Moscow
+  session_open_time: 07:00
+  eod_close_time: 09:50
+  entry_delay_minutes: 0
+strategy:
+  type: session_orc
+  stop_mode: atr
+search_space:
+  strategy: session_orc
+  parameters:
+    rewardRatio:
+      type: float
+      min: 1.0
+      max: 3.0
+    trailActivationR:
+      type: float
+      min: 0.2
+      max: 0.95
+      of: rewardRatio
+    trailBreakevenR:
+      type: float
+      min: 0.0
+      max: 0.2
+    trailStageMax:
+      type: int
+      min: 1
+      max: 4
+  fixed:
+    atrPeriod: 14
+    atrMultiplier: 0.8930746929599627
+    breakoutThreshold: 0.0037667883833940297
+    orbMinutes: 14
+    maxEntriesPerTickerPerDay: 1
+    minStopBps: 20
+    riskPerTradePercent: 0.2
+    dailyLossLimitPercent: 2.0
+    maxParallelTrades: 5
+    takeProfitEnabled: 1
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.2
+  max_parallel_trades: 5
+virtual:
+  balance: 200000

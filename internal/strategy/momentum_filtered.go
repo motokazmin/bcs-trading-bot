@@ -3,7 +3,7 @@ package strategy
 import (
 	"sync"
 
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func init() {
@@ -89,11 +89,11 @@ func (s *MomentumFiltered) OnCandle(candle models.Candle) *models.Order {
 	}
 
 	entry := close
-	stopCfg := stopConfig{
+	stopCfg := s.opts.applyTo(stopConfig{
 		StopMode: s.opts.StopMode, ATRPeriod: s.opts.ATRPeriod,
 		ATRMultiplier: s.opts.ATRMultiplier, RangeUseCap: s.opts.RangeUseCap,
 		RewardRatio: s.opts.RewardRatio,
-	}
+	})
 	sl, tp := calcStopTP(direction, entry, upper, lower, s.buffer.history, stopCfg)
 	order := buildOrder(candle, direction, entry, sl, tp, upper, lower)
 	if order == nil {

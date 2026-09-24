@@ -1,0 +1,64 @@
+# Переподбор блока ВЫХОДА ORC, вариант A: фиксированный тейк + трейлинг.
+# Вход зафиксирован параметрами принятого чемпиона (0003), крутится только выход —
+# иначе нельзя отнести результат к выходу.
+#
+# trailActivationR задан ДОЛЕЙ от rewardRatio (`of`): активация обязана быть ниже
+# тейка, иначе трейл не включится никогда. Дважды выбиралось мёртвым, см. 0003.
+
+trading_mode: virtual
+class_code: TQBR
+candle_timeframe: M5
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "10:00"
+  eod_close_time: "18:40"
+  entry_delay_minutes: 0
+
+strategy:
+  type: opening_range_continuation
+  stop_mode: atr
+
+search_space:
+  strategy: opening_range_continuation
+  parameters:
+    rewardRatio:
+      type: float
+      min: 1.0
+      max: 3.0
+    trailActivationR:
+      type: float
+      min: 0.25
+      max: 0.95
+      of: rewardRatio
+    trailBreakevenR:
+      type: float
+      min: 0.0
+      max: 0.20
+    trailStageMax:
+      type: int
+      min: 1
+      max: 4
+  fixed:
+    takeProfitEnabled: 1
+    # Вход — из принятого чемпиона 0003, не трогаем.
+    orbMinutes: 22
+    atrMultiplier: 0.8255005415774227
+    breakoutThreshold: 0.0038093119295890838
+    atrPeriod: 14
+    maxEntriesPerTickerPerDay: 1
+    allowAllTickers: 1
+    # Механика исполнения — синхронно с configs/runs/portfolio-paper.yaml.
+    minStopBps: 20
+    riskPerTradePercent: 0.20
+    dailyLossLimitPercent: 2.0
+    maxParallelTrades: 5
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  risk_per_trade_percent: 0.20
+  max_parallel_trades: 5
+
+virtual:
+  balance: 200000

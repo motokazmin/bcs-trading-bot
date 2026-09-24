@@ -1,7 +1,9 @@
 # Portfolio
 
 Production paper-портфель: **6 слотов** на одном virtual-счёте 200 000 ₽
-(5 legacy champions + ORC complement на тикерах вне Main ORC).
+(5 champions + ORC Complement на тикерах вне Main ORC).
+Каждый слот — стратегия на `StrategyRunner`/`SelfManagedStrategy`
+(граница движок/стратегия: [`0001-engine-strategy-boundary.md`](0001-engine-strategy-boundary.md)).
 
 Конфиг запуска: `configs/runs/portfolio-paper.yaml`.  
 Снапшоты параметров: `configs/champions/*.yaml`.  
@@ -95,7 +97,7 @@ Solo walk-forward ищет параметры **одной** стратегии.
 | Документ | [`optimizer-modes.md`](optimizer-modes.md) | этот файл + [`baseline.md`](baseline.md) |
 
 Команды: `make optimizer-orc`, `make optimizer-or-fade`, `make optimizer-afternoon`.  
-Research (wide + rolling, не paper): `make optimizer-orc-research` — см. [`research-rolling.md`](research-rolling.md).
+Research (wide + rolling, не paper): `make optimizer-orc-research` — см. [`research/research-rolling.md`](research/research-rolling.md).
 Выход: `results/<name>/` (локально, в git не коммитится).
 
 Главная метрика решений — **`expectancy_r`** и net PnL в ₽, не только Calmar score.

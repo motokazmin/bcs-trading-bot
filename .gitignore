@@ -1,12 +1,27 @@
 # Локальные переопределения (не коммитить)
 configs/local*.yaml
 
+# Секреты
+.env
+.env.*
+
 # Бинарник
 #bot
 
 # Локальная история и runtime-артефакты SQLite (корень репозитория)
 /data/*
 !data/trades.db
+# Архивы периодов админки: определяют, какие сделки видит UI и make analyze.
+# Ходят вместе с trades.db, иначе выборка разъедется между машинами.
+!data/archives.json
+# Журнал прогресса разбора сделок — append-only, коммитится (docs/analysis/README.md).
+# trades_enriched.csv пересоздаётся каждым прогоном и остаётся локальным.
+!data/analysis/
+data/analysis/*
+!data/analysis/metrics.csv
+# Водяной знак разбора: дата, last_trade_id и отпечаток конфига. Определяет, что
+# считается «новыми сделками», — без него на другой машине границы не будет.
+!data/analysis/review-state.json
 data/*.db-wal
 data/*.db-shm
 bin/
@@ -15,3 +30,7 @@ results/
 # IDE
 .idea/
 .vscode/
+
+# Сырые прогоны оптимизатора: графики и экспорт занимают десятки мегабайт.
+# Принятые параметры живут в configs/champions/*, разбор — в docs/analysis/.
+results/

@@ -20,6 +20,11 @@ candle_timeframe: M5
 
 costs:
   commission_rate_per_leg: 0.00008
+  # Проскальзывание + половина спреда на КАЖДОЙ ноге. 1 б.п. — консервативно-мягкая
+  # оценка для ликвидных TQBR. Для стратегий со входом лимитом на уровне (ORC) вход
+  # так оценивается с запасом: лимит не проскальзывает, он либо исполняется, либо нет.
+  # Стресс без правки конфига: portfolio-backtest -slippage-bps N
+  slippage_bps: 1
 
 session:
   timezone: Europe/Moscow
@@ -27,20 +32,37 @@ session:
   eod_close_time: "18:40"
   entry_delay_minutes: 0
 
+# Переоптимизация 2026-09-11 под новую механику (гейт 20 б.п., риск 0.20,
+# slippage 1 б.п.). Подбор 2024-07 → 2026-03, валидация 2026-04 → 2026-09:
+# exp_R слота +0.415 → +0.579, прибавка out-of-sample БОЛЬШЕ, чем in-sample.
+# Блок выхода переподобран отдельно 2026-09-11: тейк 1.641 → 1.225,
+# активация трейла 1.515 → 0.364 (взводится рано), стадий 1 → 4.
+# Протокол и цифры: docs/analysis/0003-reoptimization-protocol.md
 strategy:
   type: opening_range_continuation
   stop_mode: atr
   atr_period: 14
-  orb_minutes: 12
-  atr_multiplier: 0.8481945297174166
-  breakout_threshold: 0.003393790484079248
-  reward_ratio: 1.6410674740062587
-  trail_activation_r: 1.5150736483279235
-  trail_breakeven_r: 0.01394552332498874
-  trail_stage_max: 1
+  orb_minutes: 22
+  atr_multiplier: 0.8255005415774227
+  breakout_threshold: 0.0038093119295890838
+  reward_ratio: 1.2252486811670087
+  trail_activation_r: 0.36444625770407696
+  trail_breakeven_r: 0.05609400652974883
+  trail_stage_max: 4
   max_trades_per_ticker_per_day: 1
   allow_all_tickers: true
 
+  # Порог по стоимости сделки, не подгонка: комиссия 1.6 б.п. round-trip плюс
+  # спред 1–5 б.п. Стоп в 20 б.п. — примерно 10x издержек. Ужесточать только
+  # по новым данным (docs/analysis/state.md), а не по этим 95 сделкам.
+  min_stop_bps: 20
+  # Фикс. тейк резал победителей (18/18 сделок шли дальше). Выход — трейлинг.
+  # Проверено переподбором выхода 2026-09-11: трейлинг как ЕДИНСТВЕННЫЙ выход
+  # подбирался отдельно (300 trials, активация 0.3–3.0 абсолютом) и проиграл
+  # варианту «тейк + трейл» в ОБОИХ периодах: exp_R слота 0.393 против 0.631 на
+  # валидации, 0.421 против 0.567 на подборе. Гипотеза закрыта отрицательно,
+  # флаг оставлен только как след. Разбор: docs/analysis/0003-*.
+  take_profit_enabled: false
 risk:
   deposit: 200000
   max_daily_loss_percent: 2.0

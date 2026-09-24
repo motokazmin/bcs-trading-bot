@@ -11,17 +11,17 @@ import (
 	"syscall"
 	"time"
 
-	"bcs-trading-bot/internal/bcs"
-	"bcs-trading-bot/internal/costs"
-	"bcs-trading-bot/internal/marketdata"
+	"bcs-trading-bot/internal/engine/broker"
+	"bcs-trading-bot/internal/engine/costs"
+	"bcs-trading-bot/internal/engine/marketdata"
 	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/internal/optimizer/charts"
 	"bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/optimizer/eval"
 	"bcs-trading-bot/internal/optimizer/report"
 	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/pkg/logx"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/logx"
+	"bcs-trading-bot/internal/models"
 )
 
 const defaultTickersConfig = "configs/shared/tickers.yaml"
@@ -291,6 +291,8 @@ func portfolioBacktestCmd(args []string) {
 	dateTo := fs.String("date-to", "", "конец периода YYYY-MM-DD (default: из CSV)")
 	deposit := fs.Float64("deposit", 200000, "единый депозит")
 	maxParallel := fs.Int("max-parallel", 5, "лимит одновременных позиций")
+	intrabar := fs.Int("intrabar-oscillations", 1, "проходов по экстремумам свечи при проверке SL/TP: 1 — обычно, 2-3 — стресс-тест тиков")
+	slippage := fs.Float64("slippage-bps", -1, "override costs.slippage_bps: проскальзывание на ногу, б.п. (-1 = из YAML)")
 	_ = fs.Parse(args)
 
 	opts := eval.PortfolioBacktestOptions{
@@ -298,6 +300,8 @@ func portfolioBacktestCmd(args []string) {
 		HistoryDir:  *historyDir,
 		Deposit:     *deposit,
 		MaxParallel: *maxParallel,
+		IntrabarOscillations: *intrabar,
+		SlippageBps:          *slippage,
 	}
 	if *dateFrom != "" {
 		from, err := report.ParseDate(*dateFrom)
@@ -432,9 +436,8 @@ func syncHistoryCmd(args []string) {
 		years = *initialYears
 	}
 
-	client := bcs.NewBCSClient(token)
+	client := broker.NewBCSClient(token)
 	client.SetClassCode(u.ClassCode)
-	client.SetCandleTimeFrame(u.CandleTimeframe)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

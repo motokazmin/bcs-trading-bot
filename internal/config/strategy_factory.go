@@ -25,11 +25,12 @@ func (s StrategyConfig) toStrategyParams(session SessionConfig) (strategy.Params
 		switch key {
 		case "type", "stop_mode",
 			"trail_activation_r", "trail_discrete_step_r", "trail_stage_max", "trail_breakeven_r":
-			continue // stop_mode → BuildContext; trail читает engine
+			continue // stop_mode → BuildContext; trail_* → adapter (trailing.Apply), не сигнальные params
 		}
 		pk := paramKeyForYAML(key)
 		switch key {
-		case "volume_filter", "long_only", "require_inside_range", "allow_all_tickers":
+		case "volume_filter", "long_only", "require_inside_range", "allow_all_tickers",
+			"take_profit_enabled":
 			if b, ok := toBool(val); ok {
 				if b {
 					p[pk] = 1

@@ -2,7 +2,7 @@
 
 Торговый робот на Go для [BCS Trade API](https://trade-api.bcs.ru). Дейтрейдинг акциями MOEX (TQBR) на M5 с жёстким риск-менеджментом.
 
-Paper portfolio — **5 champions** на едином счёте 200 000 ₽: Morning/Evening Session ORC, ORC, OR Fade, MF Afternoon.
+Paper portfolio — **6 слотов** на едином счёте 200 000 ₽: Morning/Evening Session ORC, Main ORC, ORC Complement, OR Fade, MF Afternoon.
 
 | | |
 |---|---|
@@ -10,6 +10,7 @@ Paper portfolio — **5 champions** на едином счёте 200 000 ₽
 | Портфель | [`docs/portfolio.md`](docs/portfolio.md) |
 | Baseline | [`docs/baseline.md`](docs/baseline.md) |
 | Система | [`docs/system.md`](docs/system.md) |
+| Архитектура | [`docs/architecture.md`](docs/architecture.md) · [`docs/0001-engine-strategy-boundary.md`](docs/0001-engine-strategy-boundary.md) |
 | Стратегии | [`docs/strategies.md`](docs/strategies.md) |
 | Optimizer | [`docs/optimizer-modes.md`](docs/optimizer-modes.md) · [`cmd/optimizer/README.md`](cmd/optimizer/README.md) |
 | План | [`Roadmap.md`](Roadmap.md) |
@@ -27,11 +28,15 @@ Paper portfolio — **5 champions** на едином счёте 200 000 ₽
 
 ## Архитектура
 
+Карта сущностей и их роли — [`docs/architecture.md`](docs/architecture.md).
+
 ```
 cmd/bot
   YAML → OAuth2 → OrderExecutor (virtual | real)
-  WebSocket (M5 + quotes) → fan-out → TickerWorker × (experiment × ticker)
-                                  → Strategy + Risk + trailing + tradeaudit
+  WebSocket (M5 + quotes) → DataFeed (fan-out по ticker,timeframe)
+      → StrategyRunner × (experiment × ticker)
+          → SelfManagedStrategy: сигнал → сайзинг → limit entry → SL/TP/trail → EOD
+          → GlobalRisk (риск-бюджет, CB) + TradeStore + tradeaudit
 ```
 
 При секции `experiments` все слоты на **одном** счёте (общий депозит, CB, one-position-per-ticker). HTTP-админка в том же процессе (`-http-listen`).
@@ -71,7 +76,7 @@ make bot-smoke
 
 | Файл | Назначение |
 |---|---|
-| `configs/runs/portfolio-paper.yaml` | Paper: 5 champions |
+| `configs/runs/portfolio-paper.yaml` | Paper: 6 слотов |
 | `configs/champions/*.yaml` | Snapshot params champions |
 | `configs/runs/real-stocks.yaml` | Real, один тикер/experiment |
 | `configs/runs/virtual-futures.yaml` | Paper фьючерсы (не portfolio) |
@@ -85,9 +90,9 @@ make bot-smoke
 
 ## Логи
 
-`pkg/logx`: `[SYS]`, `[OPEN]`, `[TP]`/`[SL]`/`[EOD]`, `[TRAIL]`, `[SKIP]`, `[AUDIT]`, `[WS]`, `[ERR]`.
+`internal/logx`: `[SYS]`, `[OPEN]`, `[TP]`/`[SL]`/`[EOD]`, `[TRAIL]`, `[SKIP]`, `[AUDIT]`, `[WS]`, `[ERR]`.
 
-Метка воркера: `[TATN]` или `[orc-wave2/TATN]`. Файл по умолчанию: `/var/log/trading-bot/bot.log`.
+Метка стратегии: `strategy/<experiment>/<ticker>` (напр. `strategy/orc-wave2/TATN`). Файл по умолчанию: `/var/log/trading-bot/bot.log`.
 
 Paper: SL/TP по уровню; после ORC limit-fill — same-bar проверка. Аномалии — `[AUDIT]` и поля `audit_*` в БД/export.
 
@@ -102,16 +107,24 @@ Export JSON + prompt для ИИ (версия в `internal/export`).
 
 ## Модули
 
+Две зоны: `internal/engine/**` — каркас (меняется редко), `internal/strategy/**` —
+стратегии (меняется часто). Сборка приложения — `internal/app`.
+
 | Пакет | Роль |
 |---|---|
-| `internal/engine` | `TickerWorker`, сессия, freshness M5 |
-| `internal/strategy` | Сигналы |
-| `internal/position` | Состояние, fill-at-level, same-bar |
-| `internal/tradeaudit` | Валидность входа/выхода |
-| `internal/risk` | Лот, CB, global risk |
-| `internal/simulation` | Backtest runner |
-| `internal/storage/sqlite` | `closed_trades` |
-| `internal/export` / `internal/live` | Выгрузка и HTTP UI |
+| `internal/engine` | `StrategyRunner`, `SessionClock`, freshness бара |
+| `internal/engine/contract` | Граница движок↔стратегия: `Strategy`, `StrategyContext`, порты, `OrderExecutor`/`TradeStore` |
+| `internal/engine/broker` / `internal/engine/execution` | Клиент БКС / paper-исполнитель |
+| `internal/engine/datafeed` | Единая WS-подписка (ticker, timeframe) → fan-out |
+| `internal/engine/{position,trailing,tradeaudit,risk,costs}` | Примитивы торгового цикла |
+| `internal/engine/storage/sqlite` | `closed_trades` |
+| `internal/engine/dashboard` + `internal/engine/api` | HTTP UI/API админки |
+| `internal/engine/marketdata` | Загрузка истории |
+| `internal/strategy` | Сигнальные стратегии (`CandleStrategy`) + registry |
+| `internal/strategy/selfmanaged` | `SelfManagedStrategy` — сигнал → позиция/SL/TP/EOD/сайзинг |
+| `internal/app` | Composition root: флаги, зависимости, сборка `Trader` |
+| `internal/backtest` | Backtest runner |
+| `internal/config`, `internal/export`, `internal/optimizer` | Конфиг, выгрузка, оптимизатор |
 | `cmd/bot`, `cmd/optimizer` | Бинарники |
 
 ---

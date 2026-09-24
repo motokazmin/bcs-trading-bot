@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"bcs-trading-bot/internal/costs"
+	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/strategy"
 
 	"gopkg.in/yaml.v3"
@@ -59,6 +59,11 @@ type ExperimentConfig struct {
 	WeekendOnly       *bool          `yaml:"weekend_only"`
 	Strategy          StrategyConfig `yaml:"strategy"`
 	Risk              RiskConfig     `yaml:"risk"`
+	// CandleTimeframe — таймфрейм свечей для этого эксперимента (M1, M5, H1, ...).
+	// Если пусто — используется корневой Config.CandleTimeFrame. Разные эксперименты
+	// в одном процессе могут подписываться на разные таймфреймы одного или разных
+	// тикеров (см. internal/engine/datafeed) — это часть ADR 0001 "свобода стратегии".
+	CandleTimeframe string `yaml:"candle_timeframe"`
 }
 
 // ResolvedExperiment — нормализованный эксперимент, готовый к запуску воркеров.
@@ -73,6 +78,9 @@ type ResolvedExperiment struct {
 	WeekendOnly       *bool
 	Strategy          StrategyConfig
 	Risk              RiskConfig
+	// CandleTimeframe — эффективный таймфрейм эксперимента: exp.CandleTimeframe,
+	// если задан, иначе Config.CandleTimeFrame (заполняется в ResolvedExperiments()).
+	CandleTimeframe string
 }
 
 type StorageConfig struct {
@@ -120,6 +128,19 @@ type RiskConfig struct {
 	MaxDailyLossPercent float64 `yaml:"max_daily_loss_percent"`
 	RiskPerTradePercent float64 `yaml:"risk_per_trade_percent"`
 	MaxParallelTrades   int     `yaml:"max_parallel_trades"`
+	// CashUtilizationPercent — сколько от свободного кэша можно резервировать под одну
+	// позицию (0-100]. Буфер защищает от отказов на границе (slippage/комиссия/раунд-off
+	// между капом и фактическим ордером) и оставляет кэш другим параллельным слотам на
+	// общем virtual-счёте. 0 или не задано → дефолт 95.
+	CashUtilizationPercent float64 `yaml:"cash_utilization_percent"`
+}
+
+// EffectiveCashUtilization возвращает долю кэша (0;1], доступную под одну позицию.
+func (r RiskConfig) EffectiveCashUtilization() float64 {
+	if r.CashUtilizationPercent <= 0 || r.CashUtilizationPercent > 100 {
+		return 0.95
+	}
+	return r.CashUtilizationPercent / 100
 }
 
 type VirtualConfig struct {
@@ -153,15 +174,20 @@ func (c *Config) HasExperiments() bool {
 func (c *Config) ResolvedExperiments() []ResolvedExperiment {
 	if !c.HasExperiments() {
 		return []ResolvedExperiment{{
-			ID:       defaultExperimentID,
-			Name:     defaultExperimentID,
-			Strategy: c.Strategy,
-			Risk:     c.Risk,
+			ID:              defaultExperimentID,
+			Name:            defaultExperimentID,
+			Strategy:        c.Strategy,
+			Risk:            c.Risk,
+			CandleTimeframe: c.CandleTimeFrame,
 		}}
 	}
 
 	out := make([]ResolvedExperiment, len(c.Experiments))
 	for i, exp := range c.Experiments {
+		timeframe := strings.TrimSpace(exp.CandleTimeframe)
+		if timeframe == "" {
+			timeframe = c.CandleTimeFrame
+		}
 		out[i] = ResolvedExperiment{
 			ID:                exp.ID,
 			Name:              exp.Name,
@@ -173,6 +199,7 @@ func (c *Config) ResolvedExperiments() []ResolvedExperiment {
 			WeekendOnly:       exp.WeekendOnly,
 			Strategy:          exp.Strategy,
 			Risk:              exp.Risk,
+			CandleTimeframe:   timeframe,
 		}
 	}
 	return out

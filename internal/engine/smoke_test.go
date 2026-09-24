@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"bcs-trading-bot/pkg/interfaces"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/engine/contract"
+	"bcs-trading-bot/internal/models"
 )
 
 type smokeExecutor struct {
@@ -19,7 +19,7 @@ func (e *smokeExecutor) ExecuteOrder(_ context.Context, order models.Order) erro
 
 func (e *smokeExecutor) GetBalance(context.Context) (float64, error) { return 0, nil }
 
-var _ interfaces.OrderExecutor = (*smokeExecutor)(nil)
+var _ contract.OrderExecutor = (*smokeExecutor)(nil)
 
 func TestRunSmokeCycle(t *testing.T) {
 	exec := &smokeExecutor{}

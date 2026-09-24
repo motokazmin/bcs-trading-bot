@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"bcs-trading-bot/internal/marketdata"
+	"bcs-trading-bot/internal/engine/marketdata"
 	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/optimizer/eval"
-	"bcs-trading-bot/pkg/logx"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/logx"
+	"bcs-trading-bot/internal/models"
 )
 
 // TwoPhaseConfig — двухфазный поиск: random search на lean universe, финал на полном.

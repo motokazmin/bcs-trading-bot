@@ -6,7 +6,7 @@ import (
 	"time"
 
 	core "bcs-trading-bot/internal/optimizer/core"
-	"bcs-trading-bot/pkg/logx"
+	"bcs-trading-bot/internal/logx"
 )
 
 // WindowResult — метрики одного окна.

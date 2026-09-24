@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"bcs-trading-bot/internal/strategy"
-	"bcs-trading-bot/internal/trailing"
+	"bcs-trading-bot/internal/engine/trailing"
 )
 
 func TestEncodeParamsSnapshot(t *testing.T) {

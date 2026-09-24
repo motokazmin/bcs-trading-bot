@@ -4,6 +4,11 @@ initial_history_years: 2
 
 costs:
   commission_rate_per_leg: 0.00008
+  # Проскальзывание + половина спреда на КАЖДОЙ ноге. Поле обязано быть здесь:
+  # costs.Config.SlippageBps по умолчанию 0, и без явной строки оптимизатор
+  # подбирал бы параметры под идеальный фил, которого не бывает. Чувствительность
+  # ~0.067R на б.п. — docs/analysis/0002-live-config-drift-and-cash-sizing.md
+  slippage_bps: 1
 
 # ORC whitelist — лучшие тикеры по live virtual (opening-range-continuation).
 tickers:

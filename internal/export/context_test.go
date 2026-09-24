@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"bcs-trading-bot/internal/export"
-	"bcs-trading-bot/pkg/models"
+	"bcs-trading-bot/internal/models"
 )
 
 func TestDefaultLiveStrategyContextNoFixedRR13(t *testing.T) {
