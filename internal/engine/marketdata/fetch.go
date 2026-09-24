@@ -219,6 +219,7 @@ func fetchCandlesChunk(ctx context.Context, client *broker.BCSClient, classCode,
 	cfg = cfg.Normalized()
 	throttle := cfg.ThrottleOrDefault()
 	var lastErr error
+	reauthed := false
 
 	for attempt := 0; attempt <= cfg.MaxRetries; attempt++ {
 		if attempt > 0 {
@@ -244,6 +245,18 @@ func fetchCandlesChunk(ctx context.Context, client *broker.BCSClient, classCode,
 				throttle.OnSuccess() // отлупов нет — throttle ускоряется
 			}
 			return bars, nil
+		}
+		if isUnauthorizedAPIError(err) && !reauthed {
+			// Access token живёт минуты, а обновляется только при
+			// переподключении WS. Открытый WS токен не перепроверяет, поэтому
+			// торговля идёт, а REST (графики админки) получает 401 на
+			// протухшем токене. Обновляем токен и повторяем один раз.
+			reauthed = true
+			if authErr := client.Connect(ctx); authErr != nil {
+				return nil, fmt.Errorf("%w (обновление токена: %v)", err, authErr)
+			}
+			attempt--
+			continue
 		}
 		if !isRetryableAPIError(err) {
 			return nil, err
@@ -383,6 +396,11 @@ func isRetryableAPIError(err error) bool {
 	return strings.Contains(msg, "статус 429") ||
 		strings.Contains(msg, "статус 503") ||
 		strings.Contains(msg, "RATE_LIMIT")
+}
+
+// isUnauthorizedAPIError — 401 от candles-chart: протух access token.
+func isUnauthorizedAPIError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "статус 401")
 }
 
 // barDurationForTimeFrame — номинальный шаг между барами для таймфрейма.

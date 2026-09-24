@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"bcs-trading-bot/internal/engine/contract"
@@ -28,6 +29,9 @@ const (
 type BCSClient struct {
 	httpClient   *http.Client
 	refreshToken string
+	// mu — accessToken обновляют и WS-цикл (переподключение по 401), и
+	// REST-запросы админки из HTTP-горутин.
+	mu           sync.RWMutex
 	accessToken  string
 	classCode    string
 	clientID     string
@@ -54,6 +58,8 @@ func (c *BCSClient) SetWriteMode() {
 
 // AccessToken возвращает текущий OAuth2 access token.
 func (c *BCSClient) AccessToken() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.accessToken
 }
 
@@ -89,7 +95,9 @@ func (c *BCSClient) Connect(ctx context.Context) error {
 	if !ok {
 		return fmt.Errorf("access_token не найден в ответе Keycloak")
 	}
+	c.mu.Lock()
 	c.accessToken = token
+	c.mu.Unlock()
 	return nil
 }
 
