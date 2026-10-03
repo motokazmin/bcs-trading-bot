@@ -3,9 +3,9 @@
 Куда смотреть в коде/конфигах:
 
 - Search space: `configs/strategies/*.yaml` → блок `search_space`
-- Зафиксированные чемпионы: `configs/champions/*.yaml`
+- Зафиксированные чемпионы: `configs/legacy/champions/*.yaml`
 - Наборы тикеров для прогонов: `configs/shared/tickers-*.yaml`
-- Как искали: [`docs/optimizer-modes.md`](../../optimizer-modes.md)
+- Как искали: [`docs/optimizer-modes.md`](../../../docs/optimizer-modes.md)
 
 Ниже — **какие параметры реально крутили** при поиске, а не все поля YAML подряд.
 
@@ -48,7 +48,7 @@
 ### 1. Утренний Session ORC
 
 - Search space: `configs/strategies/session-orc-morning.yaml`
-- Champion: `configs/champions/session-orc-morning-wave2.yaml`
+- Champion: `configs/legacy/champions/session-orc-morning-wave2.yaml`
 
 | Параметр | Диапазон поиска | В чемпионе |
 |---|---|---|
@@ -68,7 +68,7 @@
 ### 2. Main ORC
 
 - Search space (wave2): `configs/strategies/orc-wave2.yaml`
-- Champion: `configs/champions/orc-wave2.yaml`
+- Champion: `configs/legacy/champions/orc-wave2.yaml`
 
 | Параметр | Диапазон поиска | В чемпионе |
 |---|---|---|
@@ -89,7 +89,7 @@
 ### 3. OR Fade
 
 - Search space (база): `configs/strategies/or-fade.yaml`
-- Champion: `configs/champions/or-fade-wave3-afks.yaml`
+- Champion: `configs/legacy/champions/or-fade-wave3-afks.yaml`
 
 | Параметр | Диапазон поиска | В чемпионе |
 |---|---|---|
@@ -118,7 +118,7 @@
 
 - Широкий space: `configs/strategies/momentum-filtered-afternoon.yaml`
 - Узкий (longonly-narrow): `...-longonly-narrow-ws2.yaml`
-- Champion: `configs/champions/mf-afternoon-reopt-s2.yaml`
+- Champion: `configs/legacy/champions/mf-afternoon-reopt-s2.yaml`
 
 | Параметр | Широкий поиск | Узкий (пример) | В чемпионе |
 |---|---|---|---|
@@ -144,7 +144,7 @@ Fixed в space: `longOnly: 1`
 ### 5. Вечерний Session ORC
 
 - Search space: `configs/strategies/session-orc-evening.yaml`
-- Champion: `configs/champions/session-orc-evening-wave2.yaml`
+- Champion: `configs/legacy/champions/session-orc-evening-wave2.yaml`
 
 | Параметр | Диапазон поиска | В чемпионе |
 |---|---|---|

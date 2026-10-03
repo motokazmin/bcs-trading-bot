@@ -1,7 +1,7 @@
 # Стратегии
 
 Архитектура стратегий и как добавить новую.
-Портфель champions: [`portfolio.md`](portfolio.md). Система: [`system.md`](system.md). Optimizer: [`optimizer-modes.md`](optimizer-modes.md). Граница движок/стратегия: [`0001-engine-strategy-boundary.md`](0001-engine-strategy-boundary.md).
+Состояние слотов: [`baseline.md`](baseline.md), [`analysis/state.md`](analysis/state.md). Система: [`system.md`](system.md). Optimizer: [`optimizer-modes.md`](optimizer-modes.md). Граница движок/стратегия: [`0001-engine-strategy-boundary.md`](0001-engine-strategy-boundary.md).
 
 ---
 
@@ -126,7 +126,7 @@ func init() {
 Один эксперимент — корневые `strategy` + `tickers`:
 
 ```bash
-go run ./cmd/bot -config configs/champions/orc-wave2.yaml
+go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
 ```
 
 Портфель — секция `experiments[]` (как в `portfolio-paper.yaml`): один счёт
@@ -147,7 +147,7 @@ bin/optimizer backtest ...
 bin/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
 ```
 
-`best-config` **не** автодеплоится — снапшот в `configs/champions/` вручную.
+`best-config` **не** автодеплоится. Параметры попадают в `configs/runs/*` только после зарегистрированной проверки (`docs/analysis/0008`, `0012` — формат).
 
 ---
 

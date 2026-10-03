@@ -6,7 +6,7 @@ Offline подбор гиперпараметров акций TQBR: walk-forwar
 Портфель: [`docs/portfolio.md`](../../docs/portfolio.md). Baseline: [`docs/baseline.md`](../../docs/baseline.md).  
 Запуск рядом с ботом: [`docs/runbook.md`](../../docs/runbook.md).
 
-FROZEN champions **не** крутить без явного запроса.
+Чемпионов нет (`configs/legacy/`); новые параметры — только через зарегистрированную проверку.
 
 Отдельный бинарник `bin/optimizer`. Тот же цикл сделки, что в боте (`internal/backtest` ≈ live-адаптер `internal/strategy/selfmanaged`).
 
@@ -22,7 +22,7 @@ FROZEN champions **не** крутить без явного запроса.
 | Score trial | медиана по окнам (Calmar / PnL) |
 | Выход | `optimizer-run-*.json`, `best-config-*.yaml`, `charts/` |
 
-`best-config` **не** автодеплоится — snapshot в `configs/champions/` вручную.
+`best-config` **не** автодеплоится. В `configs/runs/*` — только после зарегистрированной проверки (`docs/analysis/0008`, `0012`).
 
 **Главная метрика champion — `expectancy_r` и PnL в ₽**, не только score.  
 `score > 0` не гарантирует плюс в деньгах.

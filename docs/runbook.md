@@ -1,6 +1,6 @@
 # Runbook: бот и optimizer
 
-Шпаргалка запуска. Портфель — [`portfolio.md`](portfolio.md), режимы optimizer — [`optimizer-modes.md`](optimizer-modes.md), CLI — [`cmd/optimizer/README.md`](../cmd/optimizer/README.md).
+Шпаргалка запуска. Состояние слотов — [`analysis/state.md`](analysis/state.md), режимы optimizer — [`optimizer-modes.md`](optimizer-modes.md), CLI — [`cmd/optimizer/README.md`](../cmd/optimizer/README.md).
 
 ---
 
@@ -177,7 +177,7 @@ go run ./cmd/optimizer portfolio-backtest \
 |---|---|
 | Solo vs portfolio | [`optimizer-modes.md`](optimizer-modes.md) |
 | CLI флаги | [`cmd/optimizer/README.md`](../cmd/optimizer/README.md) |
-| Champions | [`portfolio.md`](portfolio.md) |
+| Состояние слотов | [`analysis/state.md`](analysis/state.md) |
 | Baseline | [`baseline.md`](baseline.md) |
 
 ---
@@ -283,5 +283,5 @@ make analyze-mark LABEL="что именно разобрали"
 ### Если по ходу меняли конфиг
 
 Порядок обратный: сначала заархивировать прошлый период, потом переснять
-`docs/baseline.md` (`portfolio-backtest`), потом ставить знак. Параметры чемпионов
+`docs/baseline.md` (`portfolio-backtest`), потом ставить знак. Параметры слотов
 после смены механики фила, стопа или гейта недействительны — нужна переоптимизация.

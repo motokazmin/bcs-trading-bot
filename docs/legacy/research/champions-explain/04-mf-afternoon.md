@@ -1,6 +1,6 @@
 # MF Afternoon
 
-Snapshot: `configs/champions/mf-afternoon-reopt-s2.yaml`  
+Snapshot: `configs/legacy/champions/mf-afternoon-reopt-s2.yaml`  
 Слот портфеля: Afternoon (`mf-afternoon`)  
 Предыдущий snapshot: `mf-afternoon-longonly-narrow-ws2.yaml`
 

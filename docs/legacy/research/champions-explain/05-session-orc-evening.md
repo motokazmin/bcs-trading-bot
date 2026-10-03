@@ -1,6 +1,6 @@
 # Вечерний Session ORC
 
-Snapshot: `configs/champions/session-orc-evening-wave2.yaml`  
+Snapshot: `configs/legacy/champions/session-orc-evening-wave2.yaml`  
 Слот портфеля: вечер (`session-orc-evening`)
 
 ## Зачем эта стратегия (обоснование)

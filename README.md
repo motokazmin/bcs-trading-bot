@@ -76,8 +76,8 @@ make bot-smoke
 
 | Файл | Назначение |
 |---|---|
-| `configs/runs/portfolio-paper.yaml` | Paper: 6 слотов |
-| `configs/champions/*.yaml` | Snapshot params champions |
+| `configs/runs/portfolio-paper.yaml` | Paper: 6 слотов — стенд исполнения, проверенного преимущества нет |
+| `configs/legacy/` | Чемпионы и research-конфиги старой модели (история) |
 | `configs/runs/real-stocks.yaml` | Real, один тикер/experiment |
 | `configs/runs/virtual-futures.yaml` | Paper фьючерсы (не portfolio) |
 | `configs/strategies/*.yaml` | Search space для optimizer |
@@ -133,7 +133,7 @@ Export JSON + prompt для ИИ (версия в `internal/export`).
 
 ```
 cmd/bot, cmd/optimizer
-configs/runs, configs/champions, configs/strategies, configs/shared
+configs/runs, configs/strategies, configs/shared, configs/legacy
 docs/
 internal/...
 data/history, data/trades.db   # runtime; history CSV локально

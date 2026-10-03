@@ -1,6 +1,6 @@
 # Утренний Session ORC
 
-Snapshot: `configs/champions/session-orc-morning-wave2.yaml`  
+Snapshot: `configs/legacy/champions/session-orc-morning-wave2.yaml`  
 Слот портфеля: утро (`session-orc-morning`)
 
 ## Зачем эта стратегия (обоснование)

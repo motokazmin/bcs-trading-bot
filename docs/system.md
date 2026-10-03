@@ -1,7 +1,7 @@
 # Как устроена торговая система
 
 Риск-менеджмент, инструменты и жизненный цикл сделки.  
-Запуск: [`runbook.md`](runbook.md). Портфель: [`portfolio.md`](portfolio.md). Стратегии в коде: [`strategies.md`](strategies.md).
+Запуск: [`runbook.md`](runbook.md). Состояние слотов: [`analysis/state.md`](analysis/state.md). Стратегии в коде: [`strategies.md`](strategies.md).
 
 ---
 

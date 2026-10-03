@@ -1,38 +1,10 @@
 package config_test
 
 import (
-	"path/filepath"
 	"testing"
 
 	"bcs-trading-bot/internal/config"
 )
-
-func TestLoadORFadeChampion(t *testing.T) {
-	cfg, err := config.Load("../../configs/champions/or-fade-wave3-afks.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.Strategy.Type != "opening_range_fade" {
-		t.Fatalf("type: got %q", cfg.Strategy.Type)
-	}
-	if cfg.Strategy.Int("fade_window_minutes") != 52 {
-		t.Fatalf("fade_window_minutes: got %d, want 52", cfg.Strategy.Int("fade_window_minutes"))
-	}
-	if cfg.Strategy.Int("fade_trade_end_minutes") != 106 {
-		t.Fatalf("fade_trade_end_minutes: got %d, want 106", cfg.Strategy.Int("fade_trade_end_minutes"))
-	}
-	rir := cfg.Strategy.BoolPtr("require_inside_range")
-	if rir == nil || *rir {
-		t.Fatal("require_inside_range: want false")
-	}
-	s, err := cfg.Strategy.BuildStrategy(cfg.Session)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s.ID() != "opening_range_fade" {
-		t.Fatalf("strategy id: got %q", s.ID())
-	}
-}
 
 func TestLoadPortfolioPaper(t *testing.T) {
 	cfg, err := config.Load("../../configs/runs/portfolio-paper.yaml")
@@ -155,35 +127,5 @@ func TestEntryAtCloseReachesStrategy(t *testing.T) {
 	p, _ := sc.ToParams(config.SessionConfig{Timezone: "Europe/Moscow", SessionOpenTime: "10:00"})
 	if got := p["entryAtClose"]; got != 1 {
 		t.Fatalf("entryAtClose: got %v, want 1", got)
-	}
-}
-
-// Все чемпионские конфиги должны загружаться и собираться в стратегию.
-// Заодно фиксируем: у ORC-семейства фиксированный тейк выключен, а фильтр
-// узкого стопа выставлен — это результат разбора сделок 2026-08.
-func TestChampionConfigsBuild(t *testing.T) {
-	paths, err := filepath.Glob("../../configs/champions/*.yaml")
-	if err != nil || len(paths) == 0 {
-		t.Fatalf("нет чемпионских конфигов: %v", err)
-	}
-	for _, path := range paths {
-		t.Run(filepath.Base(path), func(t *testing.T) {
-			cfg, err := config.Load(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := cfg.Strategy.BuildStrategy(cfg.Session); err != nil {
-				t.Fatalf("BuildStrategy: %v", err)
-			}
-			if got := cfg.Strategy.Float("min_stop_bps"); got <= 0 {
-				t.Errorf("min_stop_bps не задан (got %v)", got)
-			}
-			switch cfg.Strategy.Type {
-			case "opening_range_continuation", "session_orc":
-				if cfg.Strategy.Bool("take_profit_enabled") {
-					t.Error("для ORC фиксированный тейк должен быть выключен")
-				}
-			}
-		})
 	}
 }
