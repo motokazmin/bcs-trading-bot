@@ -106,3 +106,33 @@ func TestBarUnitIntervalDeterministic(t *testing.T) {
 		t.Fatal("different seed should usually differ")
 	}
 }
+
+// Лимитный режим нулевой модели помечает фил как внутрибаровый: иначе фил, совпавший
+// с close, пропустил бы стоп своего бара (TestIntrabarFillAtCloseStillChecksSameBarStop).
+func TestRandomEntryLimitFillIsIntrabar(t *testing.T) {
+	s, err := NewFromParams(IDRandomEntry, Params{
+		"lookback": 5, "atrPeriod": 3, "atrMultiplier": 1.5, "rewardRatio": 1.5,
+		"entryProbability": 1, "seed": 1, "longOnly": 1, "limitOffsetAtr": 0.5,
+	}, BuildContext{StopMode: StopModeATR})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2024, 6, 3, 10, 0, 0, 0, time.UTC)
+	var got *models.Order
+	for i := 0; i < 40 && got == nil; i++ {
+		p := 100.0
+		if i%2 == 1 {
+			p = 98 // откат до лимита
+		}
+		got = s.OnCandle(models.Candle{
+			Ticker: "SBER", Open: p, High: p + 1, Low: p - 1, Close: p,
+			Volume: 1000, Timestamp: start.Add(time.Duration(i*5) * time.Minute),
+		})
+	}
+	if got == nil {
+		t.Fatal("ждали лимитный фил")
+	}
+	if !got.IntrabarFill {
+		t.Fatalf("лимитный фил нулевой модели должен быть IntrabarFill: %+v", got)
+	}
+}

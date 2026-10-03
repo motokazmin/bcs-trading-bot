@@ -187,7 +187,7 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 	if qty <= 0 {
 		return
 	}
-	entryAtClose := signal.Price == candle.Close
+	entryAtClose := !signal.IntrabarFill && signal.Price == candle.Close
 	// Проскальзывание на входе: позиция открывается хуже сигнальной цены.
 	// SL/TP остаются там, где их поставила стратегия, поэтому фактический R
 	// слегка отличается от задуманного — ровно как в реальном исполнении.
@@ -288,6 +288,10 @@ func (r *Runner) closePosition(ctx context.Context, executor contract.OrderExecu
 		Price:       price,
 		OrderType:   models.OrderTypeMarket,
 		CloseReason: reason,
+		// Комиссия списывается с кэша исполнителя, как в live (selfmanaged.closePosition).
+		// Без неё кэш backtest рос на сумму всех комиссий, кап по кэшу срабатывал иначе, чем
+		// в live, и объём расходился у 168 сделок из 1535 (docs/analysis/0010).
+		CommissionRub: costs.RoundTrip(r.cfg.CostsCfg, r.cfg.ClassCode, pos.EntryPrice, price, pos.Quantity, r.cfg.StepPriceValue),
 	}
 	if err := executor.ExecuteOrder(ctx, order); err != nil {
 		r.position = pos

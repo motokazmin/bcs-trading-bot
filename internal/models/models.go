@@ -43,4 +43,8 @@ type Order struct {
 	OrderType     string
 	CloseReason   string
 	CommissionRub float64 // комиссия round-trip при закрытии (virtual/live)
+	// IntrabarFill — заявка исполнилась внутри бара (лимит), а не по его close. Ставит
+	// стратегия. Без флага движок выводил «вход по close» из равенства цены фила и close
+	// бара, и лимит, случайно исполнившийся ровно по close, пропускал стоп своего бара.
+	IntrabarFill bool
 }

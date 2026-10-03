@@ -246,7 +246,7 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	if qty <= 0 {
 		return
 	}
-	entryAtClose := signal.Price == candle.Close
+	entryAtClose := !signal.IntrabarFill && signal.Price == candle.Close
 	// Проскальзывание на входе — см. комментарий в runner.go. Считаем fillPrice
 	// ДО капа по кэшу: иначе для BUY (fill дороже сигнала) notional ордера может
 	// превысить остаток, закэпленный по старой, более низкой цене (см. живой баг,
@@ -365,6 +365,10 @@ func (p *PortfolioRunner) closePosition(ctx context.Context, executor contract.O
 		Price:       price,
 		OrderType:   models.OrderTypeMarket,
 		CloseReason: reason,
+		// Комиссия списывается с кэша исполнителя, как в live (selfmanaged.closePosition).
+		// Без неё кэш backtest рос на сумму всех комиссий, кап по кэшу срабатывал иначе, чем
+		// в live, и объём расходился у 168 сделок из 1535 (docs/analysis/0010).
+		CommissionRub: costs.RoundTrip(st.cfg.CostsCfg, st.cfg.ClassCode, pos.EntryPrice, price, pos.Quantity, st.cfg.StepPriceValue),
 	}
 	if err := executor.ExecuteOrder(ctx, order); err != nil {
 		st.position = pos

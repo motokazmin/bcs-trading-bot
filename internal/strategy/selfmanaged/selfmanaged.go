@@ -237,7 +237,7 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 		return
 	}
 
-	entryAtClose := signal.Price == candle.Close
+	entryAtClose := !signal.IntrabarFill && signal.Price == candle.Close
 	// Проскальзывание на входе: позиция открывается хуже сигнальной цены.
 	// SL/TP остаются там, где их поставила стратегия.
 	// Считаем fill-цену ДО капа по кэшу: кап и фактический ордер должны
@@ -388,11 +388,18 @@ func (s *SelfManagedStrategy) checkSLTP(ctx context.Context, sctx contract.Strat
 // trailOnBar пересчитывает трейл по закрытому бару — так же, как backtest после
 // прохода бара (backtest.processIntrabar). Раньше трейл двигался на каждом тике, а
 // backtest воспроизводил это по OHLC с выгодным порядком экстремумов: на
-// синтетическом мартингале +0.05R до издержек (docs/analysis/0006). Бар входа сюда
-// не попадает: позиция открывается в processCandle уже после этого вызова.
+// синтетическом мартингале +0.05R до издержек (docs/analysis/0006). Бар входа в обычном
+// порядке сюда не попадает (позиция открывается в processCandle после этого вызова), а его
+// дубликат и более старые свечи отсекаются по EntryBarTime.
 func (s *SelfManagedStrategy) trailOnBar(ctx context.Context, sctx contract.StrategyContext, candle models.Candle) {
 	s.mu.Lock()
 	if s.pos == nil {
+		s.mu.Unlock()
+		return
+	}
+	// Дубликат бара входа или переигранная старая свеча несут экстремум, случившийся до
+	// входа: трейл по нему поднял бы стоп без движения цены после открытия позиции.
+	if !s.pos.EntryBarTime.IsZero() && !candle.Timestamp.After(s.pos.EntryBarTime) {
 		s.mu.Unlock()
 		return
 	}
@@ -424,6 +431,12 @@ func (s *SelfManagedStrategy) checkEOD(ctx context.Context, sctx contract.Strate
 	}
 	if s.hasPos() {
 		s.closePosition(ctx, sctx, price, models.CloseReasonEOD)
+	}
+	// Транзиентная ошибка исполнителя возвращает позицию (closePosition): EOD не сделан,
+	// следующий тик/таймер должен повторить. Раньше дата ставилась безусловно — и позиция
+	// после первой неудачной попытки оставалась на ночь.
+	if s.hasPos() {
+		return
 	}
 	s.eodCloseDate = today
 }

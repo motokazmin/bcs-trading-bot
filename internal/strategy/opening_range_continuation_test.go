@@ -125,6 +125,11 @@ func TestORCRetestLimitFill(t *testing.T) {
 	if o.Price != 101 {
 		t.Fatalf("expected entry at OR high 101, got %.2f", o.Price)
 	}
+	// Фил лимита — внутри бара: движок обязан проверить стоп бара фила, даже если
+	// цена фила совпала с close (TestIntrabarFillAtCloseStillChecksSameBarStop).
+	if !o.IntrabarFill {
+		t.Fatal("лимитный фил ORC должен быть помечен IntrabarFill")
+	}
 }
 
 // orcAfterBreakout — стратегия с готовым pending BUY-лимитом на orbHigh=101
@@ -326,6 +331,9 @@ func TestORCEntryAtCloseEntersOnBreakoutBar(t *testing.T) {
 	}
 	if o.Direction != "BUY" || o.Price != 104 {
 		t.Fatalf("ждали BUY по close 104, получили %s %.2f", o.Direction, o.Price)
+	}
+	if o.IntrabarFill {
+		t.Fatal("вход по close — не внутрибаровый фил")
 	}
 	dist := o.Price - o.StopLoss
 	if dist <= 0 || math.Abs((o.TakeProfit-o.Price)-2.60*dist) > 1e-9 {

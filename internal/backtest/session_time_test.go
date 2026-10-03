@@ -10,6 +10,7 @@ import (
 	"bcs-trading-bot/internal/engine/risk"
 	"bcs-trading-bot/internal/engine/storage/memory"
 	"bcs-trading-bot/internal/models"
+	"bcs-trading-bot/internal/strategy"
 )
 
 // onceStrategy входит один раз по close первого бара, на котором его спросили.
@@ -27,10 +28,15 @@ func (s *onceStrategy) OnCandle(c models.Candle) *models.Order {
 // runBoth гоняет свечи одного тикера через оба пути backtest.
 func runBoth(t *testing.T, name string, sess config.SessionConfig, candles []models.Candle) (*memory.TradeStore, bool) {
 	t.Helper()
+	return runBothWith(t, name, sess, candles, &onceStrategy{})
+}
+
+func runBothWith(t *testing.T, name string, sess config.SessionConfig, candles []models.Candle, strat strategy.CandleStrategy) (*memory.TradeStore, bool) {
+	t.Helper()
 	store := memory.NewTradeStore()
 	cfg := RunnerConfig{
 		Ticker: "SBER", CandleTimeframe: "M5", StepPriceValue: 1, Deposit: 1e6, MaxDailyLoss: 1e6,
-		RiskPerTradePct: 0.1, Strategy: &onceStrategy{}, SessionCfg: sess,
+		RiskPerTradePct: 0.1, Strategy: strat, SessionCfg: sess,
 	}
 	exec := execution.NewVirtualExecutor(1e6)
 	if name == "runner" {

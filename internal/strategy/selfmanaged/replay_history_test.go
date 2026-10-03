@@ -203,15 +203,44 @@ func TestLiveMatchesBacktestOnHistory(t *testing.T) {
 	match, sameExit := 0, 0
 	var lsum, bsum float64
 	diffReason := map[string]int{}
-	var examples []string
+	entryDiff := map[string]int{}
+	capDiff := 0
+	var examples, entryEx []string
 	for k, l := range lm {
 		b, ok := bm[k]
 		if !ok {
 			continue
 		}
 		match++
+		if l.Quantity != b.Quantity {
+			capDiff++
+		}
 		lsum += l.PnLR
 		bsum += b.PnLR
+		// Ключ — только время и направление входа: одинаковые ключ и выход при разных
+		// цене входа, объёме или стопе дают разный R и рубли. Сверять каждое поле.
+		near := func(a, b float64) bool { return math.Abs(a-b) <= 1e-9*math.Max(math.Abs(a), math.Abs(b))+1e-12 }
+		for _, f := range []struct {
+			name string
+			ok   bool
+		}{
+			{"цена входа", near(l.EntryPrice, b.EntryPrice)},
+			{"запрошенный объём", l.RequestedQuantity == b.RequestedQuantity},
+			// Итоговый объём может разойтись только через кап по кэшу: тики в этом тесте
+			// интерполируются, стоп исполняется чуть хуже уровня, и кэш live на 1–3% меньше.
+			{"объём без капа", l.Quantity == b.Quantity || l.CashCapped() || b.CashCapped()},
+			{"стоп", near(l.InitialStopLoss, b.InitialStopLoss)},
+			{"тейк", near(l.InitialTakeProfit, b.InitialTakeProfit)},
+			{"R", near(l.RDistance, b.RDistance)},
+		} {
+			if !f.ok {
+				entryDiff[f.name]++
+				if len(entryEx) < 8 {
+					entryEx = append(entryEx, fmt.Sprintf("  %s %s: live вход %.4f q=%d/%d cash %.0f | bt вход %.4f q=%d/%d cash %.0f",
+						k, f.name, l.EntryPrice, l.Quantity, l.RequestedQuantity, l.CashAtOpen, b.EntryPrice, b.Quantity, b.RequestedQuantity, b.CashAtOpen))
+				}
+			}
+		}
 		if l.CloseReason == b.CloseReason && l.RDistance > 0 {
 			d := math.Abs(l.ExitPrice-b.ExitPrice) / l.RDistance
 			slipSum += d
@@ -270,6 +299,13 @@ func TestLiveMatchesBacktestOnHistory(t *testing.T) {
 	for k, n := range diffReason {
 		if !sameReasonKey(k) {
 			t.Errorf("разная причина выхода: %s × %d", k, n)
+		}
+	}
+	t.Logf("объём разошёлся через кап по кэшу: %d сделок", capDiff)
+	if len(entryDiff) > 0 {
+		t.Errorf("совпавшие сделки расходятся во входе: %v", entryDiff)
+		for _, x := range entryEx {
+			t.Log(x)
 		}
 	}
 	if slipN > 0 && slipSum/float64(slipN) > 0.02 {

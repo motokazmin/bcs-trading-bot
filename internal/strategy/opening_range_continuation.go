@@ -285,6 +285,7 @@ func (s *OpeningRangeContinuation) tryFillPending(candle models.Candle) *models.
 		s.pending = nil
 		return nil
 	}
+	order.IntrabarFill = true
 	s.buffer.markSignal(p.breakoutCandle)
 	s.pending = nil
 	return order

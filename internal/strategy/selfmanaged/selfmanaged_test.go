@@ -396,3 +396,67 @@ func TestGlobalRiskPortIntegration(t *testing.T) {
 		t.Fatalf("open count after close: %d", gr.OpenPositionCount())
 	}
 }
+
+// Live: лимит, исполнившийся ровно по close бара, проверяет стоп своего бара так же,
+// как оба backtest (TestIntrabarFillAtCloseStillChecksSameBarStop).
+func TestIntrabarFillAtCloseStillChecksSameBarStopLive(t *testing.T) {
+	store := &recordingTradeStore{}
+	sig := &fakeSignal{next: &models.Order{Direction: "BUY", Price: 100, StopLoss: 99.7, TakeProfit: 100.37, IntrabarFill: true}}
+	s := newTestStrategy(Config{Signal: sig, ExperimentID: "e", CandleTimeframe: "M5", Deposit: 1e6, MaxDailyLoss: 1e6})
+	sctx := &fakeCtx{orders: &stubExecutor{}, risk: newFakeRisk(), trades: store}
+	now := time.Date(2026, 6, 25, 12, 3, 0, 0, time.UTC)
+	bar := models.Candle{Open: 100.2, High: 100.4, Low: 99.6, Close: 100, Timestamp: now.Add(-3 * time.Minute)}
+	s.setLastPrice(bar.Close)
+
+	s.processCandle(context.Background(), sctx, bar, now)
+
+	if s.hasPos() || store.count() != 1 || store.trades[0].CloseReason != models.CloseReasonStopLoss {
+		t.Fatalf("стоп 99.7 в баре фила: pos=%v trades=%+v", s.hasPos(), store.trades)
+	}
+}
+
+// Неудачное EOD-закрытие повторяется: транзиентная ошибка возвращает позицию, и дата EOD
+// не должна ставиться, иначе позиция остаётся на ночь.
+func TestEODRetriesAfterTransientCloseError(t *testing.T) {
+	store := &recordingTradeStore{}
+	s := newTestStrategy(Config{ExperimentID: "e", Session: fakeClock{forceClose: true, open: true}})
+	s.pos = &position.State{Direction: "BUY", Quantity: 1, EntryPrice: 100, StopLoss: 99.7, TakeProfit: 100.6, RDistance: 0.3, OpenedAt: time.Now()}
+	ctx, now := context.Background(), time.Now()
+
+	failing := &fakeCtx{orders: errExecutor{err: errors.New("timeout")}, risk: newFakeRisk(), trades: store}
+	s.checkEOD(ctx, failing, 100, now)
+	if !s.hasPos() {
+		t.Fatal("после ошибки исполнителя позиция должна остаться")
+	}
+
+	ok := &fakeCtx{orders: &stubExecutor{}, risk: newFakeRisk(), trades: store}
+	s.checkEOD(ctx, ok, 100.05, now)
+	if s.hasPos() || store.count() != 1 || store.trades[0].CloseReason != models.CloseReasonEOD {
+		t.Fatalf("повторный EOD должен закрыть позицию: pos=%v trades=%+v", s.hasPos(), store.trades)
+	}
+}
+
+// Дубликат бара входа (или старая свеча после реконнекта) не двигает трейл: его high
+// случился до входа.
+func TestTrailIgnoresEntryBarDuplicate(t *testing.T) {
+	store := &recordingTradeStore{}
+	s := newTestStrategy(Config{
+		ExperimentID: "e", CandleTimeframe: "M5",
+		TrailCfg: trailing.Config{ActivationR: 0.5, DiscreteStepR: 1, StageMax: 1, BreakevenR: 0.05, StepPriceValue: 1},
+	})
+	sctx := &fakeCtx{orders: &stubExecutor{}, risk: newFakeRisk(), trades: store}
+	entryBar := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	s.pos = &position.State{
+		Direction: "BUY", Quantity: 10, EntryPrice: 100, RDistance: 0.3,
+		StopLoss: 99.7, InitialStopLoss: 99.7, MFEPrice: 100, MAEPrice: 100,
+		OpenedAt: entryBar.Add(5 * time.Minute), EntryBarTime: entryBar,
+	}
+	dup := models.Candle{Open: 100, High: 101, Low: 99.8, Close: 100, Timestamp: entryBar}
+	s.setLastPrice(100)
+
+	s.trailOnBar(context.Background(), sctx, dup)
+
+	if !s.hasPos() || s.pos.StopLoss != 99.7 || s.pos.TrailStage != 0 || s.pos.MFEPrice != 100 {
+		t.Fatalf("дубликат бара входа сдвинул позицию: %+v", s.pos)
+	}
+}

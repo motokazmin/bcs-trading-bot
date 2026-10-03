@@ -175,7 +175,11 @@ func (s *RandomEntry) tryFillPending(candle models.Candle) *models.Order {
 		upper, lower = fill*1.01, fill*0.99
 	}
 	sl, tp := calcStopTP(p.direction, fill, upper, lower, s.buffer.history, s.stopCfg())
-	return buildOrder(candle, p.direction, fill, sl, tp, upper, lower)
+	order := buildOrder(candle, p.direction, fill, sl, tp, upper, lower)
+	if order != nil {
+		order.IntrabarFill = true
+	}
+	return order
 }
 
 func newRandomEntryFromParams(params Params, ctx BuildContext) (CandleStrategy, error) {
