@@ -6,7 +6,7 @@
 #   ORC_DATE_FROM=2025-01-01 ORC_DATE_TO=2026-05-08 ORC_TRIALS=300 ./scripts/run-orc-research-rolling.sh
 #
 # После прогона: скопируйте strategy из results/research/orc-rolling/*/best-config-*.yaml
-# в configs/research/orc-main-wide.yaml и configs/runs/portfolio-research-orc.yaml
+# в configs/legacy/research/orc-main-wide.yaml и configs/runs/portfolio-research-orc.yaml
 # (tickers оставить полными, allow_all_tickers: true).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -57,6 +57,6 @@ echo "  output:       ${OUTPUT_DIR}"
   -output "$OUTPUT_DIR/"
 
 echo "DONE $(date -Iseconds)"
-echo "Next: copy strategy from ${OUTPUT_DIR}/best-config-*.yaml → configs/research/orc-main-wide.yaml"
+echo "Next: copy strategy from ${OUTPUT_DIR}/best-config-*.yaml → configs/legacy/research/orc-main-wide.yaml"
 echo "Then: go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-research-orc.yaml \\"
 echo "        -date-from ${ORC_DATE_TO} -date-to 2026-08-08   # holdout example"

@@ -3,12 +3,12 @@
 Production paper-портфель: **6 слотов** на одном virtual-счёте 200 000 ₽
 (5 champions + ORC Complement на тикерах вне Main ORC).
 Каждый слот — стратегия на `StrategyRunner`/`SelfManagedStrategy`
-(граница движок/стратегия: [`0001-engine-strategy-boundary.md`](0001-engine-strategy-boundary.md)).
+(граница движок/стратегия: [`0001-engine-strategy-boundary.md`](../0001-engine-strategy-boundary.md)).
 
 Конфиг запуска: `configs/runs/portfolio-paper.yaml`.  
-Снапшоты параметров: `configs/champions/*.yaml`.  
-Эталон метрик: [`baseline.md`](baseline.md).  
-Запуск: [`runbook.md`](runbook.md).
+Снапшоты параметров: `configs/legacy/champions/*.yaml`.  
+Эталон метрик: [`baseline.md`](../baseline.md).  
+Запуск: [`runbook.md`](../runbook.md).
 
 ---
 
@@ -42,7 +42,7 @@ Champions **не переоптимизировать** без явного за
 
 | | Main ORC | ORC Complement | Morning | Evening |
 |---|---|---|---|---|
-| Snapshot | `configs/champions/orc-wave2.yaml` | `orc-complement-rolling.yaml` | `session-orc-morning-wave2.yaml` | `session-orc-evening-wave2.yaml` |
+| Snapshot | `configs/legacy/champions/orc-wave2.yaml` | `orc-complement-rolling.yaml` | `session-orc-morning-wave2.yaml` | `session-orc-evening-wave2.yaml` |
 | ORB | 15 мин | 12 мин | 14 мин | 11 мин |
 | `reward_ratio` | ≈1,64 | ≈1,64 | ≈1,67 | ≈1,58 |
 | Max entries/day | 1 | 1 | 1 | 2 |
@@ -54,7 +54,7 @@ Champions **не переоптимизировать** без явного за
 
 | | |
 |---|---|
-| Snapshot | `configs/champions/or-fade-wave3-afks.yaml` |
+| Snapshot | `configs/legacy/champions/or-fade-wave3-afks.yaml` |
 | ORB / fade window | 26 / 52 мин, trade end 106 |
 | `reward_ratio` | ≈1,27 |
 | Max entries/day | 2 |
@@ -65,7 +65,7 @@ Momentum breakout + SMA-тренд, **long-only**, входы с 12:30 (`entry_d
 
 | | |
 |---|---|
-| Snapshot | `configs/champions/mf-afternoon-reopt-s2.yaml` |
+| Snapshot | `configs/legacy/champions/mf-afternoon-reopt-s2.yaml` |
 | Lookback / SMA | 39 / 37 |
 | `reward_ratio` | ≈1,39 |
 | Max entries/day | 2 |
@@ -94,7 +94,7 @@ Solo walk-forward ищет параметры **одной** стратегии.
 |---|---|---|
 | CLI | `optimizer run` / `backtest` | `optimizer portfolio-backtest` |
 | Вопрос | устойчивы ли params на WF? | как champions живут вместе? |
-| Документ | [`optimizer-modes.md`](optimizer-modes.md) | этот файл + [`baseline.md`](baseline.md) |
+| Документ | [`optimizer-modes.md`](../optimizer-modes.md) | этот файл + [`baseline.md`](../baseline.md) |
 
 Команды: `make optimizer-orc`, `make optimizer-or-fade`, `make optimizer-afternoon`.  
 Research (wide + rolling, не paper): `make optimizer-orc-research` — см. [`research/research-rolling.md`](research/research-rolling.md).
@@ -108,8 +108,8 @@ Research (wide + rolling, не paper): `make optimizer-orc-research` — см. [
 
 | Документ | Содержание |
 |----------|------------|
-| [`baseline.md`](baseline.md) | Эталон shared-счёта для paper/live |
-| [`strategies.md`](strategies.md) | Код стратегий, как добавить новую |
-| [`system.md`](system.md) | Риск, lifecycle, исполнение |
-| [`runbook.md`](runbook.md) | Запуск бота и optimizer |
-| [`optimizer-modes.md`](optimizer-modes.md) | Solo vs portfolio |
+| [`baseline.md`](../baseline.md) | Эталон shared-счёта для paper/live |
+| [`strategies.md`](../strategies.md) | Код стратегий, как добавить новую |
+| [`system.md`](../system.md) | Риск, lifecycle, исполнение |
+| [`runbook.md`](../runbook.md) | Запуск бота и optimizer |
+| [`optimizer-modes.md`](../optimizer-modes.md) | Solo vs portfolio |

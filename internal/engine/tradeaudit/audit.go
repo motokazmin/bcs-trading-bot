@@ -20,14 +20,11 @@ const (
 	CodeTrailDead     = "TRAIL_DEAD"
 	CodeHoldVsTF      = "HOLD_VS_TF"
 
-	SeverityInfo  = "info"
-	SeverityWarn  = "warn"
-	SeverityError = "error"
+	SeverityInfo = "info"
+	SeverityWarn = "warn"
 
 	// LimitDriftWarnR — |entry−close|/R выше этого → warn.
 	LimitDriftWarnR = 0.5
-	// LimitDriftErrorR — сильный stale limit (TATN-класс).
-	LimitDriftErrorR = 1.5
 	// FillDriftWarnR — |exit−SL|/R выше этого → warn.
 	FillDriftWarnR = 0.25
 	// RRMismatchTol — относительный допуск reward_ratio.
@@ -42,7 +39,6 @@ type OpenInput struct {
 	TakeProfit    float64
 	RDistance     float64
 	BarClose      float64
-	LastPrice     float64 // 0 = нет котировки
 	RewardRatio   float64 // 0 = не проверять RR_MISMATCH
 }
 
@@ -76,14 +72,6 @@ func (r Result) Empty() bool {
 	return len(r.Codes) == 0
 }
 
-// Rejects — сигнал не должен исполняться: вход уже за стопом относительно рынка
-// или лимит оторван от бара настолько, что сделка не соответствует идее.
-// Используется как гейт входа в live/virtual и в backtest, чтобы оптимизатор
-// не подбирал параметры под сделки, которые бот не возьмёт.
-func (r Result) Rejects() bool {
-	return r.Severity == SeverityError
-}
-
 func (r Result) CodesCSV() string {
 	return strings.Join(r.Codes, ",")
 }
@@ -113,28 +101,20 @@ func ValidateOpen(in OpenInput) Result {
 		return r
 	}
 
+	// Оба кода по close бара фила — только пометки, не гейт. Гейтом они были с 0001,
+	// когда фил писался по цене, которой на рынке не было. При честном филе отказ по
+	// close того же бара — заглядывание вперёд: выбрасывает сделки, к закрытию бара уже
+	// ушедшие против позиции, ~+0.06R на синтетическом мартингале (docs/analysis/0006).
 	if !pricesEqual(in.EntryPrice, in.BarClose) && in.BarClose > 0 {
 		drift := math.Abs(in.EntryPrice-in.BarClose) / in.RDistance
 		r.Details["limit_vs_close_r"] = drift
-		// Ошибка — только когда бар ушёл ПРОТИВ позиции: это признак того, что
-		// заявка исполнена по цене, которой на рынке уже нет. Такой же дрейф в
-		// нашу сторону (лимит поймал откат, бар закрылся в плюс) — нормальный
-		// вход, его нельзя резать гейтом.
-		adverse := adverseDrift(in.Direction, in.EntryPrice, in.BarClose)
-		switch {
-		case drift >= LimitDriftErrorR && adverse:
-			r.add(SeverityError, CodeLimitVsClose)
-		case drift >= LimitDriftWarnR:
+		if drift >= LimitDriftWarnR {
 			r.add(SeverityWarn, CodeLimitVsClose)
 		}
 	}
 
-	if pastStop(in.Direction, in.EntryPrice, in.StopLoss, in.BarClose) ||
-		(in.LastPrice > 0 && pastStop(in.Direction, in.EntryPrice, in.StopLoss, in.LastPrice)) {
-		r.add(SeverityError, CodeEntryPastStop)
-		if in.LastPrice > 0 {
-			r.Details["last_vs_entry_r"] = math.Abs(in.LastPrice-in.EntryPrice) / in.RDistance
-		}
+	if pastStop(in.Direction, in.EntryPrice, in.StopLoss, in.BarClose) {
+		r.add(SeverityWarn, CodeEntryPastStop)
 	}
 
 	if in.RewardRatio > 0 && in.TakeProfit > 0 {
@@ -242,7 +222,7 @@ func (r *Result) add(sev, code string) {
 }
 
 func maxSeverity(a, b string) string {
-	rank := map[string]int{"": 0, SeverityInfo: 1, SeverityWarn: 2, SeverityError: 3}
+	rank := map[string]int{"": 0, SeverityInfo: 1, SeverityWarn: 2}
 	if rank[b] > rank[a] {
 		return b
 	}
@@ -250,18 +230,6 @@ func maxSeverity(a, b string) string {
 		return b
 	}
 	return a
-}
-
-// adverseDrift — цена бара ушла против позиции относительно цены входа.
-func adverseDrift(direction string, entry, barClose float64) bool {
-	switch direction {
-	case "BUY":
-		return barClose < entry
-	case "SELL":
-		return barClose > entry
-	default:
-		return false
-	}
 }
 
 func pastStop(direction string, entry, stop, price float64) bool {

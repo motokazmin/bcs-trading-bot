@@ -6,7 +6,7 @@ costs:
   commission_rate_per_leg: 0.00008
 
 # OR Fade expanded whitelist (per-ticker matrix 2026-07-11).
-# Для live нужен отдельный whitelist в коде — см. docs/portfolio.md.
+# Для live нужен отдельный whitelist в коде. На 25 тикерах or-fade не переносится — docs/analysis/0012.
 tickers:
   - LKOH
   - CHMF

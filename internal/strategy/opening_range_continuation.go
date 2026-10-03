@@ -66,6 +66,9 @@ type orcOpts struct {
 	ATRMultiplier     float64
 	RewardRatio       float64
 	RangeUseCap       bool
+	// EntryAtClose — вход по close бара пробоя вместо лимита на ретесте уровня.
+	// Ретест-лимит берёт только пробои, вернувшиеся к уровню (docs/analysis/0009).
+	EntryAtClose bool
 	commonStopOpts
 }
 
@@ -85,19 +88,6 @@ type orcPendingLimit struct {
 	placedAt       time.Time
 	expiresAt      time.Time
 	breakoutCandle models.Candle
-}
-
-// invalidated — свеча закрылась обратно внутри диапазона, т.е. пробой не состоялся.
-// Ретест-лимит в этом случае снимается: иначе он гарантированно исполнится на
-// возврате цены и позиция откроется против уже развернувшегося движения.
-func (p *orcPendingLimit) invalidated(candle models.Candle) bool {
-	switch p.direction {
-	case "BUY":
-		return candle.Close < p.upper
-	case "SELL":
-		return candle.Close > p.lower
-	}
-	return true
 }
 
 // fillPrice — цена исполнения лимитной заявки на баре.
@@ -199,6 +189,15 @@ func (s *OpeningRangeContinuation) OnCandle(candle models.Candle) *models.Order 
 		return nil
 	}
 
+	if s.opts.EntryAtClose {
+		sl, tp := calcStopTP(direction, close, s.orbHigh, s.orbLow, s.buffer.history, s.stopCfg())
+		order := buildOrder(candle, direction, close, sl, tp, s.orbHigh, s.orbLow)
+		if order != nil {
+			s.buffer.markSignal(candle)
+		}
+		return order
+	}
+
 	entry := s.orbHigh
 	if direction == "SELL" {
 		entry = s.orbLow
@@ -263,12 +262,11 @@ func (s *OpeningRangeContinuation) tryFillPending(candle models.Candle) *models.
 		return nil
 	}
 
+	// Отмены по закрытию бара нет намеренно: лимит стоит ровно на границе диапазона,
+	// и бар, закрывшийся обратно внутри, обязательно прошёл через уровень — настоящая
+	// заявка в нём уже исполнилась. Отмена по close того же бара выбрасывала именно
+	// неудавшиеся ретесты (docs/analysis/0005).
 	p := s.pending
-	if p.invalidated(candle) {
-		s.pending = nil
-		return nil
-	}
-
 	fill, filled := p.fillPrice(candle)
 	if !filled {
 		return nil
@@ -287,6 +285,7 @@ func (s *OpeningRangeContinuation) tryFillPending(candle models.Candle) *models.
 		s.pending = nil
 		return nil
 	}
+	order.IntrabarFill = true
 	s.buffer.markSignal(p.breakoutCandle)
 	s.pending = nil
 	return order
@@ -330,6 +329,7 @@ func newORCFromParamsExt(params Params, ctx BuildContext, allowAll bool) (Candle
 		ATRMultiplier:     params.Float("atrMultiplier"),
 		RewardRatio:       rewardRatio,
 		RangeUseCap:       paramsBoolDefault(params, "rangeUseCap", true),
+		EntryAtClose:      params.Bool("entryAtClose"),
 		commonStopOpts:    commonStopOptsFromParams(params),
 	}.normalized()
 	return &OpeningRangeContinuation{
@@ -377,5 +377,6 @@ func orcConfigFields(params Params, ctx BuildContext) map[string]interface{} {
 		"trail_stage_max":               params.Int("trailStageMax"),
 		"trail_breakeven_r":             params.Float("trailBreakevenR"),
 		"allow_all_tickers":             params.Bool("allowAllTickers"),
+		"entry_at_close":                params.Bool("entryAtClose"),
 	})
 }

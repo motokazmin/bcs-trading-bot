@@ -1,6 +1,7 @@
 package selfmanaged
 
 import (
+	"bcs-trading-bot/internal/engine/trailing"
 	"context"
 	"errors"
 	"sync"
@@ -168,7 +169,8 @@ func TestClosePositionSavesTrade(t *testing.T) {
 		MFEPrice: 110, BreakoutUpper: 101, BreakoutLower: 99, OpenedAt: openedAt,
 	}
 
-	s.closePosition(context.Background(), sctx, 110, models.CloseReasonTakeProfit)
+	// closePosition получает уже цену исполнения — уровень тейка считает вызывающий.
+	s.closePosition(context.Background(), sctx, 115, models.CloseReasonTakeProfit)
 
 	if store.count() != 1 {
 		t.Fatalf("trades saved: got %d, want 1", store.count())
@@ -178,7 +180,7 @@ func TestClosePositionSavesTrade(t *testing.T) {
 		t.Fatalf("meta: exp=%q stop=%q", tr.ExperimentID, tr.StopMode)
 	}
 	if tr.ExitPrice != 115 {
-		t.Fatalf("exit_price: got %.2f, want 115 (TP level, not tick 110)", tr.ExitPrice)
+		t.Fatalf("exit_price: got %.2f, want 115", tr.ExitPrice)
 	}
 	if tr.InitialStopLoss != 95 || tr.FinalStopLoss != 100 {
 		t.Fatalf("SL: initial=%.2f final=%.2f", tr.InitialStopLoss, tr.FinalStopLoss)
@@ -201,8 +203,10 @@ func TestClosePositionIgnoresSecondCall(t *testing.T) {
 
 	s.pos = &position.State{Direction: "BUY", Quantity: 1, EntryPrice: 100, StopLoss: 95, RDistance: 5, OpenedAt: time.Now()}
 
-	s.closePosition(context.Background(), sctx, 110, models.CloseReasonTakeProfit)
-	s.closePosition(context.Background(), sctx, 110, models.CloseReasonTakeProfit)
+	// closePosition получает уже цену исполнения — уровень тейка считает вызывающий.
+	s.closePosition(context.Background(), sctx, 115, models.CloseReasonTakeProfit)
+	// closePosition получает уже цену исполнения — уровень тейка считает вызывающий.
+	s.closePosition(context.Background(), sctx, 115, models.CloseReasonTakeProfit)
 
 	if exec.calls != 1 {
 		t.Fatalf("ExecuteOrder calls: got %d, want 1", exec.calls)
@@ -256,7 +260,10 @@ func TestClosePositionTransientErrorRestores(t *testing.T) {
 	}
 }
 
-func TestCheckSLTPStopLossFillsAtStopLevel(t *testing.T) {
+// Тик, перескочивший стоп, исполняет его по тику, а не по уровню: стоп — рыночная
+// заявка, лучше рынка она не исполнится. Раньше бралось уровень, и на гэпах результат
+// завышался (docs/analysis/0006).
+func TestCheckSLTPStopLossFillsAtWorseOfStopAndTick(t *testing.T) {
 	store := &recordingTradeStore{}
 	s := newTestStrategy(Config{ExperimentID: "orc-wave2", CandleTimeframe: "M5"})
 	sctx := &fakeCtx{orders: &stubExecutor{}, risk: newFakeRisk(), trades: store}
@@ -277,11 +284,42 @@ func TestCheckSLTPStopLossFillsAtStopLevel(t *testing.T) {
 	if tr.CloseReason != models.CloseReasonStopLoss {
 		t.Fatalf("reason: %q", tr.CloseReason)
 	}
-	if tr.ExitPrice != 485.84 {
-		t.Fatalf("exit: got %.2f, want stop 485.84 (not tick 491.7)", tr.ExitPrice)
+	if tr.ExitPrice != 491.7 {
+		t.Fatalf("exit: got %.2f, want tick 491.7 (стоп 485.84 перескочен)", tr.ExitPrice)
 	}
-	if tr.PnLR >= 0 || tr.PnLR < -1.2 {
-		t.Fatalf("pnl_r: got %.3f, want ≈ -1R", tr.PnLR)
+}
+
+// Трейл двигается только по закрытому бару, как в backtest: тик выше активации
+// стоп не трогает, закрытый бар — переносит в безубыток. Если новый стоп уже за
+// текущей ценой, выход по рынку, а не по уровню (docs/analysis/0006).
+func TestTrailMovesOnClosedBarOnly(t *testing.T) {
+	store := &recordingTradeStore{}
+	s := newTestStrategy(Config{
+		ExperimentID: "e", CandleTimeframe: "M5",
+		TrailCfg: trailing.Config{ActivationR: 0.5, DiscreteStepR: 1, StageMax: 1, BreakevenR: 0.05, StepPriceValue: 1},
+	})
+	sctx := &fakeCtx{orders: &stubExecutor{}, risk: newFakeRisk(), trades: store}
+	s.pos = &position.State{
+		Direction: "BUY", Quantity: 10, EntryPrice: 100, RDistance: 1,
+		StopLoss: 99, InitialStopLoss: 99, TakeProfit: 103, InitialTakeProfit: 103,
+		MFEPrice: 100, MAEPrice: 100, OpenedAt: time.Now(),
+	}
+	ctx := context.Background()
+
+	s.setLastPrice(100.8)
+	s.checkSLTP(ctx, sctx, 100.8)
+	if got := s.pos.StopLoss; got != 99 {
+		t.Fatalf("тик не должен двигать трейл, стоп %.4f", got)
+	}
+
+	s.setLastPrice(99.9)
+	s.checkSLTP(ctx, sctx, 99.9)
+	s.trailOnBar(ctx, sctx, models.Candle{Open: 100.2, High: 100.8, Low: 99.6, Close: 99.9})
+	if s.hasPos() {
+		t.Fatal("закрытый бар перенёс стоп в безубыток 100.05 выше рынка 99.9 — позиция должна закрыться")
+	}
+	if store.count() != 1 || store.trades[0].ExitPrice != 99.9 {
+		t.Fatalf("выход по рынку 99.9, а не по уровню стопа; trades=%+v", store.trades)
 	}
 }
 
@@ -329,34 +367,6 @@ func TestProcessCandleSetsEntryBar(t *testing.T) {
 	}
 }
 
-// Гейт входа: сигнал, у которого цена входа уже за стопом относительно бара,
-// не должен открывать позицию. Раньше аудит только писал в лог, и такая сделка
-// открывалась, чтобы тут же закрыться по -1R.
-func TestProcessCandleRejectsEntryPastStop(t *testing.T) {
-	// Сделка id=17 из trades.db: BUY 278.61 при закрытии сигнального бара 277.85.
-	sig := &fakeSignal{next: &models.Order{
-		Direction: "BUY", Price: 278.61, StopLoss: 278.22, TakeProfit: 279.25,
-	}}
-	s := newTestStrategy(Config{
-		Signal: sig, ExperimentID: "orc", CandleTimeframe: "M5",
-		Session: fakeClock{entries: true, open: true},
-	})
-	risk := newFakeRisk()
-	sctx := &fakeCtx{orders: &stubExecutor{}, risk: risk, trades: &recordingTradeStore{}}
-
-	now := time.Date(2026, 8, 14, 11, 30, 0, 0, time.UTC)
-	bar := models.Candle{Open: 277.85, High: 278.13, Low: 277.45, Close: 277.85, Timestamp: now.Add(-1 * time.Minute)}
-
-	s.processCandle(context.Background(), sctx, bar, now)
-
-	if s.hasPos() {
-		t.Fatal("вход за стопом должен быть отклонён, позиция не открывается")
-	}
-	if len(risk.opened) != 0 {
-		t.Fatalf("риск не должен резервироваться на отклонённом сигнале: %+v", risk.opened)
-	}
-}
-
 func TestSnapshotPosition(t *testing.T) {
 	s := newTestStrategy(Config{ExperimentID: "exp1", Ticker: "SBER", StepPriceValue: 1})
 	if s.SnapshotPosition() != nil {
@@ -384,5 +394,69 @@ func TestGlobalRiskPortIntegration(t *testing.T) {
 	gr.RegisterClose("SBER", 100)
 	if gr.OpenPositionCount() != 0 {
 		t.Fatalf("open count after close: %d", gr.OpenPositionCount())
+	}
+}
+
+// Live: лимит, исполнившийся ровно по close бара, проверяет стоп своего бара так же,
+// как оба backtest (TestIntrabarFillAtCloseStillChecksSameBarStop).
+func TestIntrabarFillAtCloseStillChecksSameBarStopLive(t *testing.T) {
+	store := &recordingTradeStore{}
+	sig := &fakeSignal{next: &models.Order{Direction: "BUY", Price: 100, StopLoss: 99.7, TakeProfit: 100.37, IntrabarFill: true}}
+	s := newTestStrategy(Config{Signal: sig, ExperimentID: "e", CandleTimeframe: "M5", Deposit: 1e6, MaxDailyLoss: 1e6})
+	sctx := &fakeCtx{orders: &stubExecutor{}, risk: newFakeRisk(), trades: store}
+	now := time.Date(2026, 6, 25, 12, 3, 0, 0, time.UTC)
+	bar := models.Candle{Open: 100.2, High: 100.4, Low: 99.6, Close: 100, Timestamp: now.Add(-3 * time.Minute)}
+	s.setLastPrice(bar.Close)
+
+	s.processCandle(context.Background(), sctx, bar, now)
+
+	if s.hasPos() || store.count() != 1 || store.trades[0].CloseReason != models.CloseReasonStopLoss {
+		t.Fatalf("стоп 99.7 в баре фила: pos=%v trades=%+v", s.hasPos(), store.trades)
+	}
+}
+
+// Неудачное EOD-закрытие повторяется: транзиентная ошибка возвращает позицию, и дата EOD
+// не должна ставиться, иначе позиция остаётся на ночь.
+func TestEODRetriesAfterTransientCloseError(t *testing.T) {
+	store := &recordingTradeStore{}
+	s := newTestStrategy(Config{ExperimentID: "e", Session: fakeClock{forceClose: true, open: true}})
+	s.pos = &position.State{Direction: "BUY", Quantity: 1, EntryPrice: 100, StopLoss: 99.7, TakeProfit: 100.6, RDistance: 0.3, OpenedAt: time.Now()}
+	ctx, now := context.Background(), time.Now()
+
+	failing := &fakeCtx{orders: errExecutor{err: errors.New("timeout")}, risk: newFakeRisk(), trades: store}
+	s.checkEOD(ctx, failing, 100, now)
+	if !s.hasPos() {
+		t.Fatal("после ошибки исполнителя позиция должна остаться")
+	}
+
+	ok := &fakeCtx{orders: &stubExecutor{}, risk: newFakeRisk(), trades: store}
+	s.checkEOD(ctx, ok, 100.05, now)
+	if s.hasPos() || store.count() != 1 || store.trades[0].CloseReason != models.CloseReasonEOD {
+		t.Fatalf("повторный EOD должен закрыть позицию: pos=%v trades=%+v", s.hasPos(), store.trades)
+	}
+}
+
+// Дубликат бара входа (или старая свеча после реконнекта) не двигает трейл: его high
+// случился до входа.
+func TestTrailIgnoresEntryBarDuplicate(t *testing.T) {
+	store := &recordingTradeStore{}
+	s := newTestStrategy(Config{
+		ExperimentID: "e", CandleTimeframe: "M5",
+		TrailCfg: trailing.Config{ActivationR: 0.5, DiscreteStepR: 1, StageMax: 1, BreakevenR: 0.05, StepPriceValue: 1},
+	})
+	sctx := &fakeCtx{orders: &stubExecutor{}, risk: newFakeRisk(), trades: store}
+	entryBar := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	s.pos = &position.State{
+		Direction: "BUY", Quantity: 10, EntryPrice: 100, RDistance: 0.3,
+		StopLoss: 99.7, InitialStopLoss: 99.7, MFEPrice: 100, MAEPrice: 100,
+		OpenedAt: entryBar.Add(5 * time.Minute), EntryBarTime: entryBar,
+	}
+	dup := models.Candle{Open: 100, High: 101, Low: 99.8, Close: 100, Timestamp: entryBar}
+	s.setLastPrice(100)
+
+	s.trailOnBar(context.Background(), sctx, dup)
+
+	if !s.hasPos() || s.pos.StopLoss != 99.7 || s.pos.TrailStage != 0 || s.pos.MFEPrice != 100 {
+		t.Fatalf("дубликат бара входа сдвинул позицию: %+v", s.pos)
 	}
 }

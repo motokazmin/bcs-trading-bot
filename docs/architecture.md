@@ -31,7 +31,8 @@ cmd/bot/main.go
 │  InitLogging                                                              │
 │  config.Load ──────────────► *config.Config     YAML: experiments[],      │
 │                                                 risk.*, session.*,        │
-│                                                 tickers, storage          │
+│                                                 tickers, storage,         │
+│                                                 recording                 │
 │  MustConnectBroker ────────► broker.BCSClient    ◄── BCS Trade API        │
 │                                                 OAuth2, WS (свечи+квоты), │
 │                                                 real-ордера               │
@@ -44,6 +45,8 @@ cmd/bot/main.go
 │     ├─ Portfolio : *risk.GlobalRiskController    ЕДИНЫЙ СЧЁТ:             │
 │     │              circuit breaker 2%/день, риск-бюджет открытых          │
 │     │              позиций, one-position-per-ticker                       │
+│     ├─ RawTap    : broker.RawTap = wsrecord.Recorder.Record | nil         │
+│     │              сырой WS-поток на диск (recording.dir)                 │
 │     └─ RunID                                                              │
 │                                                                          │
 │  BuildTrader ─────────────► app.Trader                                    │
@@ -125,6 +128,7 @@ WS БКС шлёт бар много раз, пока он формируетс�
 |----------|-------|------|
 | `BCSClient` | `engine/broker` | единственный выход наружу: OAuth2, WS-данные, real-ордера |
 | `datafeed.Feed` | `engine/datafeed` | одна WS-подписка → fan-out каналов по `(ticker, timeframe)`; стратегиям — закрытые бары (`barCloser`), hub — формирующиеся |
+| `wsrecord.Recorder` | `engine/wsrecord` | сырой WS-поток до разбора → `<recording.dir>/<день МСК>.jsonl.gz`; неблокирующий, переполнение буфера → отброс + счётчик. Подключён отводом `broker.RawTap` через `datafeed.New` |
 | `GlobalRiskController` | `engine/risk` | единый счёт: circuit breaker, риск-бюджет открытых позиций, one-position-per-ticker; финальное «можно открыться» |
 | `VirtualExecutor` | `engine/execution` | paper-исполнитель (симуляция fill) |
 | `TradeStore` (sqlite) | `engine/storage/sqlite` | запись `closed_trades` |
@@ -149,15 +153,15 @@ models ← engine/contract ← engine/* ← strategy/selfmanaged ← app ← cmd
 
 ---
 
-## Гейт входа (`engine/tradeaudit`)
+## Механика исполнения — в трёх местах
 
-`tradeaudit` — не только аннотация сделок для БД, но и **точка отказа входа**.
-`ValidateOpen` вызывается до резервирования риска и исполнения ордера; при
-`Result.Rejects()` (severity `error` — вход уже за стопом относительно бара или
-лимит оторван от рынка) сигнал не исполняется.
+`tradeaudit` — аннотация сделок для БД (`AnnotateTrade`), **не гейт входа**. Гейт по close
+бара фила снят 2026-10-03: при честном филе это заглядывание вперёд
+([`analysis/0006`](analysis/0006-null-model-finds-three-more-biases.md)).
 
-Гейт стоит в трёх местах и должен оставаться одинаковым во всех трёх, иначе
-оптимизатор подберёт параметры под сделки, которых живой бот не возьмёт:
+Вход, same-bar выход после лимитного фила (только стоп), трейл по закрытому бару и фил
+стопа на гэпе (`position.ExitFillPriceAt`) реализованы в трёх местах и должны оставаться
+одинаковыми, иначе оптимизатор подберёт параметры под сделки, которых живой бот не возьмёт:
 
 | Путь | Файл |
 |------|------|

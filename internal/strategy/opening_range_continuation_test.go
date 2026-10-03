@@ -1,6 +1,7 @@
 package strategy
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -124,6 +125,11 @@ func TestORCRetestLimitFill(t *testing.T) {
 	if o.Price != 101 {
 		t.Fatalf("expected entry at OR high 101, got %.2f", o.Price)
 	}
+	// Фил лимита — внутри бара: движок обязан проверить стоп бара фила, даже если
+	// цена фила совпала с close (TestIntrabarFillAtCloseStillChecksSameBarStop).
+	if !o.IntrabarFill {
+		t.Fatal("лимитный фил ORC должен быть помечен IntrabarFill")
+	}
 }
 
 // orcAfterBreakout — стратегия с готовым pending BUY-лимитом на orbHigh=101
@@ -164,28 +170,24 @@ func orcAfterBreakout(t *testing.T, extra Params) (CandleStrategy, time.Time) {
 	return s, base
 }
 
-// Свеча, закрывшаяся обратно внутри диапазона, отменяет ретест-лимит: пробой не
-// состоялся, и вход по уровню на развороте — это ловля ножа.
-func TestORCCancelsPendingWhenBreakoutInvalidated(t *testing.T) {
+// Свеча, закрывшаяся обратно внутри диапазона, прошла через уровень лимита — настоящая
+// заявка в ней исполнилась. Раньше такая свеча снимала заявку по своему же close, и
+// модель выбрасывала ровно неудавшиеся ретесты: exp_R портфеля +0.321 против +0.458
+// при честном филе (docs/analysis/0005).
+func TestORCFillsOnFailedRetest(t *testing.T) {
 	s, base := orcAfterBreakout(t, nil)
 
 	failed := models.Candle{
 		Ticker: "MGNT",
-		Open:   104, High: 104, Low: 100.5, Close: 100, Volume: 3000,
+		Open:   104, High: 104, Low: 99.8, Close: 100, Volume: 3000,
 		Timestamp: base.Add(40 * time.Minute),
 	}
-	if o := s.OnCandle(failed); o != nil {
-		t.Fatalf("сломанный пробой не должен исполнять лимит, получено %+v", o)
+	o := s.OnCandle(failed)
+	if o == nil {
+		t.Fatal("свеча прошла через уровень 101 — лимит обязан исполниться, даже если close внутри диапазона")
 	}
-
-	// Заявка снята: возврат цены к уровню позже входа уже не даёт.
-	back := models.Candle{
-		Ticker: "MGNT",
-		Open:   100, High: 101.5, Low: 100, Close: 101.2, Volume: 3000,
-		Timestamp: base.Add(45 * time.Minute),
-	}
-	if o := s.OnCandle(back); o != nil {
-		t.Fatalf("снятая заявка не должна оживать, получено %+v", o)
+	if o.Price != 101 {
+		t.Fatalf("фил по уровню 101, получено %.4f", o.Price)
 	}
 }
 
@@ -296,5 +298,55 @@ func TestORCPendingExpiresWithoutPanic(t *testing.T) {
 	}
 	if o := s.OnCandle(expired); o != nil {
 		t.Fatalf("expected no fill after expiry, got %+v", o)
+	}
+}
+
+// entry_at_close — вход по close бара пробоя, без лимита на ретесте. SL/TP — от close,
+// той же геометрией, что у лимита от фила: A/B меняет только точку входа (docs/analysis/0009).
+func TestORCEntryAtCloseEntersOnBreakoutBar(t *testing.T) {
+	s, err := NewFromParams(IDOpeningRangeContinuation, Params{
+		"orbMinutes": 30, "breakoutThreshold": 0, "rewardRatio": 2.60, "atrMultiplier": 2,
+		"entryAtClose": 1,
+	}, BuildContext{
+		StopMode: StopModeATR,
+		Session:  SessionTimes{Timezone: "Europe/Moscow", SessionOpenTime: "10:00"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := time.LoadLocation("Europe/Moscow")
+	base := time.Date(2024, 6, 3, 10, 0, 0, 0, loc)
+	for m := 0; m < 6; m++ {
+		_ = s.OnCandle(models.Candle{
+			Ticker: "MGNT", Open: 100, High: 101, Low: 99, Close: 100, Volume: 1000,
+			Timestamp: base.Add(time.Duration(m*5) * time.Minute),
+		})
+	}
+	o := s.OnCandle(models.Candle{
+		Ticker: "MGNT", Open: 102, High: 105, Low: 102, Close: 104, Volume: 5000,
+		Timestamp: base.Add(35 * time.Minute),
+	})
+	if o == nil {
+		t.Fatal("entry_at_close: пробой должен давать вход сразу")
+	}
+	if o.Direction != "BUY" || o.Price != 104 {
+		t.Fatalf("ждали BUY по close 104, получили %s %.2f", o.Direction, o.Price)
+	}
+	if o.IntrabarFill {
+		t.Fatal("вход по close — не внутрибаровый фил")
+	}
+	dist := o.Price - o.StopLoss
+	if dist <= 0 || math.Abs((o.TakeProfit-o.Price)-2.60*dist) > 1e-9 {
+		t.Fatalf("SL/TP не от close: SL %.4f TP %.4f", o.StopLoss, o.TakeProfit)
+	}
+	if o.BreakoutUpper != 101 || o.BreakoutLower != 99 {
+		t.Fatalf("уровни диапазона: %.2f/%.2f", o.BreakoutUpper, o.BreakoutLower)
+	}
+	// Лимита нет: ретест на следующем баре входа не даёт.
+	if o := s.OnCandle(models.Candle{
+		Ticker: "MGNT", Open: 104, High: 104, Low: 100.5, Close: 101, Volume: 3000,
+		Timestamp: base.Add(40 * time.Minute),
+	}); o != nil {
+		t.Fatalf("entry_at_close не должен ставить лимит, а вошёл на ретесте: %+v", o)
 	}
 }

@@ -7,11 +7,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Механика исполнения живёт в четырёх местах, и все обязаны совпадать:
-// live (configs/runs/*), чемпионы (configs/champions/*), search space оптимизатора
-// (configs/strategies/*) и издержки (configs/shared/tickers*.yaml).
+// Механика исполнения живёт в трёх местах, и все обязаны совпадать:
+// live (configs/runs/*), search space оптимизатора (configs/strategies/*) и издержки
+// (configs/shared/tickers*.yaml).
 //
-// Однажды разошлись первые два — гейт min_stop_bps полтора месяца не работал в live.
+// Однажды разошлись live и чемпионы (теперь configs/legacy/) — гейт min_stop_bps
+// полтора месяца не работал в live.
 // Потом обнаружилось третье и четвёртое: оптимизатор подбирал параметры при
 // slippage_bps = 0 (поля просто не было, а дефолт нулевой) и без гейта, то есть
 // под сделки, которых бот не возьмёт. Разбор: docs/analysis/0002-*.

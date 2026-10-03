@@ -1,6 +1,6 @@
 # OR Fade
 
-Snapshot: `configs/champions/or-fade-wave3-afks.yaml`  
+Snapshot: `configs/legacy/champions/or-fade-wave3-afks.yaml`  
 Слот портфеля: Fade (`or-fade-conservative`)
 
 ## Зачем эта стратегия (обоснование)

@@ -27,7 +27,10 @@ type PortfolioBacktestResult struct {
 	ProfitFactor    float64
 	TickerBusySkips int
 	Trades          []models.ClosedTrade
-	ByExperiment    map[string]ExperimentTradeStats
+	// NetPnL — net по каждой сделке (после комиссии), параллельно Trades: в GrossPnL backtest
+	// лежит валовый PnL, а комиссия считается здесь, по costs из YAML.
+	NetPnL       []float64
+	ByExperiment map[string]ExperimentTradeStats
 }
 
 // ExperimentTradeStats — разбивка сделок по experiment id.
@@ -44,8 +47,6 @@ type PortfolioBacktestOptions struct {
 	HistoryDir  string
 	Deposit     float64 // 0 = из первого experiment / 200k
 	MaxParallel int     // 0 = 5
-	// IntrabarOscillations — стресс-тест внутрибарного пути (см. position.IntrabarPathN).
-	IntrabarOscillations int
 	// SlippageBps — override проскальзывания из YAML (<0 = не переопределять).
 	SlippageBps float64
 	From        time.Time
@@ -134,7 +135,6 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 			slotTrail := trailCfg
 			slotTrail.StepPriceValue = step
 			runnerCfgs[slotKey] = backtest.RunnerConfig{
-				IntrabarOscillations: opts.IntrabarOscillations,
 				CostsCfg:             costsCfg,
 				Ticker:          tc.Symbol,
 				ClassCode:       cfg.ClassCode,
@@ -180,6 +180,10 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 	metrics := AggregateTrades(trades, costsCfg, cfg.ClassCode)
 	expR, expRub, pf := detailedTradeStats(trades, costsCfg, cfg.ClassCode)
 	byExp := statsByExperiment(trades, costsCfg, cfg.ClassCode)
+	netPnL := make([]float64, len(trades))
+	for i, t := range trades {
+		netPnL[i] = core.NetPnLFromTrade(t, costsCfg, cfg.ClassCode)
+	}
 
 	return PortfolioBacktestResult{
 		From:            from,
@@ -191,6 +195,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 		ProfitFactor:    pf,
 		TickerBusySkips: portfolio.TickerBusySkips,
 		Trades:          trades,
+		NetPnL:          netPnL,
 		ByExperiment:    byExp,
 	}, nil
 }

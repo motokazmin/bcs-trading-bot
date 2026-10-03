@@ -1,6 +1,6 @@
 # Main ORC
 
-Snapshot: `configs/champions/orc-wave2.yaml`  
+Snapshot: `configs/legacy/champions/orc-wave2.yaml`  
 Слот портфеля: Main ORC (`orc-wave2`)
 
 ## Зачем эта стратегия (обоснование)

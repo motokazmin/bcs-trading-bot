@@ -159,8 +159,10 @@ func CheckExit(pos *State, price float64) string {
 	return ""
 }
 
-// ExitFillPrice — цена исполнения выхода в paper/virtual.
-// SL/TP исполняются по уровню (без adverse tick за стопом); EOD и прочее — по marketPrice.
+// ExitFillPrice — цена исполнения выхода в paper/virtual, когда уровень пересечён
+// непрерывно (внутри бара по OHLC). SL/TP — по уровню; EOD и прочее — по marketPrice.
+// Если цена уже была за стопом в момент проверки (бар открылся за ним, тик перескочил
+// уровень) — это ExitFillPriceAt.
 func ExitFillPrice(pos *State, reason string, marketPrice float64) float64 {
 	if pos == nil {
 		return marketPrice
@@ -178,9 +180,30 @@ func ExitFillPrice(pos *State, reason string, marketPrice float64) float64 {
 	return marketPrice
 }
 
-// SameBarExitAfterFill — после limit-fill внутри бара (entry ≠ close): пробит ли SL/TP по OHLC.
+// ExitFillPriceAt — цена выхода, когда tradable — реальная цена рынка в момент
+// проверки (open бара, тик), а не экстремум OHLC. Стоп исполняется по худшей из
+// двух: бар, открывшийся за стопом, исполняет его по open, а не по уровню. Раньше
+// всегда брался уровень — на синтетическом мартингале это давало плюс до издержек
+// (docs/analysis/0006). Тейк — по уровню: лучше уровня не обещаем.
+func ExitFillPriceAt(pos *State, reason string, tradable float64) float64 {
+	px := ExitFillPrice(pos, reason, tradable)
+	if pos == nil || reason != models.CloseReasonStopLoss {
+		return px
+	}
+	if pos.Direction == "SELL" {
+		return math.Max(px, tradable)
+	}
+	return math.Min(px, tradable)
+}
+
+// SameBarExitAfterFill — после limit-fill внутри бара (entry ≠ close): пробит ли SL по OHLC.
 // Для входа по close (fade/MF и т.п.) возвращает "" — wick до закрытия бара ещё не «в позиции».
-// Консервативно: при касании обоих сначала STOP_LOSS (как у TATN: High ушёл далеко за стоп).
+//
+// Тейк в баре фила не засчитывается никогда. Лимит стоит позади цены, поэтому бар,
+// в котором он исполнился, обычно сначала дошёл до тейка и лишь потом откатился к
+// уровню: по OHLC тейк почти всегда задет ДО входа. Засчитывание такого тейка
+// завышало baseline с +0.298R до +0.458R (docs/analysis/0005). Стоп в баре фила
+// по-прежнему засчитывается: чтобы дойти до стопа, цена должна пройти уровень входа.
 func SameBarExitAfterFill(pos *State, candle models.Candle) string {
 	if pos == nil || pos.EntryPrice <= 0 {
 		return ""
@@ -194,15 +217,9 @@ func SameBarExitAfterFill(pos *State, candle models.Candle) string {
 		if pos.StopLoss > 0 && candle.Low <= pos.StopLoss {
 			return models.CloseReasonStopLoss
 		}
-		if pos.TakeProfit > 0 && candle.High >= pos.TakeProfit {
-			return models.CloseReasonTakeProfit
-		}
 	case "SELL":
 		if pos.StopLoss > 0 && candle.High >= pos.StopLoss {
 			return models.CloseReasonStopLoss
-		}
-		if pos.TakeProfit > 0 && candle.Low <= pos.TakeProfit {
-			return models.CloseReasonTakeProfit
 		}
 	}
 	return ""
@@ -217,40 +234,27 @@ func pricesEqual(a, b float64) bool {
 	return scale > 0 && d/scale < 1e-12
 }
 
-// IntrabarPrices возвращает синтетический путь цены внутри свечи для проверки SL/TP.
-func IntrabarPrices(candle models.Candle, direction string) []float64 {
-	return IntrabarPathN(candle, direction, 1)
-}
-
-// IntrabarPathN — путь цены внутри свечи с n проходами по экстремумам.
-//
-// n=1 — базовая модель: Open → adverse → favorable → Close (для BUY: O, L, H, C).
-// Она видит каждый экстремум один раз, поэтому «дошли до пика, трейлинг подтянул
-// стоп, откатились и вылетели» ловится только если бар ЗАКРЫЛСЯ ниже стопа.
-//
-// В live выход считается по каждому тику, и такой цикл может случиться несколько
-// раз внутри одной свечи. n>1 повторяет экстремумы и служит стресс-тестом: он
-// оценивает, насколько результат держится на предположении о гладком пути внутри
-// бара. Это не «правильная» модель тиков (её без тиковой истории не построить),
-// а нижняя граница — чем сильнее падает результат при n=2..3, тем меньше доверия
-// к бэктесту на стратегиях, где выход целиком на трейлинге.
-func IntrabarPathN(candle models.Candle, direction string, n int) []float64 {
-	if n < 1 {
-		n = 1
-	}
-	var adverse, favorable float64
+// IntrabarPath — синтетический путь цены внутри свечи для проверки SL/TP:
+// Open → adverse → favorable → Close (для BUY: O, L, H, C). При касании стопа и тейка
+// в одном баре засчитывается стоп — сознательно в худшую сторону. Стоп внутри бара
+// фиксирован: трейл пересчитывается по закрытому бару (TrailPrice), иначе порядок
+// экстремумов решал бы за модель (docs/analysis/0006).
+func IntrabarPath(candle models.Candle, direction string) []float64 {
 	switch direction {
 	case "BUY":
-		adverse, favorable = candle.Low, candle.High
+		return []float64{candle.Open, candle.Low, candle.High, candle.Close}
 	case "SELL":
-		adverse, favorable = candle.High, candle.Low
-	default:
-		return []float64{candle.Close}
+		return []float64{candle.Open, candle.High, candle.Low, candle.Close}
 	}
-	path := make([]float64, 0, 2*n+2)
-	path = append(path, candle.Open)
-	for i := 0; i < n; i++ {
-		path = append(path, adverse, favorable)
+	return []float64{candle.Close}
+}
+
+// TrailPrice — цена, по которой трейл пересчитывается на закрытии бара: лучший
+// экстремум бара в сторону позиции. Новый стоп действует со следующего бара (в live —
+// со следующего тика); если он оказался за текущей ценой, выход по ExitFillPriceAt.
+func TrailPrice(candle models.Candle, direction string) float64 {
+	if direction == "SELL" {
+		return candle.Low
 	}
-	return append(path, candle.Close)
+	return candle.High
 }

@@ -1,7 +1,14 @@
 # Paper portfolio: 6 слотов на одном virtual-счёте 200k.
+#
+# СТЕНД ПРОВЕРКИ ИСПОЛНЕНИЯ, НЕ ТОРГОВАЯ СИСТЕМА (2026-10-03). Ни у одного слота нет
+# проверенного преимущества: ORC — ни с лимитом, ни с close-входом (docs/analysis/0009),
+# or-fade не переносится на другие тикеры (0012), mf-afternoon — 50 сделок и пустой фильтр.
+# Backtest: exp_R +0.030, при 2 б.п. −0.027 (0010). Бот держится ради сверки live с backtest,
+# проскальзывания и записи тиков; на реальный счёт с этими слотами не переводить.
+#
 # Каждый слот (experiment) — одна стратегия на общем счёте (депозит, CB,
 # one-position-per-ticker). Граница движок/стратегия: docs/0001-engine-strategy-boundary.md.
-# docs/portfolio.md · docs/baseline.md · docs/strategies.md · docs/research-rolling.md
+# docs/baseline.md · docs/strategies.md · docs/analysis/state.md
 # Запуск: make bot
 # Проверка: go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
 
@@ -26,11 +33,8 @@ candle_timeframe: M5
 # 1.6 б.п. round-trip плюс спред 1–5 б.п., то есть стоп в 20 б.п. ≈ 10x издержек.
 # Портфельный бэктест 2024-07→2026-09: сделок 1829→1171, exp_R +0.440→+0.423
 # (в рублях на сделку +383→+385), max_dd 15720→12978 — режет объём, не качество.
-# Ключ обязан совпадать с configs/champions/*; однажды он туда не доехал и полтора
-# месяца не работал в live. Разбор: docs/analysis/0002-live-config-drift-and-cash-sizing.md
-#
-# `take_profit_enabled: false` из ORC-чемпионов сюда НЕ переносить без переподбора
-# блока выхода: на том же бэктесте exp_R +0.440→+0.342, PF 2.08→1.72.
+# Однажды ключ жил только в чемпионах и полтора месяца не работал в live — параметры
+# держать здесь. Разбор: docs/analysis/0002-live-config-drift-and-cash-sizing.md
 
 costs:
   commission_rate_per_leg: 0.00008
@@ -63,6 +67,11 @@ session:
 
 storage:
   path: data/trades.db
+
+# Сырой WS-поток на диск: <dir>/<YYYY-MM-DD>.jsonl.gz, для модели фила по тикам и
+# прогона записанного дня через live-код (docs/analysis/0004, п. 2).
+recording:
+  dir: data/ws-raw
 
 experiments:
   - id: session-orc-morning

@@ -100,7 +100,7 @@ func TestRunBarCloserОтдаётТолькоЗакрытыеБары(t *testing
 // Subscribe — путь стратегий — обязан идти через barCloser, а не напрямую в WS:
 // иначе стратегия снова решает по формирующемуся бару (0004).
 func TestSubscribeСтратегииИдётЧерезЗакрытиеБара(t *testing.T) {
-	f := New(nil)
+	f := New(nil, nil)
 	ch := make(chan models.Candle)
 	if err := f.Subscribe("CHMF", "M5", ch, nil); err != nil {
 		t.Fatal(err)

@@ -67,6 +67,20 @@ func TestSameBarExitAfterFillNoHit(t *testing.T) {
 	}
 }
 
+// Тейк в баре лимитного фила не засчитывается: лимит позади цены, и бар обычно
+// дошёл до тейка ДО отката к уровню. Засчитывание завышало baseline +0.298 → +0.458R
+// (docs/analysis/0005).
+func TestSameBarExitIgnoresTakeProfit(t *testing.T) {
+	long := &position.State{Direction: "BUY", EntryPrice: 100, StopLoss: 95, TakeProfit: 103}
+	if got := position.SameBarExitAfterFill(long, models.Candle{Open: 104, High: 105, Low: 99.5, Close: 100.5}); got != "" {
+		t.Fatalf("BUY: тейк в баре фила засчитан, got %q", got)
+	}
+	short := &position.State{Direction: "SELL", EntryPrice: 100, StopLoss: 105, TakeProfit: 97}
+	if got := position.SameBarExitAfterFill(short, models.Candle{Open: 96, High: 100.5, Low: 95, Close: 99.5}); got != "" {
+		t.Fatalf("SELL: тейк в баре фила засчитан, got %q", got)
+	}
+}
+
 func TestSameBarExitSkipsCloseBasedEntry(t *testing.T) {
 	// Fade/MF: вход по close; Low до close не должен дать мгновенный SL.
 	pos := &position.State{

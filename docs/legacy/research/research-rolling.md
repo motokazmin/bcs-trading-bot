@@ -13,12 +13,12 @@
 
 | Файл | Роль |
 |------|------|
-| [`configs/strategies/orc-research-rolling.yaml`](../../configs/strategies/orc-research-rolling.yaml) | search space (orb / breakout / atr; risk fixed; `allowAllTickers: 1`) |
-| [`configs/research/orc-main-wide.yaml`](../../configs/research/orc-main-wide.yaml) | полный wide snapshot (все 10) для A/B |
-| [`configs/champions/orc-complement-rolling.yaml`](../../configs/champions/orc-complement-rolling.yaml) | complement в paper (`orc-complement`) |
-| [`configs/runs/portfolio-paper.yaml`](../../configs/runs/portfolio-paper.yaml) | paper: Main ORC + complement |
-| [`scripts/run-orc-research-rolling.sh`](../../scripts/run-orc-research-rolling.sh) | обёртка optimizer |
-| [`configs/research/random-orc-main.yaml`](../../configs/research/random-orc-main.yaml) | null-модель входа (опционально) |
+| [`configs/strategies/orc-research-rolling.yaml`](../../../configs/strategies/orc-research-rolling.yaml) | search space (orb / breakout / atr; risk fixed; `allowAllTickers: 1`) |
+| [`configs/legacy/research/orc-main-wide.yaml`](../../../configs/legacy/research/orc-main-wide.yaml) | полный wide snapshot (все 10) для A/B |
+| [`configs/legacy/champions/orc-complement-rolling.yaml`](../../../configs/legacy/champions/orc-complement-rolling.yaml) | complement в paper (`orc-complement`) |
+| [`configs/runs/portfolio-paper.yaml`](../../../configs/runs/portfolio-paper.yaml) | paper: Main ORC + complement |
+| [`scripts/run-orc-research-rolling.sh`](../../../scripts/run-orc-research-rolling.sh) | обёртка optimizer |
+| [`configs/research/random-orc-main.yaml`](../../../configs/legacy/research/random-orc-main.yaml) | null-модель входа (опционально) |
 
 ## Порядок (сначала optimizer)
 
@@ -36,19 +36,19 @@ make optimizer-orc-research
 
 Скопируйте блок `strategy` из `best-config` в:
 
-- `configs/research/orc-main-wide.yaml` (полный список тикеров)
-- `configs/champions/orc-complement-rolling.yaml` и слот `orc-complement` в `portfolio-paper.yaml`  
+- `configs/legacy/research/orc-main-wide.yaml` (полный список тикеров)
+- `configs/legacy/champions/orc-complement-rolling.yaml` и слот `orc-complement` в `portfolio-paper.yaml`  
   (тикеры **без** MGNT/ROSN/TATN; `allow_all_tickers: true`)
 
 ### 3. Сравнить
 
 ```bash
 go run ./cmd/optimizer portfolio-backtest \
-  -config configs/champions/orc-wave2.yaml \
+  -config configs/legacy/champions/orc-wave2.yaml \
   -date-from 2025-05-08 -date-to 2026-05-08
 
 go run ./cmd/optimizer portfolio-backtest \
-  -config configs/champions/orc-complement-rolling.yaml \
+  -config configs/legacy/champions/orc-complement-rolling.yaml \
   -date-from 2026-05-09 -date-to 2026-08-08
 
 go run ./cmd/optimizer portfolio-backtest \

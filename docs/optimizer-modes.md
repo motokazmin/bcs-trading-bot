@@ -13,7 +13,7 @@
 | **Поиск** | Random Search / WF | нет — только прогон |
 | **Выход** | `best-config-*.yaml`, JSON прогона | метрики shared + разбивка по experiment |
 
-Портфель и baseline: [`portfolio.md`](portfolio.md), [`baseline.md`](baseline.md).
+Baseline: [`baseline.md`](baseline.md). Старый портфель чемпионов — [`legacy/portfolio.md`](legacy/portfolio.md).
 
 ---
 
@@ -25,9 +25,9 @@
 4. Score trial — медиана по окнам (Calmar / PnL).
 5. `best-config-*.yaml` — **черновик**, не автодеплой.
 
-Решение о champion: `expectancy_r`, PF, PnL в ₽, доля прибыльных окон и стабильность на другом seed. Затем snapshot в `configs/champions/` и проверка portfolio-backtest.
-
-FROZEN champions без явного запроса **не** переоптимизировать.
+`best-config` — кандидат, не решение. Решение — только зарегистрированной до прогона проверкой
+(правила, пороги, отказ; формат — `docs/analysis/0008`, `0012`) с переносом на тикеры вне подбора.
+Оптимизатор подбирает под выбранную историю: медиана Calmar по окнам — in-sample (0003).
 
 ```bash
 make optimizer-orc

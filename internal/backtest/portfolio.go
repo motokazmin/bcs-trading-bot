@@ -35,7 +35,9 @@ type tickerState struct {
 	session      *engine.SessionClock
 	position     *position.State
 	tradesToday  int
-	eodCloseDate string
+	lastClose    float64 // close предыдущего бара — цена EOD при дыре в данных
+	lastBarEnd   time.Time
+	riskResetDate string
 }
 
 // PortfolioRunner симулирует несколько слотов с общим глобальным риск-контроллером.
@@ -47,8 +49,6 @@ type PortfolioRunner struct {
 	byTicker        map[string][]*tickerState
 	global          *risk.GlobalRiskController
 	store           contract.TradeStore
-	riskResetDate   string
-	daySession      *engine.SessionClock // timezone/EOD для daily reset
 	TickerBusySkips int
 }
 
@@ -63,7 +63,6 @@ func NewPortfolioRunner(cfg PortfolioRunnerConfig, store contract.TradeStore) (*
 
 	states := make(map[string]*tickerState, len(cfg.Tickers))
 	byTicker := make(map[string][]*tickerState)
-	var daySession *engine.SessionClock
 
 	slotKeys := make([]string, 0, len(cfg.Tickers))
 	for k := range cfg.Tickers {
@@ -103,9 +102,6 @@ func NewPortfolioRunner(cfg PortfolioRunnerConfig, store contract.TradeStore) (*
 		if err != nil {
 			return nil, fmt.Errorf("backtest: session %s: %w", slotKey, err)
 		}
-		if daySession == nil {
-			daySession = clock
-		}
 
 		st := &tickerState{
 			cfg:     rc,
@@ -123,7 +119,6 @@ func NewPortfolioRunner(cfg PortfolioRunnerConfig, store contract.TradeStore) (*
 		byTicker:   byTicker,
 		global:     cfg.GlobalRisk,
 		store:      store,
-		daySession: daySession,
 	}, nil
 }
 
@@ -135,11 +130,25 @@ type candleEvent struct {
 // Run прогоняет свечи всех тикеров в хронологическом порядке.
 func (p *PortfolioRunner) Run(ctx context.Context, candlesByTicker map[string][]models.Candle, executor contract.OrderExecutor) error {
 	events := p.mergeCandles(candlesByTicker)
-	for _, ev := range events {
+	// Бары с одной меткой — в два прохода: сначала выходы по всем тикерам, потом входы.
+	// Выход случается внутри бара, вход — на его закрытии; при проходе тикер за тикером
+	// вход по A видел ещё открытой позицию по B, закрытую внутри того же бара, и делил
+	// с ней лимит параллельных позиций, риск-бюджет и кэш.
+	for i := 0; i < len(events); {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		p.processEvent(ctx, executor, ev)
+		j := i
+		for j < len(events) && events[j].candle.Timestamp.Equal(events[i].candle.Timestamp) {
+			j++
+		}
+		for _, ev := range events[i:j] {
+			p.processExits(ctx, executor, ev)
+		}
+		for _, ev := range events[i:j] {
+			p.processEntries(ctx, executor, ev)
+		}
+		i = j
 	}
 	return nil
 }
@@ -164,31 +173,62 @@ func (p *PortfolioRunner) mergeCandles(candlesByTicker map[string][]models.Candl
 	return events
 }
 
-func (p *PortfolioRunner) processEvent(ctx context.Context, executor contract.OrderExecutor, ev candleEvent) {
+func (p *PortfolioRunner) barEnd(ev candleEvent) time.Time {
+	slots := p.byTicker[ev.ticker]
+	return ev.candle.Timestamp.Add(engine.CandleBarDuration(slots[0].cfg.CandleTimeframe))
+}
+
+// processExits — всё, что происходит внутри бара и на его закрытии до входов:
+// дневной сброс, пропущенный EOD, SL/TP по пути бара, трейл, EOD на закрытии.
+// Решения — на закрытии бара, как в live: метка бара — его начало, время решения —
+// конец (docs/analysis/0006, правки 2026-10-03).
+func (p *PortfolioRunner) processExits(ctx context.Context, executor contract.OrderExecutor, ev candleEvent) {
 	slots := p.byTicker[ev.ticker]
 	if len(slots) == 0 {
 		return
 	}
-	candle := ev.candle
-
-	p.checkDailyReset(candle.Timestamp)
-
-	// Сначала закрытия/EOD у всех слотов тикера, затем входы (детерминированный порядок).
+	candle, barEnd := ev.candle, p.barEnd(ev)
 	for _, st := range slots {
-		p.checkEOD(ctx, executor, st, candle)
+		p.checkDailyReset(st, barEnd)
+		if st.position != nil {
+			p.closeMissedEOD(ctx, executor, st, candle)
+		}
 		if st.position != nil {
 			p.processIntrabar(ctx, executor, st, candle)
 		}
-	}
-	for _, st := range slots {
-		if st.position == nil {
-			p.processCandle(ctx, executor, st, candle)
+		if st.position != nil && st.session.ShouldForceClose(barEnd) {
+			p.closePosition(ctx, executor, st, candle.Close, models.CloseReasonEOD, barEnd)
 		}
 	}
 }
 
-func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.OrderExecutor, st *tickerState, candle models.Candle) {
-	if !st.session.EntriesAllowed(candle.Timestamp) {
+// processEntries — входы на закрытии бара (детерминированный порядок слотов).
+func (p *PortfolioRunner) processEntries(ctx context.Context, executor contract.OrderExecutor, ev candleEvent) {
+	slots := p.byTicker[ev.ticker]
+	if len(slots) == 0 {
+		return
+	}
+	candle, barEnd := ev.candle, p.barEnd(ev)
+	for _, st := range slots {
+		if st.position == nil {
+			p.processCandle(ctx, executor, st, candle, barEnd)
+		}
+		st.lastClose, st.lastBarEnd = candle.Close, barEnd
+	}
+}
+
+func (p *PortfolioRunner) closeMissedEOD(ctx context.Context, executor contract.OrderExecutor, st *tickerState, candle models.Candle) {
+	if st.lastBarEnd.IsZero() {
+		return
+	}
+	newDay := st.session.Today(candle.Timestamp) != st.session.Today(st.position.OpenedAt)
+	if newDay || st.session.ShouldForceClose(candle.Timestamp) {
+		p.closePosition(ctx, executor, st, st.lastClose, models.CloseReasonEOD, st.lastBarEnd)
+	}
+}
+
+func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.OrderExecutor, st *tickerState, candle models.Candle, barEnd time.Time) {
+	if !st.session.EntriesAllowed(barEnd) {
 		return
 	}
 	if st.cfg.MaxTradesPerDay > 0 && st.tradesToday >= st.cfg.MaxTradesPerDay {
@@ -202,23 +242,11 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	if err := st.riskMgr.CheckCircuitBreaker(); err != nil {
 		return
 	}
-	// Тот же гейт входа, что и в live: см. tradeaudit.Result.Rejects.
-	if tradeaudit.ValidateOpen(tradeaudit.OpenInput{
-		Direction:   signal.Direction,
-		EntryPrice:  signal.Price,
-		StopLoss:    signal.StopLoss,
-		TakeProfit:  signal.TakeProfit,
-		RDistance:   abs(signal.Price - signal.StopLoss),
-		BarClose:    candle.Close,
-		RewardRatio: st.cfg.RewardRatio,
-	}).Rejects() {
-		return
-	}
 	qty := st.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if qty <= 0 {
 		return
 	}
-	entryAtClose := signal.Price == candle.Close
+	entryAtClose := !signal.IntrabarFill && signal.Price == candle.Close
 	// Проскальзывание на входе — см. комментарий в runner.go. Считаем fillPrice
 	// ДО капа по кэшу: иначе для BUY (fill дороже сигнала) notional ордера может
 	// превысить остаток, закэпленный по старой, более низкой цене (см. живой баг,
@@ -276,52 +304,42 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 }
 
 func (p *PortfolioRunner) processIntrabar(ctx context.Context, executor contract.OrderExecutor, st *tickerState, candle models.Candle) {
-	for _, price := range position.IntrabarPathN(candle, st.position.Direction, st.cfg.IntrabarOscillations) {
-		position.UpdateMFE(st.position, price)
-		position.UpdateMAE(st.position, price)
-		trailing.Apply(st.position, price, st.cfg.TrailCfg)
-		if reason := position.CheckExit(st.position, price); reason != "" {
-			exitPx := position.ExitFillPrice(st.position, reason, price)
+	pos := st.position
+	for i, price := range position.IntrabarPath(candle, pos.Direction) {
+		position.UpdateMFE(pos, price)
+		position.UpdateMAE(pos, price)
+		if reason := position.CheckExit(pos, price); reason != "" {
+			exitPx := position.ExitFillPrice(pos, reason, price)
+			if i == 0 { // open — реальная цена: бар мог открыться уже за стопом
+				exitPx = position.ExitFillPriceAt(pos, reason, price)
+			}
 			p.closePosition(ctx, executor, st, exitPx, reason, candle.Timestamp)
 			return
 		}
 	}
+	// Трейл — по закрытому бару, как в live (selfmanaged.trailOnBar).
+	trailing.Apply(pos, position.TrailPrice(candle, pos.Direction), st.cfg.TrailCfg)
 }
 
-func (p *PortfolioRunner) checkEOD(ctx context.Context, executor contract.OrderExecutor, st *tickerState, candle models.Candle) {
-	ts := candle.Timestamp
-	if !st.session.ShouldForceClose(ts) {
-		if st.session.EntriesAllowed(ts) {
-			st.eodCloseDate = ""
-		}
+// checkDailyReset — дневной сброс слота по ЕГО сессии, как selfmanaged.checkDailyReset
+// в live; портфельный контроллер сбрасывается первым открывшимся слотом (в live —
+// globalDailyResetLoop каждого раннера, ResetDaily идемпотентен по дате). Раньше всё
+// сбрасывалось по часам первого по алфавиту слота (mf-afternoon, 10:00), и дневной
+// лимит считался с 10:00, а в live — с 07:00 (утренняя сессия).
+func (p *PortfolioRunner) checkDailyReset(st *tickerState, now time.Time) {
+	if !st.session.IsSessionOpen(now) {
 		return
 	}
-	today := st.session.Today(ts)
-	if st.eodCloseDate == today {
-		return
-	}
-	if st.position != nil {
-		p.closePosition(ctx, executor, st, candle.Close, models.CloseReasonEOD, ts)
-	}
-	st.eodCloseDate = today
-}
-
-func (p *PortfolioRunner) checkDailyReset(now time.Time) {
-	if p.daySession == nil || !p.daySession.IsSessionOpen(now) {
-		return
-	}
-	today := p.daySession.Today(now)
-	if p.riskResetDate == today {
-		return
-	}
-	for _, st := range p.states {
-		st.riskMgr.ResetDaily()
-		st.tradesToday = 0
-	}
+	today := st.session.Today(now)
 	if p.global != nil {
 		p.global.ResetDaily(today)
 	}
-	p.riskResetDate = today
+	if st.riskResetDate == today {
+		return
+	}
+	st.riskMgr.ResetDaily()
+	st.tradesToday = 0
+	st.riskResetDate = today
 }
 
 func (p *PortfolioRunner) closePosition(ctx context.Context, executor contract.OrderExecutor, st *tickerState, price float64, reason string, closedAt time.Time) {
@@ -332,8 +350,8 @@ func (p *PortfolioRunner) closePosition(ctx context.Context, executor contract.O
 	pos := st.position
 	st.position = nil
 
-	price = costs.FillPrice(st.cfg.CostsCfg, costs.CloseSide(pos.Direction),
-		position.ExitFillPrice(pos, reason, price))
+	// price — уже цена исполнения (ExitFillPrice/ExitFillPriceAt у вызывающего).
+	price = costs.FillPrice(st.cfg.CostsCfg, costs.CloseSide(pos.Direction), price)
 
 	closeDir := "SELL"
 	if pos.Direction == "SELL" {
@@ -347,6 +365,10 @@ func (p *PortfolioRunner) closePosition(ctx context.Context, executor contract.O
 		Price:       price,
 		OrderType:   models.OrderTypeMarket,
 		CloseReason: reason,
+		// Комиссия списывается с кэша исполнителя, как в live (selfmanaged.closePosition).
+		// Без неё кэш backtest рос на сумму всех комиссий, кап по кэшу срабатывал иначе, чем
+		// в live, и объём расходился у 168 сделок из 1535 (docs/analysis/0010).
+		CommissionRub: costs.RoundTrip(st.cfg.CostsCfg, st.cfg.ClassCode, pos.EntryPrice, price, pos.Quantity, st.cfg.StepPriceValue),
 	}
 	if err := executor.ExecuteOrder(ctx, order); err != nil {
 		st.position = pos
