@@ -27,7 +27,10 @@ type PortfolioBacktestResult struct {
 	ProfitFactor    float64
 	TickerBusySkips int
 	Trades          []models.ClosedTrade
-	ByExperiment    map[string]ExperimentTradeStats
+	// NetPnL — net по каждой сделке (после комиссии), параллельно Trades: в GrossPnL backtest
+	// лежит валовый PnL, а комиссия считается здесь, по costs из YAML.
+	NetPnL       []float64
+	ByExperiment map[string]ExperimentTradeStats
 }
 
 // ExperimentTradeStats — разбивка сделок по experiment id.
@@ -177,6 +180,10 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 	metrics := AggregateTrades(trades, costsCfg, cfg.ClassCode)
 	expR, expRub, pf := detailedTradeStats(trades, costsCfg, cfg.ClassCode)
 	byExp := statsByExperiment(trades, costsCfg, cfg.ClassCode)
+	netPnL := make([]float64, len(trades))
+	for i, t := range trades {
+		netPnL[i] = core.NetPnLFromTrade(t, costsCfg, cfg.ClassCode)
+	}
 
 	return PortfolioBacktestResult{
 		From:            from,
@@ -188,6 +195,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 		ProfitFactor:    pf,
 		TickerBusySkips: portfolio.TickerBusySkips,
 		Trades:          trades,
+		NetPnL:          netPnL,
 		ByExperiment:    byExp,
 	}, nil
 }

@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -292,6 +294,7 @@ func portfolioBacktestCmd(args []string) {
 	deposit := fs.Float64("deposit", 200000, "единый депозит")
 	maxParallel := fs.Int("max-parallel", 5, "лимит одновременных позиций")
 	slippage := fs.Float64("slippage-bps", -1, "override costs.slippage_bps: проскальзывание на ногу, б.п. (-1 = из YAML)")
+	tradesCSV := fs.String("trades-csv", "", "выгрузить сделки в CSV (net после комиссии)")
 	_ = fs.Parse(args)
 
 	opts := eval.PortfolioBacktestOptions{
@@ -334,6 +337,11 @@ func portfolioBacktestCmd(args []string) {
 		result.Metrics.MaxDrawdown,
 		result.TickerBusySkips,
 	)
+	if *tradesCSV != "" {
+		if err := writePortfolioTradesCSV(*tradesCSV, result); err != nil {
+			logx.Fatalf("trades-csv: %v", err)
+		}
+	}
 	ids := make([]string, 0, len(result.ByExperiment))
 	for id := range result.ByExperiment {
 		ids = append(ids, id)
@@ -515,4 +523,35 @@ func resolveDateRange(fromStr, toStr string, candleData map[string][]models.Cand
 		}
 	}
 	return from, to, nil
+}
+
+// writePortfolioTradesCSV — сделки портфельного прогона для разбора вне Go (A/B, блоки).
+func writePortfolioTradesCSV(path string, result eval.PortfolioBacktestResult) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	_ = w.Write([]string{"experiment_id", "ticker", "direction", "entry_bar_time", "opened_at", "closed_at",
+		"entry_price", "exit_price", "quantity", "r_distance", "breakout_upper", "breakout_lower",
+		"close_reason", "gross_pnl", "net_pnl", "net_r"})
+	ff := func(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
+	for i, t := range result.Trades {
+		step := t.StepPriceValue
+		if step <= 0 {
+			step = 1
+		}
+		net := result.NetPnL[i]
+		netR := 0.0
+		if risk := t.RDistance * float64(t.Quantity) * step; risk > 0 {
+			netR = net / risk
+		}
+		_ = w.Write([]string{t.ExperimentID, t.Ticker, t.Direction, t.EntryBarTime,
+			t.OpenedAt.UTC().Format(time.RFC3339), t.ClosedAt.UTC().Format(time.RFC3339),
+			ff(t.EntryPrice), ff(t.ExitPrice), strconv.Itoa(t.Quantity), ff(t.RDistance),
+			ff(t.BreakoutUpper), ff(t.BreakoutLower), t.CloseReason, ff(t.GrossPnL), ff(net), ff(netR)})
+	}
+	w.Flush()
+	return w.Error()
 }

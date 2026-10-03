@@ -1,6 +1,7 @@
 package strategy
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -292,5 +293,52 @@ func TestORCPendingExpiresWithoutPanic(t *testing.T) {
 	}
 	if o := s.OnCandle(expired); o != nil {
 		t.Fatalf("expected no fill after expiry, got %+v", o)
+	}
+}
+
+// entry_at_close — вход по close бара пробоя, без лимита на ретесте. SL/TP — от close,
+// той же геометрией, что у лимита от фила: A/B меняет только точку входа (docs/analysis/0009).
+func TestORCEntryAtCloseEntersOnBreakoutBar(t *testing.T) {
+	s, err := NewFromParams(IDOpeningRangeContinuation, Params{
+		"orbMinutes": 30, "breakoutThreshold": 0, "rewardRatio": 2.60, "atrMultiplier": 2,
+		"entryAtClose": 1,
+	}, BuildContext{
+		StopMode: StopModeATR,
+		Session:  SessionTimes{Timezone: "Europe/Moscow", SessionOpenTime: "10:00"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := time.LoadLocation("Europe/Moscow")
+	base := time.Date(2024, 6, 3, 10, 0, 0, 0, loc)
+	for m := 0; m < 6; m++ {
+		_ = s.OnCandle(models.Candle{
+			Ticker: "MGNT", Open: 100, High: 101, Low: 99, Close: 100, Volume: 1000,
+			Timestamp: base.Add(time.Duration(m*5) * time.Minute),
+		})
+	}
+	o := s.OnCandle(models.Candle{
+		Ticker: "MGNT", Open: 102, High: 105, Low: 102, Close: 104, Volume: 5000,
+		Timestamp: base.Add(35 * time.Minute),
+	})
+	if o == nil {
+		t.Fatal("entry_at_close: пробой должен давать вход сразу")
+	}
+	if o.Direction != "BUY" || o.Price != 104 {
+		t.Fatalf("ждали BUY по close 104, получили %s %.2f", o.Direction, o.Price)
+	}
+	dist := o.Price - o.StopLoss
+	if dist <= 0 || math.Abs((o.TakeProfit-o.Price)-2.60*dist) > 1e-9 {
+		t.Fatalf("SL/TP не от close: SL %.4f TP %.4f", o.StopLoss, o.TakeProfit)
+	}
+	if o.BreakoutUpper != 101 || o.BreakoutLower != 99 {
+		t.Fatalf("уровни диапазона: %.2f/%.2f", o.BreakoutUpper, o.BreakoutLower)
+	}
+	// Лимита нет: ретест на следующем баре входа не даёт.
+	if o := s.OnCandle(models.Candle{
+		Ticker: "MGNT", Open: 104, High: 104, Low: 100.5, Close: 101, Volume: 3000,
+		Timestamp: base.Add(40 * time.Minute),
+	}); o != nil {
+		t.Fatalf("entry_at_close не должен ставить лимит, а вошёл на ретесте: %+v", o)
 	}
 }

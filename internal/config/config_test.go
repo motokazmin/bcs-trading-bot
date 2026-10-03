@@ -146,6 +146,18 @@ func TestCommonStopParamsReachStrategy(t *testing.T) {
 	}
 }
 
+// entry_at_close — bool: без строки в switch factory он молча терялся бы (toFloat64 его не берёт).
+func TestEntryAtCloseReachesStrategy(t *testing.T) {
+	sc := config.StrategyConfigFromFields(map[string]interface{}{
+		"type":           "opening_range_continuation",
+		"entry_at_close": true,
+	}, "atr")
+	p, _ := sc.ToParams(config.SessionConfig{Timezone: "Europe/Moscow", SessionOpenTime: "10:00"})
+	if got := p["entryAtClose"]; got != 1 {
+		t.Fatalf("entryAtClose: got %v, want 1", got)
+	}
+}
+
 // Все чемпионские конфиги должны загружаться и собираться в стратегию.
 // Заодно фиксируем: у ORC-семейства фиксированный тейк выключен, а фильтр
 // узкого стопа выставлен — это результат разбора сделок 2026-08.

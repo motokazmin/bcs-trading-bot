@@ -66,6 +66,9 @@ type orcOpts struct {
 	ATRMultiplier     float64
 	RewardRatio       float64
 	RangeUseCap       bool
+	// EntryAtClose — вход по close бара пробоя вместо лимита на ретесте уровня.
+	// Ретест-лимит берёт только пробои, вернувшиеся к уровню (docs/analysis/0009).
+	EntryAtClose bool
 	commonStopOpts
 }
 
@@ -184,6 +187,15 @@ func (s *OpeningRangeContinuation) OnCandle(candle models.Candle) *models.Order 
 		direction = "SELL"
 	default:
 		return nil
+	}
+
+	if s.opts.EntryAtClose {
+		sl, tp := calcStopTP(direction, close, s.orbHigh, s.orbLow, s.buffer.history, s.stopCfg())
+		order := buildOrder(candle, direction, close, sl, tp, s.orbHigh, s.orbLow)
+		if order != nil {
+			s.buffer.markSignal(candle)
+		}
+		return order
 	}
 
 	entry := s.orbHigh
@@ -316,6 +328,7 @@ func newORCFromParamsExt(params Params, ctx BuildContext, allowAll bool) (Candle
 		ATRMultiplier:     params.Float("atrMultiplier"),
 		RewardRatio:       rewardRatio,
 		RangeUseCap:       paramsBoolDefault(params, "rangeUseCap", true),
+		EntryAtClose:      params.Bool("entryAtClose"),
 		commonStopOpts:    commonStopOptsFromParams(params),
 	}.normalized()
 	return &OpeningRangeContinuation{
@@ -363,5 +376,6 @@ func orcConfigFields(params Params, ctx BuildContext) map[string]interface{} {
 		"trail_stage_max":               params.Int("trailStageMax"),
 		"trail_breakeven_r":             params.Float("trailBreakevenR"),
 		"allow_all_tickers":             params.Bool("allowAllTickers"),
+		"entry_at_close":                params.Bool("entryAtClose"),
 	})
 }
