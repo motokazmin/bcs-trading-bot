@@ -37,7 +37,8 @@ Production: дейтрейдинг акций MOEX (**TQBR**), M5, paper portfol
 | Что | Когда | Источник |
 |-----|--------|----------|
 | Сигнал входа | закрытие M5 | `strategy.OnCandle` |
-| SL / TP / трейлинг | между свечами | live: WebSocket quotes; backtest: intrabar OHLC |
+| SL / TP | между свечами | live: WebSocket quotes; backtest: intrabar OHLC |
+| трейлинг | закрытие бара | live и backtest одинаково: `trailing.Apply` по экстремуму закрытого бара |
 | EOD | `eod_close_time` | market close |
 
 1. Сигнал → PreTrade CB → расчёт лота → limit entry.

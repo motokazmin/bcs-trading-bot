@@ -81,8 +81,7 @@ cmd/bot → internal/app (composition root)
 - **`internal/strategy/selfmanaged/selfmanaged.go`** — `SelfManagedStrategy`:
   дженерик-обёртка любого `strategy.CandleStrategy` в самодостаточную
   `strategy.Strategy`. Ведёт позицию/SL/TP/трейлинг/EOD/сайзинг, stale-guard
-  входа (`engine.CandleFreshForEntry`), `tradeaudit` (`ValidateOpen` /
-  `AnnotateTrade`), ghost-handling (`ErrNoOpenPosition` → дроп; прочие ошибки
+  входа (`engine.CandleFreshForEntry`), `tradeaudit` (`AnnotateTrade`), ghost-handling (`ErrNoOpenPosition` → дроп; прочие ошибки
   закрытия → восстановление позиции), снапшот позиции для `dashboard.Hub`
   (`contract.PositionSource`). Переиспользует `internal/engine/position` +
   `internal/engine/trailing` как библиотеку.

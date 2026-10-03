@@ -42,7 +42,7 @@ type CandleStrategy interface {
   → limit entry → same-bar exit после fill
 тики между барами → трейлинг + SL/TP по уровню
 eod_close_time → принудительное закрытие
-закрытие → tradeaudit (ValidateOpen/Close) → ClosedTrade в SQLite
+закрытие → tradeaudit (AnnotateTrade) → ClosedTrade в SQLite
 ```
 
 Live: SL/TP по котировкам (`quotes`). Backtest (`internal/backtest`): intrabar OHLC.
