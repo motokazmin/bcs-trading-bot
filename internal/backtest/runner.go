@@ -75,7 +75,8 @@ type Runner struct {
 	store   contract.TradeStore
 
 	position      *position.State
-	eodCloseDate  string
+	lastClose     float64   // close предыдущего бара — цена EOD при дыре в данных
+	lastBarEnd    time.Time
 	riskResetDate string
 	tradesToday   int
 }
@@ -122,6 +123,7 @@ func NewRunner(cfg RunnerConfig, store contract.TradeStore) (*Runner, error) {
 
 // Run прогоняет свечи в хронологическом порядке.
 func (r *Runner) Run(ctx context.Context, candles []models.Candle, executor contract.OrderExecutor) error {
+	barDur := engine.CandleBarDuration(r.cfg.CandleTimeframe)
 	for _, candle := range candles {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -129,20 +131,44 @@ func (r *Runner) Run(ctx context.Context, candles []models.Candle, executor cont
 		if candle.Ticker == "" {
 			candle.Ticker = r.cfg.Ticker
 		}
-		r.checkDailyReset(candle.Timestamp)
-		r.checkEOD(ctx, executor, candle)
+		// Решения — на закрытии бара, как в live: метка бара — его начало, время
+		// решения — конец (docs/analysis/0006, правки 2026-10-03).
+		barEnd := candle.Timestamp.Add(barDur)
+		r.checkDailyReset(barEnd)
+		if r.position != nil {
+			r.closeMissedEOD(ctx, executor, candle)
+		}
 		if r.position != nil {
 			r.processIntrabar(ctx, executor, candle)
 		}
-		if r.position == nil {
-			r.processCandle(ctx, executor, candle)
+		if r.position != nil && r.session.ShouldForceClose(barEnd) {
+			r.closePosition(ctx, executor, candle.Close, models.CloseReasonEOD, barEnd)
 		}
+		if r.position == nil {
+			r.processCandle(ctx, executor, candle, barEnd)
+		}
+		r.lastClose, r.lastBarEnd = candle.Close, barEnd
 	}
 	return nil
 }
 
-func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecutor, candle models.Candle) {
-	if !r.session.EntriesAllowed(candle.Timestamp) {
+// closeMissedEOD закрывает позицию, пережившую eod_close_time из-за дыры в данных:
+// бара, заканчивающегося на границе, нет (бар уже после eod или новый день). В live
+// её закрыл бы таймер EOD по последней цене — здесь это close предыдущего бара.
+// Без этого session-orc-evening (eod 23:50, последний бар 23:45–23:50 обрабатывался
+// по началу) держал позиции через ночь: 27 сделок из 156, до 62 часов.
+func (r *Runner) closeMissedEOD(ctx context.Context, executor contract.OrderExecutor, candle models.Candle) {
+	if r.lastBarEnd.IsZero() {
+		return
+	}
+	newDay := r.session.Today(candle.Timestamp) != r.session.Today(r.position.OpenedAt)
+	if newDay || r.session.ShouldForceClose(candle.Timestamp) {
+		r.closePosition(ctx, executor, r.lastClose, models.CloseReasonEOD, r.lastBarEnd)
+	}
+}
+
+func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecutor, candle models.Candle, barEnd time.Time) {
+	if !r.session.EntriesAllowed(barEnd) {
 		return
 	}
 	if r.cfg.MaxTradesPerDay > 0 && r.tradesToday >= r.cfg.MaxTradesPerDay {
@@ -180,6 +206,9 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 	}
 	signal.Quantity = qty
 	signal.OrderType = models.OrderTypeLimit
+	if signal.Ticker == "" { // как в portfolio и live: иначе закрытие не найдёт позицию
+		signal.Ticker = r.cfg.Ticker
+	}
 	signal.Price = fillPrice
 
 	if err := executor.ExecuteOrder(ctx, *signal); err != nil {
@@ -221,24 +250,6 @@ func (r *Runner) processIntrabar(ctx context.Context, executor contract.OrderExe
 	}
 	// Трейл — по закрытому бару, как в live (selfmanaged.trailOnBar).
 	trailing.Apply(pos, position.TrailPrice(candle, pos.Direction), r.cfg.TrailCfg)
-}
-
-func (r *Runner) checkEOD(ctx context.Context, executor contract.OrderExecutor, candle models.Candle) {
-	ts := candle.Timestamp
-	if !r.session.ShouldForceClose(ts) {
-		if r.session.EntriesAllowed(ts) {
-			r.eodCloseDate = ""
-		}
-		return
-	}
-	today := r.session.Today(ts)
-	if r.eodCloseDate == today {
-		return
-	}
-	if r.position != nil {
-		r.closePosition(ctx, executor, candle.Close, models.CloseReasonEOD, ts)
-	}
-	r.eodCloseDate = today
 }
 
 func (r *Runner) checkDailyReset(now time.Time) {
