@@ -202,18 +202,6 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	if err := st.riskMgr.CheckCircuitBreaker(); err != nil {
 		return
 	}
-	// Тот же гейт входа, что и в live: см. tradeaudit.Result.Rejects.
-	if tradeaudit.ValidateOpen(tradeaudit.OpenInput{
-		Direction:   signal.Direction,
-		EntryPrice:  signal.Price,
-		StopLoss:    signal.StopLoss,
-		TakeProfit:  signal.TakeProfit,
-		RDistance:   abs(signal.Price - signal.StopLoss),
-		BarClose:    candle.Close,
-		RewardRatio: st.cfg.RewardRatio,
-	}).Rejects() {
-		return
-	}
 	qty := st.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if qty <= 0 {
 		return
@@ -276,16 +264,21 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 }
 
 func (p *PortfolioRunner) processIntrabar(ctx context.Context, executor contract.OrderExecutor, st *tickerState, candle models.Candle) {
-	for _, price := range position.IntrabarPathN(candle, st.position.Direction, st.cfg.IntrabarOscillations) {
-		position.UpdateMFE(st.position, price)
-		position.UpdateMAE(st.position, price)
-		trailing.Apply(st.position, price, st.cfg.TrailCfg)
-		if reason := position.CheckExit(st.position, price); reason != "" {
-			exitPx := position.ExitFillPrice(st.position, reason, price)
+	pos := st.position
+	for i, price := range position.IntrabarPath(candle, pos.Direction) {
+		position.UpdateMFE(pos, price)
+		position.UpdateMAE(pos, price)
+		if reason := position.CheckExit(pos, price); reason != "" {
+			exitPx := position.ExitFillPrice(pos, reason, price)
+			if i == 0 { // open — реальная цена: бар мог открыться уже за стопом
+				exitPx = position.ExitFillPriceAt(pos, reason, price)
+			}
 			p.closePosition(ctx, executor, st, exitPx, reason, candle.Timestamp)
 			return
 		}
 	}
+	// Трейл — по закрытому бару, как в live (selfmanaged.trailOnBar).
+	trailing.Apply(pos, position.TrailPrice(candle, pos.Direction), st.cfg.TrailCfg)
 }
 
 func (p *PortfolioRunner) checkEOD(ctx context.Context, executor contract.OrderExecutor, st *tickerState, candle models.Candle) {
@@ -332,8 +325,8 @@ func (p *PortfolioRunner) closePosition(ctx context.Context, executor contract.O
 	pos := st.position
 	st.position = nil
 
-	price = costs.FillPrice(st.cfg.CostsCfg, costs.CloseSide(pos.Direction),
-		position.ExitFillPrice(pos, reason, price))
+	// price — уже цена исполнения (ExitFillPrice/ExitFillPriceAt у вызывающего).
+	price = costs.FillPrice(st.cfg.CostsCfg, costs.CloseSide(pos.Direction), price)
 
 	closeDir := "SELL"
 	if pos.Direction == "SELL" {

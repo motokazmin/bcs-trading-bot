@@ -44,8 +44,6 @@ type PortfolioBacktestOptions struct {
 	HistoryDir  string
 	Deposit     float64 // 0 = из первого experiment / 200k
 	MaxParallel int     // 0 = 5
-	// IntrabarOscillations — стресс-тест внутрибарного пути (см. position.IntrabarPathN).
-	IntrabarOscillations int
 	// SlippageBps — override проскальзывания из YAML (<0 = не переопределять).
 	SlippageBps float64
 	From        time.Time
@@ -134,7 +132,6 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 			slotTrail := trailCfg
 			slotTrail.StepPriceValue = step
 			runnerCfgs[slotKey] = backtest.RunnerConfig{
-				IntrabarOscillations: opts.IntrabarOscillations,
 				CostsCfg:             costsCfg,
 				Ticker:          tc.Symbol,
 				ClassCode:       cfg.ClassCode,

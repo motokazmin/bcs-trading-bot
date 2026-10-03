@@ -38,9 +38,6 @@ type RunnerConfig struct {
 	RewardRatio          float64
 	StrategyParamsJSON   string
 	SessionCfg           config.SessionConfig
-	// IntrabarOscillations — число проходов по экстремумам свечи при проверке
-	// SL/TP (см. position.IntrabarPathN). 0/1 — обычная модель, >1 — стресс-тест.
-	IntrabarOscillations int
 	// CostsCfg — модель издержек. В backtest из неё используется только
 	// SlippageBps: комиссия применяется позже, на агрегации (eval.AggregateTrades).
 	CostsCfg costs.Config
@@ -159,18 +156,6 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 	if err := r.riskMgr.CheckCircuitBreaker(); err != nil {
 		return
 	}
-	// Тот же гейт входа, что и в live: см. tradeaudit.Result.Rejects.
-	if tradeaudit.ValidateOpen(tradeaudit.OpenInput{
-		Direction:   signal.Direction,
-		EntryPrice:  signal.Price,
-		StopLoss:    signal.StopLoss,
-		TakeProfit:  signal.TakeProfit,
-		RDistance:   abs(signal.Price - signal.StopLoss),
-		BarClose:    candle.Close,
-		RewardRatio: r.cfg.RewardRatio,
-	}).Rejects() {
-		return
-	}
 
 	qty := r.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if qty <= 0 {
@@ -221,16 +206,21 @@ func (r *Runner) processCandle(ctx context.Context, executor contract.OrderExecu
 }
 
 func (r *Runner) processIntrabar(ctx context.Context, executor contract.OrderExecutor, candle models.Candle) {
-	for _, price := range position.IntrabarPathN(candle, r.position.Direction, r.cfg.IntrabarOscillations) {
-		position.UpdateMFE(r.position, price)
-		position.UpdateMAE(r.position, price)
-		trailing.Apply(r.position, price, r.cfg.TrailCfg)
-		if reason := position.CheckExit(r.position, price); reason != "" {
-			exitPx := position.ExitFillPrice(r.position, reason, price)
+	pos := r.position
+	for i, price := range position.IntrabarPath(candle, pos.Direction) {
+		position.UpdateMFE(pos, price)
+		position.UpdateMAE(pos, price)
+		if reason := position.CheckExit(pos, price); reason != "" {
+			exitPx := position.ExitFillPrice(pos, reason, price)
+			if i == 0 { // open — реальная цена: бар мог открыться уже за стопом
+				exitPx = position.ExitFillPriceAt(pos, reason, price)
+			}
 			r.closePosition(ctx, executor, exitPx, reason, candle.Timestamp)
 			return
 		}
 	}
+	// Трейл — по закрытому бару, как в live (selfmanaged.trailOnBar).
+	trailing.Apply(pos, position.TrailPrice(candle, pos.Direction), r.cfg.TrailCfg)
 }
 
 func (r *Runner) checkEOD(ctx context.Context, executor contract.OrderExecutor, candle models.Candle) {
@@ -272,8 +262,8 @@ func (r *Runner) closePosition(ctx context.Context, executor contract.OrderExecu
 	pos := r.position
 	r.position = nil
 
-	price = costs.FillPrice(r.cfg.CostsCfg, costs.CloseSide(pos.Direction),
-		position.ExitFillPrice(pos, reason, price))
+	// price — уже цена исполнения (ExitFillPrice/ExitFillPriceAt у вызывающего).
+	price = costs.FillPrice(r.cfg.CostsCfg, costs.CloseSide(pos.Direction), price)
 
 	closeDir := "SELL"
 	if pos.Direction == "SELL" {

@@ -164,28 +164,24 @@ func orcAfterBreakout(t *testing.T, extra Params) (CandleStrategy, time.Time) {
 	return s, base
 }
 
-// Свеча, закрывшаяся обратно внутри диапазона, отменяет ретест-лимит: пробой не
-// состоялся, и вход по уровню на развороте — это ловля ножа.
-func TestORCCancelsPendingWhenBreakoutInvalidated(t *testing.T) {
+// Свеча, закрывшаяся обратно внутри диапазона, прошла через уровень лимита — настоящая
+// заявка в ней исполнилась. Раньше такая свеча снимала заявку по своему же close, и
+// модель выбрасывала ровно неудавшиеся ретесты: exp_R портфеля +0.321 против +0.458
+// при честном филе (docs/analysis/0005).
+func TestORCFillsOnFailedRetest(t *testing.T) {
 	s, base := orcAfterBreakout(t, nil)
 
 	failed := models.Candle{
 		Ticker: "MGNT",
-		Open:   104, High: 104, Low: 100.5, Close: 100, Volume: 3000,
+		Open:   104, High: 104, Low: 99.8, Close: 100, Volume: 3000,
 		Timestamp: base.Add(40 * time.Minute),
 	}
-	if o := s.OnCandle(failed); o != nil {
-		t.Fatalf("сломанный пробой не должен исполнять лимит, получено %+v", o)
+	o := s.OnCandle(failed)
+	if o == nil {
+		t.Fatal("свеча прошла через уровень 101 — лимит обязан исполниться, даже если close внутри диапазона")
 	}
-
-	// Заявка снята: возврат цены к уровню позже входа уже не даёт.
-	back := models.Candle{
-		Ticker: "MGNT",
-		Open:   100, High: 101.5, Low: 100, Close: 101.2, Volume: 3000,
-		Timestamp: base.Add(45 * time.Minute),
-	}
-	if o := s.OnCandle(back); o != nil {
-		t.Fatalf("снятая заявка не должна оживать, получено %+v", o)
+	if o.Price != 101 {
+		t.Fatalf("фил по уровню 101, получено %.4f", o.Price)
 	}
 }
 

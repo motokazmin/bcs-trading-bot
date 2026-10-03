@@ -87,19 +87,6 @@ type orcPendingLimit struct {
 	breakoutCandle models.Candle
 }
 
-// invalidated — свеча закрылась обратно внутри диапазона, т.е. пробой не состоялся.
-// Ретест-лимит в этом случае снимается: иначе он гарантированно исполнится на
-// возврате цены и позиция откроется против уже развернувшегося движения.
-func (p *orcPendingLimit) invalidated(candle models.Candle) bool {
-	switch p.direction {
-	case "BUY":
-		return candle.Close < p.upper
-	case "SELL":
-		return candle.Close > p.lower
-	}
-	return true
-}
-
 // fillPrice — цена исполнения лимитной заявки на баре.
 // Лимит на покупку исполняется, когда рынок доходит до уровня; если бар открылся
 // уже ниже уровня, заявка исполняется по цене открытия (лучше лимита), а не по
@@ -263,12 +250,11 @@ func (s *OpeningRangeContinuation) tryFillPending(candle models.Candle) *models.
 		return nil
 	}
 
+	// Отмены по закрытию бара нет намеренно: лимит стоит ровно на границе диапазона,
+	// и бар, закрывшийся обратно внутри, обязательно прошёл через уровень — настоящая
+	// заявка в нём уже исполнилась. Отмена по close того же бара выбрасывала именно
+	// неудавшиеся ретесты (docs/analysis/0005).
 	p := s.pending
-	if p.invalidated(candle) {
-		s.pending = nil
-		return nil
-	}
-
 	fill, filled := p.fillPrice(candle)
 	if !filled {
 		return nil

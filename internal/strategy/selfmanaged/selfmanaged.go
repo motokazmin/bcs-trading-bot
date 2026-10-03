@@ -184,6 +184,7 @@ func (s *SelfManagedStrategy) Run(ctx context.Context, sctx contract.StrategyCon
 			s.setLastPrice(candle.Close)
 			s.checkDailyReset(now)
 			s.checkEOD(ctx, sctx, candle.Close, now)
+			s.trailOnBar(ctx, sctx, candle)
 			s.processCandle(ctx, sctx, candle, now)
 
 		case <-eodTicker.C:
@@ -227,28 +228,6 @@ func (s *SelfManagedStrategy) processCandle(ctx context.Context, sctx contract.S
 
 	if err := s.riskMgr.CheckCircuitBreaker(); err != nil {
 		s.rejectSignal(sctx, signal, err.Error(), 0, 0)
-		return
-	}
-
-	// Гейт входа: сигнал, у которого цена входа уже за стопом относительно рынка
-	// (или лимит оторван от бара), не исполняется. Раньше аудит только писал в лог,
-	// и такие сделки открывались, чтобы тут же закрыться по -1R.
-	openAudit := tradeaudit.ValidateOpen(tradeaudit.OpenInput{
-		Direction:   signal.Direction,
-		EntryPrice:  signal.Price,
-		StopLoss:    signal.StopLoss,
-		TakeProfit:  signal.TakeProfit,
-		RDistance:   math.Abs(signal.Price - signal.StopLoss),
-		BarClose:    candle.Close,
-		LastPrice:   s.currentLastPrice(),
-		RewardRatio: s.cfg.RewardRatio,
-	})
-	if !openAudit.Empty() {
-		logx.Audit(s.cfg.Label, openAudit.Severity, openAudit.CodesCSV(), openAudit.DetailsString())
-	}
-	if openAudit.Rejects() {
-		s.rejectSignal(sctx, signal,
-			"вход отклонён аудитом: "+openAudit.CodesCSV()+" "+openAudit.DetailsString(), 0, 0)
 		return
 	}
 
@@ -392,22 +371,43 @@ func (s *SelfManagedStrategy) checkSLTP(ctx context.Context, sctx contract.Strat
 	}
 	position.UpdateMFE(s.pos, price)
 	position.UpdateMAE(s.pos, price)
-	prevStage := s.pos.TrailStage
-	trailing.Apply(s.pos, price, s.cfg.TrailCfg)
-	stage := s.pos.TrailStage
-	sl := s.pos.StopLoss
+	// Трейл здесь не двигается — только по закрытому бару (trailOnBar), как в backtest.
 	reason := position.CheckExit(s.pos, price)
 	exitPx := price
 	if reason != "" {
-		exitPx = position.ExitFillPrice(s.pos, reason, price)
+		// Тик — реальная цена: перескочил стоп — исполнение по тику, а не по уровню.
+		exitPx = position.ExitFillPriceAt(s.pos, reason, price)
 	}
+	s.mu.Unlock()
+
+	if reason != "" {
+		s.closePosition(ctx, sctx, exitPx, reason)
+	}
+}
+
+// trailOnBar пересчитывает трейл по закрытому бару — так же, как backtest после
+// прохода бара (backtest.processIntrabar). Раньше трейл двигался на каждом тике, а
+// backtest воспроизводил это по OHLC с выгодным порядком экстремумов: на
+// синтетическом мартингале +0.05R до издержек (docs/analysis/0006). Бар входа сюда
+// не попадает: позиция открывается в processCandle уже после этого вызова.
+func (s *SelfManagedStrategy) trailOnBar(ctx context.Context, sctx contract.StrategyContext, candle models.Candle) {
+	s.mu.Lock()
+	if s.pos == nil {
+		s.mu.Unlock()
+		return
+	}
+	position.UpdateMFE(s.pos, position.TrailPrice(candle, s.pos.Direction))
+	prevStage := s.pos.TrailStage
+	trailing.Apply(s.pos, position.TrailPrice(candle, s.pos.Direction), s.cfg.TrailCfg)
+	stage, sl := s.pos.TrailStage, s.pos.StopLoss
 	s.mu.Unlock()
 
 	if stage > prevStage {
 		logx.Trailing(s.cfg.Label, stage, sl)
 	}
-	if reason != "" {
-		s.closePosition(ctx, sctx, exitPx, reason)
+	// Новый стоп мог оказаться за текущей ценой — выход по рынку, как open следующего бара в backtest.
+	if last := s.currentLastPrice(); last > 0 {
+		s.checkSLTP(ctx, sctx, last)
 	}
 }
 
@@ -452,8 +452,7 @@ func (s *SelfManagedStrategy) closePosition(ctx context.Context, sctx contract.S
 	s.pos = nil
 	s.mu.Unlock()
 
-	price = position.ExitFillPrice(pos, reason, price)
-
+	// price — уже цена исполнения (ExitFillPrice/ExitFillPriceAt у вызывающего).
 	closeDir := costs.CloseSide(pos.Direction)
 	// Проскальзывание на выходе: стоп/тейк исполняются хуже своего уровня.
 	price = costs.FillPrice(s.cfg.CostsCfg, closeDir, price)
