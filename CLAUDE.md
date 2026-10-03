@@ -221,6 +221,18 @@ baseline +0.458 → +0.111R, PF 2.81 → 1.28. Тейк в баре фила п�
 +0.05R и нашёл три перекоса ([0006](docs/analysis/0006-null-model-finds-three-more-biases.md)).
 Шагов на бар — тысячи: при 300 перескок через уровень даёт ~0.025R на пересечение.
 
+**Время решения в backtest — конец бара, не начало.** Метка бара — его начало, live решает после
+закрытия (`now` ≈ конец + секунды). `EntriesAllowed`, `ShouldForceClose`, дневной сброс в обоих
+backtest берут `barEnd`; EOD — после прохода бара по его close; дыра в данных — `closeMissedEOD` по
+последнему close. С началом бара `session-orc-evening` ночевал (27/156 сделок, до 62 ч), а backtest брал
+28 сделок, которых live не возьмёт ([0007](docs/analysis/0007-live-vs-backtest-replay-on-history.md)).
+Держат `TestEODClosesOnBarEndingAtEOD`, `TestMissedEODClosesAtLastClose`, `TestNoEntryOnBarEndingAtEOD`.
+
+**Сверять live с backtest — прогоном истории через live-код, а не на 8 сделках.** `TestLiveMatchesBacktestOnHistory`
+(`internal/strategy/selfmanaged`, запуск — в шапке теста) гонит `data/history` через live-методы и
+сравнивает поштучно. Порядок слотов выравнивать по алфавиту: в live приоритет слотов на одном тикере
+недетерминирован, без этого ~85 ложных расхождений.
+
 ## Издержки и модель исполнения
 
 `costs.slippage_bps` — проскальзывание на **каждой ноге**, применяется против позиции
