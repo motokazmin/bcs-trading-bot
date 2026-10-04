@@ -76,7 +76,7 @@ make bot-smoke
 
 | Файл | Назначение |
 |---|---|
-| `configs/runs/portfolio-paper.yaml` | Paper: 6 слотов — стенд исполнения, проверенного преимущества нет |
+| `configs/runs/paper-m15.yaml` | Paper на M15: MF Afternoon и OR Fade — кандидаты из 0015, критерии в 0019 |
 | `configs/legacy/` | Чемпионы и research-конфиги старой модели (история) |
 | `configs/runs/real-stocks.yaml` | Real, один тикер/experiment |
 | `configs/runs/virtual-futures.yaml` | Paper фьючерсы (не portfolio) |

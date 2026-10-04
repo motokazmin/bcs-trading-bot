@@ -1,0 +1,106 @@
+# Paper на M15: два кандидата из docs/analysis/0015 на одном virtual-счёте 200k.
+#
+# ПРОВЕРКА КАНДИДАТОВ, НЕ ТОРГОВАЯ СИСТЕМА. На хвосте 2026-04 → 2026-10 (смотрен дважды, 0014–0015):
+# MF Afternoon +0.195R (161 сделка, t = 3.0), OR Fade +0.130R (128, t = 1.7). Критерии paper — 0019,
+# записаны до запуска. Параметры заморожены из results/m15-v2/*/slot.yaml, не править.
+#
+# С 2026-10-04 бот запускается только на M15; M5-стенд (portfolio-paper.yaml) выведен.
+# История для backtest — data/history-m15 (make sync-history TIMEFRAME=M15).
+# Запуск: make bot
+# Проверка: go run ./cmd/optimizer portfolio-backtest -config configs/runs/paper-m15.yaml
+# Сверка live с backtest: LIVE_REPLAY=1 LIVE_REPLAY_CFG=configs/runs/paper-m15.yaml go test ./internal/strategy/selfmanaged/ -run TestLiveMatchesBacktestOnHistory -v -timeout 30m
+
+trading_mode: virtual
+
+tickers:
+  - AFKS
+  - CHMF
+  - GAZP
+  - LKOH
+  - MGNT
+  - MOEX
+  - NVTK
+  - ROSN
+  - SBER
+  - TATN
+
+class_code: TQBR
+candle_timeframe: M15
+
+costs:
+  commission_rate_per_leg: 0.00008
+  # Проскальзывание + половина спреда на КАЖДОЙ ноге, как при подборе (0015).
+  # Стресс без правки конфига: portfolio-backtest -slippage-bps N
+  slippage_bps: 1
+
+risk:
+  deposit: 200000
+  max_daily_loss_percent: 2.0
+  # Связка с min_stop_bps: кап по кэшу не срабатывает, пока risk_per_trade_percent <= min_stop_bps/100.
+  risk_per_trade_percent: 0.20
+  max_parallel_trades: 5
+
+virtual:
+  balance: 200000
+
+# EOD 18:30, а не 18:40: на M15 18:40 — середина бара 18:30–18:45. Live закрыл бы в 18:40 по тику,
+# backtest — по close бара (цена 18:45). Сверка разошлась на 374 сделках из 886 (0019).
+# Время вне сетки таймфрейма конфиг больше не пропускает (config.sessionOnGrid).
+session:
+  timezone: Europe/Moscow
+  eod_close_time: "18:30"
+  session_open_time: "10:00"
+
+storage:
+  path: data/trades.db
+
+recording:
+  dir: data/ws-raw
+
+experiments:
+  # Пробой канала после 12:30 (момент дня), только лонг. 0015: подбор +0.029, хвост +0.195.
+  - id: mf-afternoon-m15
+    name: "MF Afternoon M15 (12:30–18:30)"
+    entry_delay_minutes: 150
+    strategy:
+      type: momentum_filtered
+      stop_mode: atr
+      atr_period: 7
+      atr_multiplier: 2.4775928175587483
+      lookback: 14
+      breakout_threshold: 0.0051864686938163105
+      long_only: true
+      trend_sma_period: 9
+      strategy_entry_delay_minutes: 15
+      volume_filter: false
+      volume_min_ratio: 2.224901633597202
+      reward_ratio: 2.032711212387513
+      take_profit_enabled: true
+      trail_activation_r: 1.098791385552292
+      trail_breakeven_r: 0.022591656489727746
+      trail_discrete_step_r: 0.7839471058387917
+      trail_stage_max: 2
+      max_trades_per_ticker_per_day: 3
+      min_stop_bps: 20
+
+  # Фейд ложного пробоя утреннего диапазона, все 10 тикеров (session_or_fade — без whitelist).
+  # 0015: подбор +0.083, хвост +0.130 (t = 1.7 — может оказаться нулём).
+  - id: or-fade-m15
+    name: "OR Fade M15 (10:00–18:30)"
+    strategy:
+      type: session_or_fade
+      stop_mode: atr
+      atr_period: 6
+      atr_multiplier: 1.2975314671964133
+      orb_minutes: 30
+      breakout_threshold: 0.001683432357508877
+      fade_window_minutes: 30
+      fade_trade_end_minutes: 90
+      require_inside_range: true
+      reward_ratio: 1.1952682465272906
+      take_profit_enabled: true
+      trail_activation_r: 0.5035747005030637
+      trail_breakeven_r: 0.12303269109492954
+      trail_stage_max: 3
+      max_trades_per_ticker_per_day: 1
+      min_stop_bps: 20

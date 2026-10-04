@@ -5,5 +5,5 @@
   модель» — недействительны. Проверки 0009–0012 не нашли преимущества ни у одного семейства.
 - `research/` — конфиги ORC research rolling (протокол `docs/legacy/research/research-rolling.md`).
 
-В рантайме не участвуют. Боевой конфиг — `configs/runs/portfolio-paper.yaml` (стенд исполнения).
+В рантайме не участвуют. Боевой конфиг — `configs/runs/paper-m15.yaml` (paper двух кандидатов M15, 0019); M5-стенд выведен в `configs/legacy/runs/portfolio-paper-m5.yaml` (стенд исполнения).
 Состояние — `docs/analysis/state.md`, `docs/baseline.md`.

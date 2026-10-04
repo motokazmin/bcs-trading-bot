@@ -16,6 +16,7 @@ import (
 	"bcs-trading-bot/internal/engine/broker"
 	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/engine/marketdata"
+	"bcs-trading-bot/internal/engine/timeframe"
 	"bcs-trading-bot/internal/optimizer"
 	"bcs-trading-bot/internal/optimizer/charts"
 	"bcs-trading-bot/internal/optimizer/core"
@@ -72,6 +73,7 @@ func runCmd(args []string) {
 	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
 	tickers := fs.String("tickers", "", "override тикеров через запятую")
 	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
+	tfFlag := fs.String("timeframe", "", "таймфрейм баров (M5, M15, …; \"\" = candle_timeframe из tickers-config); история — из <history-dir>-<tf>")
 	strategyID := fs.String("strategy", strategy.DefaultType(), "id стратегии: "+strings.Join(strategy.ListIDs(), ", "))
 	searchSpace := fs.String("search-space", "", "YAML search space (default: из стратегии)")
 	dateFrom := fs.String("date-from", "", "начало периода YYYY-MM-DD (default: из CSV)")
@@ -80,6 +82,7 @@ func runCmd(args []string) {
 	stepMonths := fs.Int("step-months", 1, "шаг сдвига окна в месяцах")
 	trials := fs.Int("trials", 200, "число random search trials")
 	minTrades := fs.Int("min-trades", 20, "мин. сделок для валидного score")
+	minValidWindows := fs.Float64("min-valid-windows", 0.75, "доля окон, где сделок ≥ min-trades, иначе trial отсеивается (0 = судить по любым прошедшим окнам, как до 0015)")
 	commission := fs.Float64("commission-per-lot", -1, "flat round-trip за акцию/контракт, руб (<=0: из tickers-config)")
 	commissionRate := fs.Float64("commission-rate", -1, "ставка за leg, доля оборота (0.00008 = 0,008%%; <=0: из tickers-config)")
 	stopMode := fs.String("stop-mode", "atr", "stop_mode: range или atr")
@@ -106,6 +109,12 @@ func runCmd(args []string) {
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
+	if *tfFlag != "" {
+		if _, err := timeframe.Duration(*tfFlag); err != nil {
+			logx.Fatalf("timeframe: %v", err)
+		}
+		u.CandleTimeframe = timeframe.Normalize(*tfFlag)
+	}
 	tickerList := u.ResolveTickers(*tickers)
 
 	space, err := core.LoadSearchSpace(spacePath)
@@ -116,7 +125,7 @@ func runCmd(args []string) {
 		logx.Fatalf("%v", err)
 	}
 
-	candleData, err := eval.LoadCandleData(*historyDir, tickerList)
+	candleData, err := eval.LoadCandleData(*historyDir, tickerList, u.CandleTimeframe)
 	if err != nil {
 		logx.Fatalf("загрузка истории: %v", err)
 	}
@@ -145,6 +154,7 @@ func runCmd(args []string) {
 		StepPriceValue:  *stepPrice,
 		Costs:           u.ResolvedCosts(*commission, *commissionRate),
 		MinTrades:       *minTrades,
+		MinValidWindowShare: *minValidWindows,
 		Session:         optimizer.DefaultSession(),
 	}
 	if sess, err := optimizer.LoadSessionFromStrategyFile(spacePath); err == nil {
@@ -214,6 +224,7 @@ func backtestCmd(args []string) {
 	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML со списком инструментов")
 	tickers := fs.String("tickers", "", "override тикеров через запятую")
 	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
+	tfFlag := fs.String("timeframe", "", "таймфрейм баров (M5, M15, …; \"\" = candle_timeframe из tickers-config); история — из <history-dir>-<tf>")
 	strategyID := fs.String("strategy", strategy.DefaultType(), "id стратегии")
 	searchSpace := fs.String("search-space", "", "YAML search space (default: из стратегии)")
 	dateFrom := fs.String("date-from", "", "начало периода YYYY-MM-DD")
@@ -238,6 +249,12 @@ func backtestCmd(args []string) {
 	if err != nil {
 		logx.Fatalf("tickers-config: %v", err)
 	}
+	if *tfFlag != "" {
+		if _, err := timeframe.Duration(*tfFlag); err != nil {
+			logx.Fatalf("timeframe: %v", err)
+		}
+		u.CandleTimeframe = timeframe.Normalize(*tfFlag)
+	}
 	space, err := core.LoadSearchSpace(spacePath)
 	if err != nil {
 		logx.Fatalf("search space: %v", err)
@@ -247,7 +264,7 @@ func backtestCmd(args []string) {
 	}
 
 	tickerList := u.ResolveTickers(*tickers)
-	candleData, err := eval.LoadCandleData(*historyDir, tickerList)
+	candleData, err := eval.LoadCandleData(*historyDir, tickerList, u.CandleTimeframe)
 	if err != nil {
 		logx.Fatalf("загрузка истории: %v", err)
 	}
@@ -287,7 +304,7 @@ func backtestCmd(args []string) {
 
 func portfolioBacktestCmd(args []string) {
 	fs := flag.NewFlagSet("portfolio-backtest", flag.ExitOnError)
-	configPath := fs.String("config", "configs/runs/portfolio-paper.yaml", "bot YAML с experiments (FROZEN champions)")
+	configPath := fs.String("config", "configs/runs/paper-m15.yaml", "bot YAML с experiments")
 	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
 	dateFrom := fs.String("date-from", "", "начало периода YYYY-MM-DD (default: из CSV)")
 	dateTo := fs.String("date-to", "", "конец периода YYYY-MM-DD (default: из CSV)")
@@ -295,6 +312,7 @@ func portfolioBacktestCmd(args []string) {
 	maxParallel := fs.Int("max-parallel", 5, "лимит одновременных позиций")
 	slippage := fs.Float64("slippage-bps", -1, "override costs.slippage_bps: проскальзывание на ногу, б.п. (-1 = из YAML)")
 	tradesCSV := fs.String("trades-csv", "", "выгрузить сделки в CSV (net после комиссии)")
+	tf := fs.String("timeframe", "", "override candle_timeframe всех experiments (история — из <history-dir>-<tf>; \"\" = из YAML)")
 	_ = fs.Parse(args)
 
 	opts := eval.PortfolioBacktestOptions{
@@ -303,6 +321,7 @@ func portfolioBacktestCmd(args []string) {
 		Deposit:     *deposit,
 		MaxParallel: *maxParallel,
 		SlippageBps:          *slippage,
+		Timeframe:   *tf,
 	}
 	if *dateFrom != "" {
 		from, err := report.ParseDate(*dateFrom)
@@ -416,7 +435,8 @@ func syncHistoryCmd(args []string) {
 	// Всегда полный universe по умолчанию — не whitelist стратегии (tickers-orc и т.п.).
 	tickersConfigPath := fs.String("tickers-config", defaultTickersConfig, "YAML полного списка тикеров для догрузки истории")
 	tickers := fs.String("tickers", "", "override тикеров через запятую")
-	outputDir := fs.String("output-dir", "data/history", "директория для CSV")
+	outputDir := fs.String("output-dir", "data/history", "базовая директория CSV; не-M5 таймфрейм уходит в <dir>-<tf> (data/history-m15)")
+	tf := fs.String("timeframe", timeframe.History, "таймфрейм истории (M1, M5, M15, M30, H1); не из tickers-config, чтобы не дописать чужие бары в M5")
 	initialYears := fs.Int("initial-years", 0, "глубина первичной загрузки (0 = из tickers-config)")
 	chunkDelay := fs.Duration("chunk-delay", 50*time.Millisecond, "мин. пауза между чанками (adaptive) или фиксированная")
 	maxChunkDelay := fs.Duration("max-chunk-delay", 3*time.Second, "макс. пауза adaptive throttle")
@@ -424,6 +444,9 @@ func syncHistoryCmd(args []string) {
 	adaptiveDelay := fs.Bool("adaptive-delay", true, "адаптивная пауза: быстрее при успехе, медленнее при 429")
 	parallelTickers := fs.Int("parallel-tickers", 5, "параллельная загрузка тикеров (общий rate limiter)")
 	_ = fs.Parse(args)
+	if _, err := timeframe.Duration(*tf); err != nil {
+		logx.Fatalf("timeframe: %v", err)
+	}
 
 	token := os.Getenv("BCS_REFRESH_TOKEN")
 	if token == "" {
@@ -453,9 +476,9 @@ func syncHistoryCmd(args []string) {
 	}
 
 	if err := marketdata.SyncHistory(ctx, client, marketdata.SyncOptions{
-		OutputDir:           *outputDir,
+		OutputDir:           timeframe.HistoryDir(*outputDir, *tf),
 		ClassCode:           u.ClassCode,
-		TimeFrame:           u.CandleTimeframe,
+		TimeFrame:           timeframe.Normalize(*tf),
 		InitialHistoryYears: years,
 		Tickers:             tickerList,
 		ParallelTickers:     *parallelTickers,

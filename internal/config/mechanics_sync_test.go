@@ -41,7 +41,7 @@ func TestИздержкиОбъявленыЯвно(t *testing.T) {
 }
 
 // Search space боевых слотов обязан фиксировать гейт и риск теми же значениями,
-// что в configs/runs/portfolio-paper.yaml.
+// что в configs/runs/paper-m15.yaml.
 func TestSearchSpaceФиксируетМеханику(t *testing.T) {
 	const wantGate, wantRisk = 20.0, 0.20
 	for _, path := range []string{
@@ -52,6 +52,11 @@ func TestSearchSpaceФиксируетМеханику(t *testing.T) {
 		"../../configs/strategies/session-orc-evening.yaml",
 		"../../configs/strategies/session-orc-morning.yaml",
 		"../../configs/strategies/momentum-filtered-afternoon-longonly-narrow-ws2.yaml",
+		"../../configs/strategies/m15/session-orc-morning.yaml",
+		"../../configs/strategies/m15/orc-day.yaml",
+		"../../configs/strategies/m15/or-fade.yaml",
+		"../../configs/strategies/m15/mf-afternoon.yaml",
+		"../../configs/strategies/m15/session-orc-evening.yaml",
 	} {
 		var cfg struct {
 			SearchSpace struct {

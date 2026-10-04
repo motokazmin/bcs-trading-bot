@@ -11,7 +11,7 @@
 | `BCS_REFRESH_TOKEN` | Бот, `sync-history` | Да для бота и истории |
 | `ADMIN_TOKEN` | HTTP-админка с публичного IP | Да при bind не на localhost |
 | `HTTP_LISTEN` | Адрес `-http-listen` через `make bot` | Нет (дефолт `127.0.0.1:8091`) |
-| `BOT_CONFIG` | YAML для `make bot` | Нет (дефолт `configs/runs/portfolio-paper.yaml`) |
+| `BOT_CONFIG` | YAML для `make bot` | Нет (дефолт `configs/runs/paper-m15.yaml`, только M15 с 2026-10-04) |
 | `LOG_FILE` | Путь лог-файла | Нет (дефолт `/var/log/trading-bot/bot.log`; `-` — только stdout) |
 
 ```bash
@@ -164,13 +164,17 @@ grep -E "wsrecord|bar_age|закрыт по таймеру|переподклю�
 export BCS_REFRESH_TOKEN=...
 make build-optimizer
 make sync-history          # полный universe → data/history/*.csv
+make sync-history TIMEFRAME=M15   # родные M15 брокера → data/history-m15/*.csv
+
+# Таймфрейм бэктеста — `candle_timeframe` в YAML или флаг -timeframe M15;
+# история берётся из папки этого таймфрейма, бары не на его сетке — ошибка.
 
 make optimizer-orc         # → results/orc/
 make optimizer-or-fade
 make optimizer-afternoon
 
 go run ./cmd/optimizer portfolio-backtest \
-  -config configs/runs/portfolio-paper.yaml
+  -config configs/runs/paper-m15.yaml
 ```
 
 | Вопрос | Документ |
@@ -190,7 +194,7 @@ go run ./cmd/optimizer portfolio-backtest \
 | Бот не стартует с `0.0.0.0` | задать `ADMIN_TOKEN` |
 | Connection refused на PUBLIC_IP | открыть TCP 8091 |
 | `sync-history` падает | задать `BCS_REFRESH_TOKEN` |
-| Optimizer «нет истории» | `make sync-history` |
+| Optimizer «нет истории» | `make sync-history` (для M15 — `TIMEFRAME=M15`) |
 
 
 ## Цикл разбора
@@ -222,10 +226,11 @@ scp -i ~/.ssh/id_rsa user1@ХОСТ:/tmp/t.db data/trades.db
 ### 2. Досинхронизировать историю
 
 ```bash
-export BCS_REFRESH_TOKEN=... && make sync-history
+export BCS_REFRESH_TOKEN=... && make sync-history && make sync-history TIMEFRAME=M15
 ```
 
-Без этого нечем проверять фил: `data/history/*.csv` отстанет от периода сделок, и
+M5 — для проверки филов (бар мельче, чем у бота), M15 — для поштучной сверки с backtest
+(`portfolio-backtest -config configs/runs/paper-m15.yaml`). Без этого нечем проверять фил: `data/history/*.csv` отстанет от периода сделок, и
 `dead_on_arrival`, `same_bar`, `left_on_table_r` посчитаются не полностью или никак.
 **Цены в `trades.db` — это то, что записал бот, а не то, что было на рынке.**
 

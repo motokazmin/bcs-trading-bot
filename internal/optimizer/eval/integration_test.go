@@ -73,7 +73,7 @@ fixed:
 		t.Fatalf("load space: %v", err)
 	}
 
-	data, err := eval.LoadCandleData(dir, []string{"TEST"})
+	data, err := eval.LoadCandleData(dir, []string{"TEST"}, "M5")
 	if err != nil {
 		t.Fatalf("load candles: %v", err)
 	}

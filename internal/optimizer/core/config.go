@@ -33,6 +33,10 @@ type ParamBounds struct {
 	// or-fade активация 2.0039 при тейке 1.2710, и переподбор выбрал такое же снова
 	// (docs/analysis/0003-reoptimization-protocol.md).
 	Of string `yaml:"of"`
+	// Step — шаг сетки: значения min, min+step, … ≤ max. Нужен параметрам в минутах
+	// на крупном таймфрейме: orbMinutes 12…22 на M15 даёт всего два разных диапазона
+	// (15 и 30), остальные значения — копии, и оптимизатор выбирал бы между ними наугад.
+	Step float64 `yaml:"step"`
 }
 
 // SearchSpace описывает пространство поиска и фиксированные константы.
@@ -137,6 +141,11 @@ func (s *SearchSpace) Sample(rng *rand.Rand) ParameterSet {
 }
 
 func sampleBounds(rng *rand.Rand, b ParamBounds) float64 {
+	if b.Step > 0 {
+		lo, hi := math.Min(b.Min, b.Max), math.Max(b.Min, b.Max)
+		n := int(math.Floor((hi-lo)/b.Step + 1e-9))
+		return lo + b.Step*float64(rng.Intn(n+1))
+	}
 	if b.Type == ParamInt {
 		lo, hi := int(b.Min), int(b.Max)
 		if hi < lo {

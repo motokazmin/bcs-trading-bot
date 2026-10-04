@@ -3,6 +3,7 @@ package eval
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"bcs-trading-bot/internal/config"
@@ -10,6 +11,7 @@ import (
 	"bcs-trading-bot/internal/engine/execution"
 	"bcs-trading-bot/internal/engine/risk"
 	"bcs-trading-bot/internal/engine/marketdata"
+	"bcs-trading-bot/internal/engine/timeframe"
 	"bcs-trading-bot/internal/models"
 	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/backtest"
@@ -49,6 +51,8 @@ type PortfolioBacktestOptions struct {
 	MaxParallel int     // 0 = 5
 	// SlippageBps — override проскальзывания из YAML (<0 = не переопределять).
 	SlippageBps float64
+	// Timeframe — override candle_timeframe всех experiments ("" = из YAML).
+	Timeframe string
 	From        time.Time
 	To          time.Time
 }
@@ -91,11 +95,19 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 		riskPerTrade = 0.5
 	}
 
-	tickers := cfg.AllTickerSymbols()
-	candleData, err := LoadCandleData(opts.HistoryDir, tickers)
+	if opts.Timeframe != "" {
+		if _, err := timeframe.Duration(opts.Timeframe); err != nil {
+			return PortfolioBacktestResult{}, fmt.Errorf("portfolio-backtest: %w", err)
+		}
+		for i := range experiments {
+			experiments[i].CandleTimeframe = timeframe.Normalize(opts.Timeframe)
+		}
+	}
+	candleData, err := loadPortfolioCandles(cfg, experiments, opts.HistoryDir)
 	if err != nil {
 		return PortfolioBacktestResult{}, err
 	}
+	tickers := cfg.AllTickerSymbols()
 
 	from, to := opts.From, opts.To
 	if from.IsZero() || to.IsZero() {
@@ -138,7 +150,7 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 				CostsCfg:             costsCfg,
 				Ticker:          tc.Symbol,
 				ClassCode:       cfg.ClassCode,
-				CandleTimeframe: cfg.CandleTimeFrame,
+				CandleTimeframe: exp.CandleTimeframe,
 				TradingMode:     config.TradingModeVirtual,
 				RunID:           "portfolio-backtest",
 				ExperimentID:    exp.ID,
@@ -278,4 +290,37 @@ func statsByExperiment(trades []models.ClosedTrade, costsCfg costs.Config, class
 		out[id] = s
 	}
 	return out
+}
+
+// loadPortfolioCandles загружает историю каждого тикера в таймфрейме его слотов.
+// Портфельный раннер ведёт один поток баров на тикер, поэтому слоты одного тикера
+// обязаны быть на одном таймфрейме; разные тикеры — могут на разных.
+func loadPortfolioCandles(cfg *config.Config, experiments []config.ResolvedExperiment, historyDir string) (map[string][]models.Candle, error) {
+	tfByTicker := make(map[string]string)
+	for _, exp := range experiments {
+		for _, tc := range cfg.TickersForExperiment(exp) {
+			prev, seen := tfByTicker[tc.Symbol]
+			if seen && prev != exp.CandleTimeframe {
+				return nil, fmt.Errorf("portfolio-backtest: %s в слотах с разным таймфреймом (%s и %s у %s) — один поток баров на тикер",
+					tc.Symbol, prev, exp.CandleTimeframe, exp.ID)
+			}
+			tfByTicker[tc.Symbol] = exp.CandleTimeframe
+		}
+	}
+	byTF := make(map[string][]string)
+	for ticker, tf := range tfByTicker {
+		byTF[tf] = append(byTF[tf], ticker)
+	}
+	out := make(map[string][]models.Candle, len(tfByTicker))
+	for tf, tickers := range byTF {
+		sort.Strings(tickers)
+		data, err := LoadCandleData(historyDir, tickers, tf)
+		if err != nil {
+			return nil, err
+		}
+		for ticker, candles := range data {
+			out[ticker] = candles
+		}
+	}
+	return out, nil
 }

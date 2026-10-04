@@ -44,7 +44,7 @@ Portfolio check:
 
 ```bash
 go run ./cmd/optimizer portfolio-backtest \
-  -config configs/runs/portfolio-paper.yaml
+  -config configs/runs/paper-m15.yaml
 ```
 
 ---

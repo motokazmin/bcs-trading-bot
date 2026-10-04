@@ -138,6 +138,7 @@ WS БКС шлёт бар много раз, пока он формируетс�
 | `StrategyRunner` | `engine` | связывает одну `Strategy` с каркасом, запускает `Run`, гоняет дневной сброс портфельного риска |
 | `dashboard.Hub` / `dashboard.Server` + `engine/api` | `engine/dashboard`, `engine/api` | админка: позиции, свечи, `/export`, архивы |
 | `marketdata` | `engine/marketdata` | загрузка истории (CSV для optimizer) |
+| `timeframe` | `engine/timeframe` | leaf: допустимые таймфреймы и длительность бара (M1…H1; D — для исследований; неизвестный — ошибка конфига), папка истории таймфрейма (`data/history` для M5, `data/history-<tf>` для остальных), проверка сетки баров при загрузке |
 | `Dependencies` / `Trader` | `app` | composition root: собирает всё вышеперечисленное |
 | `backtest` | `internal/backtest` | тот же торговый цикл на CSV (optimizer / portfolio-backtest) |
 

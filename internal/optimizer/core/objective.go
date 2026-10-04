@@ -114,6 +114,21 @@ func MedianFloat(values []float64) float64 {
 	return filtered[mid]
 }
 
+// WindowScore — оценка trial по оценкам окон: медиана по окнам, где сделок хватило.
+// Окна с −Inf (сделок меньше min-trades) в медиану не идут, но если таких окон больше,
+// чем позволяет minValidShare, trial получает −Inf. Без этой планки редкий набор судится
+// по одному-двум окнам из 16 и выигрывает за счёт случайно удачного окна
+// (docs/analysis/0014-m15-champion-search.md). minValidShare <= 0 — прежнее правило.
+func WindowScore(scores []float64, minValidShare float64) float64 {
+	if minValidShare > 0 {
+		valid := len(filterFiniteScores(scores))
+		if float64(valid) < math.Ceil(minValidShare*float64(len(scores))-1e-9) {
+			return math.Inf(-1)
+		}
+	}
+	return MedianFloat(scores)
+}
+
 // MeanFloat возвращает среднее среза; -Inf/NaN пропускаются.
 func MeanFloat(values []float64) float64 {
 	filtered := filterFiniteScores(values)

@@ -47,7 +47,7 @@ search_space:
     atrPeriod: 14
     maxEntriesPerTickerPerDay: 1
     allowAllTickers: 1
-    # Механика исполнения — синхронно с configs/runs/portfolio-paper.yaml.
+    # Механика исполнения — синхронно с configs/legacy/runs/portfolio-paper-m5.yaml.
     minStopBps: 20
     riskPerTradePercent: 0.20
     dailyLossLimitPercent: 2.0

@@ -365,7 +365,7 @@ func orcConfigFields(params Params, ctx BuildContext) map[string]interface{} {
 	if rewardRatio <= 0 {
 		rewardRatio = 2.60
 	}
-	return commonStopOptsFromParams(params).configFields(map[string]interface{}{
+	fields := map[string]interface{}{
 		"stop_mode":                     ctx.StopMode,
 		"orb_minutes":                   params.Int("orbMinutes"),
 		"breakout_threshold":            params.Float("breakoutThreshold"),
@@ -376,7 +376,13 @@ func orcConfigFields(params Params, ctx BuildContext) map[string]interface{} {
 		"trail_activation_r":            params.Float("trailActivationR"),
 		"trail_stage_max":               params.Int("trailStageMax"),
 		"trail_breakeven_r":             params.Float("trailBreakevenR"),
-		"allow_all_tickers":             params.Bool("allowAllTickers"),
 		"entry_at_close":                params.Bool("entryAtClose"),
-	})
+	}
+	// Только явный: YAML allow_all_tickers перекрывает дефолт типа, и записанный
+	// всегда false превращал best-config session_orc в ORC с зашитым whitelist
+	// (3 тикера из 10) — оптимизатор считал по всем, графики и бэктест по конфигу нет.
+	if _, ok := params["allowAllTickers"]; ok {
+		fields["allow_all_tickers"] = params.Bool("allowAllTickers")
+	}
+	return commonStopOptsFromParams(params).configFields(fields)
 }

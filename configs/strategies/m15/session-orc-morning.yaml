@@ -1,0 +1,31 @@
+# Регистрация: docs/analysis/0014-m15-champion-search.md. Не править после прогона.
+# Подбор 2024-10-04 → 2026-03-31, хвост 2026-04-01 → 2026-10-02 оптимизатор не видит.
+# Минуты — шагом 15 (сетка M15), бары — пересчитаны по времени с M5.
+candle_timeframe: M15
+
+session:
+  timezone: Europe/Moscow
+  session_open_time: "07:00"
+  eod_close_time: "09:50"
+  entry_delay_minutes: 0
+  weekdays_only: true
+
+search_space:
+  strategy: session_orc
+  parameters:
+    orbMinutes:             {type: int, min: 15, max: 45, step: 15}
+    breakoutThreshold:      {type: float, min: 0.002, max: 0.012}
+    atrMultiplier:          {type: float, min: 0.5, max: 1.5}
+    maxEntriesPerTickerPerDay: {type: int, min: 1, max: 2}
+    rewardRatio:            {type: float, min: 1.0, max: 2.2}
+    # Доля тейка: трейл включается раньше тейка по построению (0003).
+    trailActivationR:       {type: float, min: 0.25, max: 0.95, of: rewardRatio}
+    trailStageMax:          {type: int, min: 1, max: 3}
+    trailBreakevenR:        {type: float, min: 0.0, max: 0.15}
+    # ATR в барах: на M15 14 баров = 3.5 ч. 5 баров ≈ 14 баров M5 по времени.
+    atrPeriod:              {type: int, min: 4, max: 14}
+  fixed:
+    minStopBps: 20
+    riskPerTradePercent: 0.20
+    dailyLossLimitPercent: 2.0
+    maxParallelTrades: 5

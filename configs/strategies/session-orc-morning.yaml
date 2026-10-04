@@ -63,7 +63,7 @@ search_space:
       min: 1
       max: 2
   fixed:
-    # Механика исполнения обязана совпадать с configs/runs/portfolio-paper.yaml:
+    # Механика исполнения обязана совпадать с configs/legacy/runs/portfolio-paper-m5.yaml:
     # иначе оптимизатор подберёт параметры под сделки, которых бот не возьмёт.
     minStopBps: 20
     riskPerTradePercent: 0.20

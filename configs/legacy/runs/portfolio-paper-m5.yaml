@@ -1,3 +1,6 @@
+# ВЫВЕДЕН 2026-10-04: бот запускается только на M15 (configs/runs/paper-m15.yaml, docs/analysis/0019).
+# Оставлен для воспроизводимости разборов 0005–0013. В рантайме не участвует.
+#
 # Paper portfolio: 6 слотов на одном virtual-счёте 200k.
 #
 # СТЕНД ПРОВЕРКИ ИСПОЛНЕНИЯ, НЕ ТОРГОВАЯ СИСТЕМА (2026-10-03). Ни у одного слота нет
@@ -10,7 +13,7 @@
 # one-position-per-ticker). Граница движок/стратегия: docs/0001-engine-strategy-boundary.md.
 # docs/baseline.md · docs/strategies.md · docs/analysis/state.md
 # Запуск: make bot
-# Проверка: go run ./cmd/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
+# Проверка: go run ./cmd/optimizer portfolio-backtest -config configs/legacy/runs/portfolio-paper-m5.yaml
 
 trading_mode: virtual
 

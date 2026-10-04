@@ -87,7 +87,7 @@ func RunCharts(ctx context.Context, opts ChartsOptions) (*ChartsResult, error) {
 		return nil, fmt.Errorf("в конфиге нет тикеров")
 	}
 
-	candleData, err := evalpkg.LoadCandleData(opts.HistoryDir, tickers)
+	candleData, err := evalpkg.LoadCandleData(opts.HistoryDir, tickers, cfg.CandleTimeFrame)
 	if err != nil {
 		return nil, err
 	}
