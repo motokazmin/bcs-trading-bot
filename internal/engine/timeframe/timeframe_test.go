@@ -39,6 +39,13 @@ func TestCheckGridCatchesForeignTimeframe(t *testing.T) {
 	if err := CheckGrid(m15, "M15"); err != nil {
 		t.Fatalf("M15 на сетке: %v", err)
 	}
+	daily := []models.Candle{at("2026-10-01T21:00:00Z"), at("2026-10-02T21:00:00Z")}
+	if err := CheckGrid(daily, "D"); err != nil {
+		t.Fatalf("D на полуночи МСК: %v", err)
+	}
+	if err := CheckGrid([]models.Candle{at("2026-10-02T00:00:00Z")}, "D"); err == nil {
+		t.Fatal("дневной бар не на полуночи МСК не пойман")
+	}
 	m5 := append(m15, at("2026-10-02T07:20:00Z"))
 	if err := CheckGrid(m5, "M15"); err == nil {
 		t.Fatal("M5-бар в M15-истории не пойман")
