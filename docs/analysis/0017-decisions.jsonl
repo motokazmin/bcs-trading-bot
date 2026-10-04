@@ -1,0 +1,200 @@
+{"id": "p000", "action": "long", "stop": 96.8, "target": 104.8, "setup": "trend-breakout", "note": "свежий восходящий тренд, SMA20>SMA50, выход на 2-мес максимум"}
+{"id": "p001", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-pullback", "note": "разворот вверх, откат к SMA20 в новом тренде"}
+{"id": "p002", "action": "short", "stop": 104.5, "target": 93.0, "setup": "trend-pullback", "note": "после отскока провал под SMA20/SMA50, нисходящий тренд возобновился"}
+{"id": "p003", "action": "short", "stop": 103.5, "target": 94.0, "setup": "trend-pullback", "note": "нисходящий тренд под SMA20/50, отскок"}
+{"id": "p004", "action": "skip", "note": "боковик под SMA50"}
+{"id": "p005", "action": "skip", "note": "нисходящий тренд, но цена на 7% под SMA20 — растянуто"}
+{"id": "p006", "action": "short", "stop": 103.8, "target": 94.5, "setup": "range-breakdown", "note": "пробой боковика вниз под SMA20 и SMA50"}
+{"id": "p007", "action": "long", "stop": 96.5, "target": 106.0, "setup": "base-breakout", "note": "выход из базы над SMA20/SMA50 после долгого падения"}
+{"id": "p008", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-pullback", "note": "восходящий тренд, откат к SMA50"}
+{"id": "p009", "action": "skip", "note": "у SMA20/SMA50 под нисходящей SMA50 — смешанно"}
+{"id": "p010", "action": "long", "stop": 97.0, "target": 105.0, "setup": "base-breakout", "note": "база над плоскими SMA20/50, выход к верху диапазона"}
+{"id": "p011", "action": "skip", "note": "отскок против долгого нисходящего тренда под SMA50"}
+{"id": "p012", "action": "long", "stop": 98.0, "target": 103.5, "setup": "trend-breakout", "note": "ровный восходящий тренд, новый максимум"}
+{"id": "p013", "action": "skip", "note": "нисходящий тренд, растянуто под SMA20"}
+{"id": "p014", "action": "short", "stop": 102.8, "target": 95.5, "setup": "trend-continuation", "note": "нисходящий тренд под SMA20/50, ровные понижающиеся минимумы"}
+{"id": "p015", "action": "skip", "note": "обвал на объёме, капитуляция — растянуто"}
+{"id": "p016", "action": "skip", "note": "отскок к нисходящей SMA50 — смешанно"}
+{"id": "p017", "action": "short", "stop": 105.0, "target": 91.0, "setup": "trend-continuation", "note": "долгий нисходящий тренд, отскок отвергнут у SMA50, новый пробой вниз"}
+{"id": "p018", "action": "short", "stop": 103.5, "target": 94.5, "setup": "trend-continuation", "note": "нисходящий тренд под SMA20/50, понижающиеся максимумы"}
+{"id": "p019", "action": "short", "stop": 102.5, "target": 96.5, "setup": "trend-pullback", "note": "нисходящий тренд, отскок к SMA20 отвергнут"}
+{"id": "p020", "action": "long", "stop": 94.5, "target": 109.0, "setup": "trend-reversal", "note": "разворот долгого падения: пробита SMA50 на объёме, повышающиеся минимумы"}
+{"id": "p021", "action": "long", "stop": 96.0, "target": 106.0, "setup": "base-breakout", "note": "база над SMA20/50 после разворота"}
+{"id": "p022", "action": "long", "stop": 97.0, "target": 105.0, "setup": "trend-pullback", "note": "восходящий тренд, консолидация у SMA20 над SMA50"}
+{"id": "p023", "action": "skip", "note": "нисходящий тренд, отскок к SMA50 — смешанно"}
+{"id": "p024", "action": "long", "stop": 97.5, "target": 104.5, "setup": "trend-pullback", "note": "сильный восходящий тренд, откат к SMA20"}
+{"id": "p025", "action": "skip", "note": "отскок в долгом нисходящем тренде до SMA50 — смешанно"}
+{"id": "p026", "action": "skip", "note": "провал под SMA50 после ложного выноса, боковик"}
+{"id": "p027", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-pullback", "note": "восходящий тренд, откат к SMA50"}
+{"id": "p028", "action": "skip", "note": "боковик у плоских SMA"}
+{"id": "p029", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-pullback", "note": "сильный восходящий тренд, первый откат к SMA50"}
+{"id": "p030", "action": "skip", "note": "откат к SMA50 после разворота, но обвал днём — смешанно"}
+{"id": "p031", "action": "long", "stop": 95.5, "target": 108.0, "setup": "base-breakout", "note": "выход из долгой базы гэпом на рекордном объёме, флаг"}
+{"id": "p032", "action": "long", "stop": 98.0, "target": 103.5, "setup": "base-breakout", "note": "разворот: пробой диапазона над SMA20/50 на объёме"}
+{"id": "p033", "action": "skip", "note": "откат к SMA50 в восходящем тренде, но слабо — смешанно"}
+{"id": "p034", "action": "short", "stop": 103.5, "target": 94.5, "setup": "trend-continuation", "note": "нисходящий тренд, новый минимум под SMA20/50"}
+{"id": "p035", "action": "short", "stop": 105.5, "target": 90.0, "setup": "trend-reversal", "note": "слом восходящего тренда: под SMA20, тест SMA50 сверху, падение ускоряется"}
+{"id": "p036", "action": "skip", "note": "у SMA20/SMA50 после отката, неясно"}
+{"id": "p037", "action": "long", "stop": 98.6, "target": 102.2, "setup": "trend-pullback", "note": "ровный восходящий тренд, отскок от SMA20/50"}
+{"id": "p038", "action": "long", "stop": 97.0, "target": 105.0, "setup": "trend-pullback", "note": "восходящий тренд, отскок от SMA50"}
+{"id": "p039", "action": "short", "stop": 103.5, "target": 95.0, "setup": "range-breakdown", "note": "пробой SMA20/SMA50 вниз, понижающиеся максимумы"}
+{"id": "p040", "action": "short", "stop": 103.0, "target": 94.5, "setup": "trend-continuation", "note": "нисходящий тренд под SMA20/50, флаг у минимумов"}
+{"id": "p041", "action": "skip", "note": "провал под SMA50, отскок — смешанно"}
+{"id": "p042", "action": "skip", "note": "консолидация после ралли под SMA20 — неясно"}
+{"id": "p043", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-pullback", "note": "восходящий тренд, флаг у максимумов над SMA20"}
+{"id": "p044", "action": "short", "stop": 103.5, "target": 94.5, "setup": "trend-continuation", "note": "нисходящий тренд, новый минимум"}
+{"id": "p045", "action": "long", "stop": 97.5, "target": 104.0, "setup": "trend-reversal", "note": "разворот: над SMA20 и SMA50, повышающиеся минимумы"}
+{"id": "p046", "action": "long", "stop": 97.0, "target": 105.0, "setup": "trend-breakout", "note": "восходящий тренд, выход на новый максимум над SMA20>SMA50"}
+{"id": "p047", "action": "long", "stop": 96.5, "target": 106.0, "setup": "base-breakout", "note": "пробой диапазона вверх на объёме над SMA20/50"}
+{"id": "p048", "action": "long", "stop": 96.5, "target": 105.0, "setup": "trend-reversal", "note": "разворот, над SMA20/50, повышающиеся минимумы"}
+{"id": "p049", "action": "long", "stop": 97.0, "target": 104.5, "setup": "base-breakout", "note": "база над SMA20>SMA50, выход вверх"}
+{"id": "p050", "action": "skip", "note": "+24% за 20 сессий, на 10% над SMA20 — растянуто"}
+{"id": "p051", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-pullback", "note": "восходящий тренд над SMA20>SMA50, флаг у максимумов"}
+{"id": "p052", "action": "skip", "note": "у SMA50 после отката, H1 вниз — смешанно"}
+{"id": "p053", "action": "short", "stop": 103.5, "target": 94.5, "setup": "trend-continuation", "note": "долгий нисходящий тренд, новый минимум под SMA20"}
+{"id": "p054", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-pullback", "note": "сильный восходящий тренд, неглубокий откат к SMA20"}
+{"id": "p055", "action": "short", "stop": 104.0, "target": 93.0, "setup": "trend-continuation", "note": "нисходящий тренд, пробой поддержки 104-105 вниз"}
+{"id": "p056", "action": "skip", "note": "ускорение вниз, на 10% под SMA20 — растянуто"}
+{"id": "p057", "action": "skip", "note": "гэп +8% на рекордном объёме у SMA50 — новость, неясно"}
+{"id": "p058", "action": "short", "stop": 103.5, "target": 95.0, "setup": "trend-continuation", "note": "нисходящий тренд под SMA20/50, отказ от SMA20"}
+{"id": "p059", "action": "skip", "note": "обвал -15%, растянуто"}
+{"id": "p060", "action": "skip", "note": "боковик у SMA20/SMA50"}
+{"id": "p061", "action": "long", "stop": 97.0, "target": 105.0, "setup": "trend-pullback", "note": "восходящий тренд, откат к SMA20"}
+{"id": "p062", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-reversal", "note": "разворот: пробой SMA50 вверх, флаг"}
+{"id": "p063", "action": "skip", "note": "под нисходящей SMA50, отскок — смешанно"}
+{"id": "p064", "action": "skip", "note": "плоский боковик у SMA после падения"}
+{"id": "p065", "action": "skip", "note": "отскок к SMA20/50 в нисходящем тренде — смешанно"}
+{"id": "p066", "action": "long", "stop": 95.0, "target": 108.0, "setup": "trend-reversal", "note": "разворот: прорыв SMA50 на рекордном объёме, откат"}
+{"id": "p067", "action": "short", "stop": 104.5, "target": 92.0, "setup": "trend-continuation", "note": "нисходящий тренд, вынос вверх продан, новый минимум"}
+{"id": "p068", "action": "long", "stop": 96.0, "target": 106.0, "setup": "trend-reversal", "note": "разворот: над SMA20/50, флаг после ралли"}
+{"id": "p069", "action": "long", "stop": 97.5, "target": 104.0, "setup": "base-breakout", "note": "база над SMA20/50, повышающиеся минимумы"}
+{"id": "p070", "action": "long", "stop": 97.5, "target": 104.0, "setup": "trend-pullback", "note": "восходящий тренд, консолидация у SMA20"}
+{"id": "p071", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-breakout", "note": "разворот, пробой SMA50 и уровня 98 на объёме"}
+{"id": "p072", "action": "short", "stop": 102.8, "target": 95.5, "setup": "trend-continuation", "note": "ровный нисходящий тренд под SMA20"}
+{"id": "p073", "action": "short", "stop": 103.5, "target": 95.0, "setup": "trend-continuation", "note": "нисходящий тренд под SMA20/50, понижающиеся максимумы"}
+{"id": "p074", "action": "skip", "note": "всплеск вверх растерян, у SMA20 — смешанно"}
+{"id": "p075", "action": "skip", "note": "откат к SMA50 в восходящем тренде после выноса — смешанно"}
+{"id": "p076", "action": "skip", "note": "отскок к SMA20/50 в нисходящем тренде — смешанно"}
+{"id": "p077", "action": "short", "stop": 102.5, "target": 96.0, "setup": "range-breakdown", "note": "слом тренда: под SMA20/SMA50, понижающиеся максимумы"}
+{"id": "p078", "action": "skip", "note": "откат к SMA50 после разворота — смешанно"}
+{"id": "p079", "action": "long", "stop": 96.5, "target": 105.5, "setup": "trend-reversal", "note": "разворот: пробой SMA20/50 вверх после базы"}
+{"id": "p080", "action": "skip", "note": "отскок к нисходящей SMA50 — сопротивление, смешанно"}
+{"id": "p081", "action": "skip", "note": "отскок в нисходящем тренде к SMA20 — смешанно"}
+{"id": "p082", "action": "short", "stop": 104.5, "target": 93.0, "setup": "range-breakdown", "note": "слом: пробой SMA50 вниз, ускорение"}
+{"id": "p083", "action": "skip", "note": "отскок к SMA20 в нисходящем тренде"}
+{"id": "p084", "action": "long", "stop": 96.0, "target": 106.0, "setup": "base-breakout", "note": "сильный восходящий тренд, выход из флага на новый максимум"}
+{"id": "p085", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-pullback", "note": "восходящий тренд, резкий откат к SMA20 над SMA50"}
+{"id": "p086", "action": "skip", "note": "ATR 6.8%, хаос после обвала"}
+{"id": "p087", "action": "long", "stop": 96.0, "target": 106.0, "setup": "trend-pullback", "note": "сильный восходящий тренд, флаг у максимумов"}
+{"id": "p088", "action": "short", "stop": 103.5, "target": 95.0, "setup": "trend-continuation", "note": "нисходящий тренд под SMA20/50, флаг у минимумов"}
+{"id": "p089", "action": "skip", "note": "под SMA20/50, но выкуп внутри дня — смешанно"}
+{"id": "p090", "action": "long", "stop": 97.0, "target": 105.0, "setup": "trend-pullback", "note": "восходящий тренд, откат к SMA50"}
+{"id": "p091", "action": "long", "stop": 97.5, "target": 104.0, "setup": "trend-pullback", "note": "восходящий тренд, откат к SMA50"}
+{"id": "p092", "action": "skip", "note": "слом после большого роста, ATR 5.8% — хаос"}
+{"id": "p093", "action": "skip", "note": "плоские SMA, боковик"}
+{"id": "p094", "action": "skip", "note": "отскок к нисходящей SMA50 — смешанно"}
+{"id": "p095", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-breakout", "note": "восходящий тренд над SMA20/50, выход из консолидации вверх"}
+{"id": "p096", "action": "skip", "note": "обвал с 110 под SMA, хаос"}
+{"id": "p097", "action": "long", "stop": 98.5, "target": 102.5, "setup": "trend-pullback", "note": "ровный восходящий тренд, низкий ATR, откат к SMA20"}
+{"id": "p098", "action": "skip", "note": "боковик у SMA20/SMA50"}
+{"id": "p099", "action": "skip", "note": "у нисходящей SMA50 после отскока — смешанно"}
+{"id": "p100", "action": "short", "stop": 103.5, "target": 94.0, "setup": "trend-continuation", "note": "ровный нисходящий тренд под SMA20/50, новый минимум"}
+{"id": "p101", "action": "skip", "note": "отскок от минимумов в нисходящем тренде — смешанно"}
+{"id": "p102", "action": "skip", "note": "плоские SMA, боковик"}
+{"id": "p103", "action": "short", "stop": 104.0, "target": 93.0, "setup": "trend-continuation", "note": "долгий нисходящий тренд, новый минимум"}
+{"id": "p104", "action": "short", "stop": 103.0, "target": 95.5, "setup": "trend-continuation", "note": "нисходящий тренд, новый минимум под SMA20"}
+{"id": "p105", "action": "long", "stop": 96.0, "target": 106.0, "setup": "trend-reversal", "note": "выход вверх над SMA20/50 после базы, H1 ровный рост"}
+{"id": "p106", "action": "skip", "note": "боковик у SMA"}
+{"id": "p107", "action": "skip", "note": "нисходящий тренд, на 10% под SMA20 — растянуто"}
+{"id": "p108", "action": "short", "stop": 102.0, "target": 97.0, "setup": "range-breakdown", "note": "пробой SMA20/SMA50 вниз из диапазона"}
+{"id": "p109", "action": "skip", "note": "боковик у плоских SMA"}
+{"id": "p110", "action": "short", "stop": 103.5, "target": 95.0, "setup": "range-breakdown", "note": "слом: пробой SMA50 вниз, понижающиеся максимумы"}
+{"id": "p111", "action": "long", "stop": 97.0, "target": 105.0, "setup": "trend-pullback", "note": "разворот вверх, SMA20>SMA50, откат после нового максимума"}
+{"id": "p112", "action": "skip", "note": "нисходящий тренд, сильный слив дня — растянуто"}
+{"id": "p113", "action": "skip", "note": "откат к SMA50 после выноса — смешанно"}
+{"id": "p114", "action": "skip", "note": "отскок к SMA50 в нисходящем тренде"}
+{"id": "p115", "action": "skip", "note": "отскок к SMA20 в нисходящем тренде — смешанно"}
+{"id": "p116", "action": "skip", "note": "+27% за 20 сессий, вертикальный рост — растянуто"}
+{"id": "p117", "action": "skip", "note": "база у SMA50 после обвала — неясно"}
+{"id": "p118", "action": "skip", "note": "у SMA20/50 после отката — смешанно"}
+{"id": "p119", "action": "short", "stop": 103.5, "target": 95.0, "setup": "range-breakdown", "note": "пробой SMA20/SMA50 вниз, понижающиеся максимумы"}
+{"id": "p120", "action": "short", "stop": 104.5, "target": 93.5, "setup": "trend-continuation", "note": "нисходящий тренд, новый минимум под SMA20/50"}
+{"id": "p121", "action": "long", "stop": 98.8, "target": 102.5, "setup": "trend-pullback", "note": "ровный восходящий тренд, откат к SMA20/50"}
+{"id": "p122", "action": "long", "stop": 96.5, "target": 106.0, "setup": "trend-pullback", "note": "сильный восходящий тренд, флаг у максимумов"}
+{"id": "p123", "action": "skip", "note": "отскок к SMA20 под нисходящей SMA50 — смешанно"}
+{"id": "p124", "action": "long", "stop": 97.0, "target": 104.5, "setup": "trend-pullback", "note": "восходящий тренд, консолидация над SMA20"}
+{"id": "p125", "action": "skip", "note": "сильная свеча вверх до SMA50 в нисходящем тренде — смешанно"}
+{"id": "p126", "action": "skip", "note": "боковик у плоских SMA"}
+{"id": "p127", "action": "short", "stop": 104.0, "target": 94.0, "setup": "trend-continuation", "note": "слом после пика, под SMA20/50, понижающиеся максимумы"}
+{"id": "p128", "action": "long", "stop": 97.0, "target": 105.0, "setup": "trend-pullback", "note": "восходящий тренд над SMA20>SMA50, консолидация у максимумов"}
+{"id": "p129", "action": "long", "stop": 96.5, "target": 106.0, "setup": "base-breakout", "note": "пробой базы над SMA20/50 вверх, H1 ускорение"}
+{"id": "p130", "action": "skip", "note": "пик с длинной тенью после ралли — смешанно"}
+{"id": "p131", "action": "short", "stop": 103.5, "target": 94.0, "setup": "range-breakdown", "note": "пробой SMA20/SMA50 вниз в долгом нисходящем тренде"}
+{"id": "p132", "action": "skip", "note": "у плоских SMA, боковик"}
+{"id": "p133", "action": "skip", "note": "отскок в нисходящем тренде — смешанно"}
+{"id": "p134", "action": "skip", "note": "+21%, вертикально — растянуто"}
+{"id": "p135", "action": "long", "stop": 96.0, "target": 106.0, "setup": "base-breakout", "note": "выход из базы над SMA50 на рекордном объёме"}
+{"id": "p136", "action": "long", "stop": 95.5, "target": 107.0, "setup": "trend-reversal", "note": "разворот: новый максимум над SMA20/50 на объёме"}
+{"id": "p137", "action": "short", "stop": 104.0, "target": 94.0, "setup": "range-breakdown", "note": "обвал под SMA20/50 на объёме, новый минимум"}
+{"id": "p138", "action": "long", "stop": 96.5, "target": 106.0, "setup": "base-breakout", "note": "пробой многомесячного диапазона вверх на объёме"}
+{"id": "p139", "action": "short", "stop": 103.5, "target": 95.0, "setup": "range-breakdown", "note": "гэп вниз под SMA20/50, держится внизу"}
+{"id": "p140", "action": "skip", "note": "откат к SMA50 после ралли — смешанно"}
+{"id": "p141", "action": "long", "stop": 97.0, "target": 105.0, "setup": "base-breakout", "note": "выход из базы над SMA20/50"}
+{"id": "p142", "action": "long", "stop": 95.5, "target": 106.0, "setup": "trend-reversal", "note": "V-разворот, возврат над SMA50, к старому максимуму"}
+{"id": "p143", "action": "skip", "note": "откат к SMA20/50 — смешанно"}
+{"id": "p144", "action": "short", "stop": 103.0, "target": 95.5, "setup": "trend-continuation", "note": "долгий нисходящий тренд, флаг под SMA20"}
+{"id": "p145", "action": "long", "stop": 96.0, "target": 107.0, "setup": "trend-breakout", "note": "разворот: новый максимум над SMA50, флаг"}
+{"id": "p146", "action": "skip", "note": "у SMA20/50 после восстановления — смешанно"}
+{"id": "p147", "action": "skip", "note": "V-отскок к SMA20 под SMA50 — смешанно"}
+{"id": "p148", "action": "skip", "note": "+23% за 20 сессий — растянуто"}
+{"id": "p149", "action": "skip", "note": "боковик у SMA50"}
+{"id": "p150", "action": "short", "stop": 103.5, "target": 95.0, "setup": "trend-continuation", "note": "нисходящий тренд, отскок отвергнут у SMA50, под SMA20"}
+{"id": "p151", "action": "skip", "note": "у SMA20/50 после отката — смешанно"}
+{"id": "p152", "action": "short", "stop": 103.5, "target": 95.5, "setup": "range-breakdown", "note": "пробой SMA20/SMA50 вниз, понижающиеся максимумы"}
+{"id": "p153", "action": "skip", "note": "отскок к SMA20/50 в нисходящем тренде — смешанно"}
+{"id": "p154", "action": "short", "stop": 103.5, "target": 94.5, "setup": "trend-continuation", "note": "нисходящий тренд, новый минимум под SMA20"}
+{"id": "p155", "action": "short", "stop": 103.5, "target": 95.0, "setup": "trend-continuation", "note": "нисходящий тренд под SMA20/50, отскок не удержан"}
+{"id": "p156", "action": "short", "stop": 104.0, "target": 94.0, "setup": "range-breakdown", "note": "гэп вниз из долгого диапазона, под SMA20/50"}
+{"id": "p157", "action": "skip", "note": "у SMA, смешанно"}
+{"id": "p158", "action": "skip", "note": "флаг после ралли, но H1 вниз — смешанно"}
+{"id": "p159", "action": "skip", "note": "отскок в нисходящем тренде к SMA20 — смешанно"}
+{"id": "p160", "action": "skip", "note": "+30% за 20 сессий — растянуто"}
+{"id": "p161", "action": "skip", "note": "отскок после гэпа вниз, под нисходящими SMA — смешанно"}
+{"id": "p162", "action": "long", "stop": 97.8, "target": 103.5, "setup": "base-breakout", "note": "база над SMA20>SMA50, выход вверх"}
+{"id": "p163", "action": "skip", "note": "откат к SMA50 после ралли — смешанно"}
+{"id": "p164", "action": "skip", "note": "отскок к SMA50 после обвала — смешанно"}
+{"id": "p165", "action": "skip", "note": "у SMA20/SMA50 после выноса — смешанно"}
+{"id": "p166", "action": "skip", "note": "боковик у плоских SMA"}
+{"id": "p167", "action": "long", "stop": 97.0, "target": 105.5, "setup": "trend-pullback", "note": "разворот, над SMA20>SMA50, повышающиеся минимумы"}
+{"id": "p168", "action": "short", "stop": 103.5, "target": 94.5, "setup": "range-breakdown", "note": "слом: под SMA20/SMA50, понижающиеся максимумы"}
+{"id": "p169", "action": "long", "stop": 97.0, "target": 105.0, "setup": "base-breakout", "note": "база над SMA20/50 после разворота, выход вверх"}
+{"id": "p170", "action": "skip", "note": "отскок в нисходящем тренде — смешанно"}
+{"id": "p171", "action": "short", "stop": 102.0, "target": 97.0, "setup": "trend-continuation", "note": "нисходящий тренд под SMA20/50, новый минимум"}
+{"id": "p172", "action": "skip", "note": "ATR 4.5%, отскок после обвала — смешанно"}
+{"id": "p173", "action": "skip", "note": "у SMA20/50 после отката, смешанно"}
+{"id": "p174", "action": "skip", "note": "ATR 5.1%, отскок после обвала — смешанно"}
+{"id": "p175", "action": "skip", "note": "у плоской SMA50 после отката — смешанно"}
+{"id": "p176", "action": "skip", "note": "у SMA20/50, боковик"}
+{"id": "p177", "action": "skip", "note": "боковик у плоских SMA"}
+{"id": "p178", "action": "long", "stop": 95.5, "target": 107.0, "setup": "trend-reversal", "note": "разворот после долгого падения: пробой SMA50 вверх"}
+{"id": "p179", "action": "short", "stop": 103.0, "target": 95.0, "setup": "trend-continuation", "note": "ровный нисходящий тренд, новый минимум под SMA20"}
+{"id": "p180", "action": "long", "stop": 96.0, "target": 106.0, "setup": "trend-breakout", "note": "сильный восходящий тренд, новый максимум после флага"}
+{"id": "p181", "action": "skip", "note": "боковик у плоских SMA"}
+{"id": "p182", "action": "short", "stop": 103.0, "target": 95.5, "setup": "range-breakdown", "note": "слом: под SMA20/SMA50, понижающиеся максимумы"}
+{"id": "p183", "action": "skip", "note": "флаг под SMA20 в нисходящем тренде, но объём сжат — смешанно"}
+{"id": "p184", "action": "skip", "note": "боковик у SMA"}
+{"id": "p185", "action": "long", "stop": 95.5, "target": 107.0, "setup": "trend-breakout", "note": "сильный восходящий тренд, выход из флага к максимуму"}
+{"id": "p186", "action": "long", "stop": 97.5, "target": 104.0, "setup": "trend-pullback", "note": "восходящий тренд, откат к SMA20/50"}
+{"id": "p187", "action": "long", "stop": 96.5, "target": 105.0, "setup": "base-breakout", "note": "выход из базы над SMA20/50"}
+{"id": "p188", "action": "skip", "note": "откат к SMA50 с длинной нижней тенью — смешанно"}
+{"id": "p189", "action": "short", "stop": 104.5, "target": 93.5, "setup": "trend-continuation", "note": "нисходящий тренд, вынос продан, под SMA20/50"}
+{"id": "p190", "action": "long", "stop": 96.0, "target": 106.0, "setup": "base-breakout", "note": "выход из долгой базы над SMA20/50, новый максимум"}
+{"id": "p191", "action": "skip", "note": "у SMA20/50 после отката — смешанно"}
+{"id": "p192", "action": "long", "stop": 97.8, "target": 103.5, "setup": "trend-reversal", "note": "пробой SMA20/SMA50 вверх после отката"}
+{"id": "p193", "action": "skip", "note": "откат к SMA50 в восходящем тренде, хвост вниз — смешанно"}
+{"id": "p194", "action": "skip", "note": "под SMA20/50 после слома, низкий ATR — смешанно"}
+{"id": "p195", "action": "long", "stop": 96.0, "target": 106.5, "setup": "trend-breakout", "note": "сильный восходящий тренд, новый максимум"}
+{"id": "p196", "action": "long", "stop": 98.8, "target": 102.2, "setup": "trend-pullback", "note": "ровный восходящий тренд, низкий ATR, у SMA20"}
+{"id": "p197", "action": "skip", "note": "V-отскок к нисходящей SMA50 — смешанно"}
+{"id": "p198", "action": "long", "stop": 95.5, "target": 106.0, "setup": "trend-pullback", "note": "сильный восходящий тренд, откат к SMA20"}
+{"id": "p199", "action": "long", "stop": 97.5, "target": 104.0, "setup": "trend-pullback", "note": "восходящий тренд над SMA20>SMA50, консолидация"}

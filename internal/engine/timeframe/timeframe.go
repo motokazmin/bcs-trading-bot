@@ -19,14 +19,18 @@ import (
 const History = "M5"
 
 // durations — таймфреймы, которые отдаёт БКС и которые бот умеет использовать.
-// Иное (например, M10) — ошибка: молчаливого fallback на M5 нет.
+// D — дневки (только для исследований: sync-history -timeframe D). Иное (например, M10) — ошибка.
 var durations = map[string]time.Duration{
 	"M1":  time.Minute,
 	"M5":  5 * time.Minute,
 	"M15": 15 * time.Minute,
 	"M30": 30 * time.Minute,
 	"H1":  time.Hour,
+	"D":   24 * time.Hour,
 }
+
+// mskOffset — сдвиг МСК от UTC (без перехода на летнее время с 2014 года).
+const mskOffset = 3 * time.Hour
 
 // Normalize приводит запись таймфрейма к виду брокера ("m15 " → "M15").
 func Normalize(tf string) string {
@@ -38,7 +42,7 @@ func Normalize(tf string) string {
 func Duration(tf string) (time.Duration, error) {
 	d, ok := durations[Normalize(tf)]
 	if !ok {
-		return 0, fmt.Errorf("неизвестный таймфрейм %q (допустимо: M1, M5, M15, M30, H1)", tf)
+		return 0, fmt.Errorf("неизвестный таймфрейм %q (допустимо: M1, M5, M15, M30, H1, D)", tf)
 	}
 	return d, nil
 }
@@ -63,7 +67,10 @@ func CheckGrid(candles []models.Candle, tf string) error {
 		return err
 	}
 	for _, c := range candles {
-		if !c.Timestamp.Truncate(d).Equal(c.Timestamp) {
+		// Сетка — по МСК: дневной бар БКС начинается в полночь МСК (21:00 UTC). Для внутридневных
+		// таймфреймов сдвиг на целые часы сетку не меняет.
+		at := c.Timestamp.Add(mskOffset)
+		if !at.Truncate(d).Equal(at) {
 			return fmt.Errorf("бар %s не на сетке %s — история другого таймфрейма?",
 				c.Timestamp.UTC().Format(time.RFC3339), Normalize(tf))
 		}
