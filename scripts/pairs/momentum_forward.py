@@ -57,6 +57,10 @@ def signal(arg=None):
         sys.exit(f"нет данных за {M}: сначала make momentum-update")
     k = periods.index(M)
     sig_day = ends[M]
+    today = pd.Timestamp(date.today())
+    if today.to_period("M") <= M and sig_day < today:
+        # месяц ещё идёт, а сегодняшней расчётной цены в данных нет: сигнал вышел бы без последнего дня
+        sys.exit(f"месяц {M} не закрыт: в данных последний день {sig_day.date()}, сегодня {today.date()}")
     if sig_day < pd.bdate_range(M.start_time, M.end_time)[-1] - pd.Timedelta(days=3):
         sys.exit(f"последний день данных за {M} — {sig_day.date()}: месяц не закончился или данные не догружены")
     R = ret.fillna(0).to_numpy()

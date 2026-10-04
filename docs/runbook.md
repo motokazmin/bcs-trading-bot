@@ -139,6 +139,37 @@ grep -E "wsrecord|bar_age|закрыт по таймеру|переподклю�
 Лог не покажет steal CPU напрямую — если пик очереди растёт, смотреть `top` (поле `st`)
 в 10:00–10:05.
 
+## Моментум 0023: портфель месяца по таймеру
+
+Проверка вперёд [0023](analysis/0023-momentum-forward-paper.md) требует раз в месяц посчитать портфель и
+закоммитить журнал **до клиринга первого торгового дня** (~18:50 МСК). На сервере это делает таймер:
+`scripts/pairs/momentum_auto.sh` 3 раза в день (07/12/16 МСК) проверяет, есть ли портфель текущего месяца
+в `docs/analysis/0023-journal.csv`; нет — догружает ISS, считает, коммитит и пушит. Есть — выходит.
+
+**Отдельная копия репо**, не та, из которой крутится бот: коммиты журнала не должны мешать его checkout.
+
+```bash
+# на сервере, один раз
+sudo apt install -y python3-pandas python3-numpy git make   # или pip install pandas numpy
+git clone git@github.com:<you>/bcs-trading-bot.git ~/momentum-paper
+cd ~/momentum-paper && git checkout research/pref-common-pairs     # ветка с журналом (после мержа — main)
+git config user.name "momentum-bot" && git config user.email "<you>@users.noreply.github.com"
+# пуш нужен с сервера: deploy key с правом записи (GitHub → Settings → Deploy keys → Allow write access)
+ssh -T git@github.com                                    # проверить доступ
+make momentum-update                                     # первая загрузка истории фьючерсов: ~35 мин
+mkdir -p ~/.config/systemd/user && cp deploy/momentum-auto.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now momentum-auto.timer
+sudo loginctl enable-linger "$USER"                      # таймер работает без входа в систему
+systemctl --user list-timers momentum-auto.timer         # следующий запуск
+```
+
+Проверка: `tail data/momentum-auto.log` — последняя строка месяца `ГОТОВО: портфель …` или `ОШИБКА: …`.
+`ВНИМАНИЕ: пуш не прошёл` — коммит только на сервере, внешней метки времени нет: чинить ключ и пушить руками.
+Вручную в любой момент: `./scripts/pairs/momentum_auto.sh` (лишний запуск ничего не сломает).
+Счёт: `make momentum-score`.
+
+---
+
 ## Почему 127.0.0.1 vs 0.0.0.0
 
 | Bind | Кто подключается | Сценарий |

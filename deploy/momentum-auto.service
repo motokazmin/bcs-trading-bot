@@ -1,0 +1,12 @@
+# Проверка вперёд 0023: портфель месяца в журнал (scripts/pairs/momentum_auto.sh).
+# Пользовательский юнит: ~/.config/systemd/user/, путь к копии репо — в WorkingDirectory/ExecStart.
+[Unit]
+Description=Моментум 0023: портфель месяца в журнал
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=TZ=Europe/Moscow
+WorkingDirectory=%h/momentum-paper
+ExecStart=%h/momentum-paper/scripts/pairs/momentum_auto.sh
