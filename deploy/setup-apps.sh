@@ -91,6 +91,9 @@ step "4. Копии репозитория (клон ключом root, даль
 [ -d "$MOM/.git" ] || git clone -q -b "$MOM_BRANCH" "$REPO" "$MOM"
 chown -R "$U:$U" "$BOT" "$MOM"
 as_u "git -C $MOM config user.name momentum-bot && git -C $MOM config user.email motokazmin@users.noreply.github.com"
+# Юниты ставятся из $MOM/deploy (шаг 8): без pull там остаётся код с прошлой установки. 2026-10-05 так
+# переустановились юниты с User=trader после переименования в apps — бот и уведомление упали с 217/USER.
+as_u "git -C $MOM pull --ff-only -q"
 
 step "5. Сборка бота"
 as_u "cd $BOT && make build-bot"
@@ -132,6 +135,9 @@ install -d -o "$U" -g "$U" "$LOGD"
 chown -R "$U:$U" "$LOGD"
 
 step "8. Службы systemd"
+for f in trading-bot.service momentum-auto.service momentum-health.service notify@.service; do
+    grep -q "^User=$U\$" "$MOM/deploy/$f" || { echo "в $MOM/deploy/$f не User=$U — юниты устарели, стоп"; exit 1; }
+done
 install -m 644 "$MOM/deploy/trading-bot.service" /etc/systemd/system/trading-bot.service
 install -m 644 "$MOM/deploy/momentum-auto.service" /etc/systemd/system/momentum-auto.service
 install -m 644 "$MOM/deploy/momentum-auto.timer" /etc/systemd/system/momentum-auto.timer
@@ -139,7 +145,9 @@ install -m 644 "$MOM/deploy/momentum-health.service" /etc/systemd/system/momentu
 install -m 644 "$MOM/deploy/momentum-health.timer" /etc/systemd/system/momentum-health.timer
 install -m 644 "$MOM/deploy/notify@.service" "/etc/systemd/system/notify@.service"
 systemctl daemon-reload
-systemctl enable --now trading-bot
+systemctl enable trading-bot
+systemctl reset-failed trading-bot 2>/dev/null || true   # после 217/USER стоял лимит перезапусков
+systemctl restart trading-bot
 systemctl enable --now momentum-auto.timer momentum-health.timer
 
 step "9. sudo для $U — только эти службы"
