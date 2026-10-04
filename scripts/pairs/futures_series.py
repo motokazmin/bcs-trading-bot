@@ -35,6 +35,9 @@ def load_contracts():
     # у части старых контрактов ISS не заполняет ASSETCODE — базовый актив из названия (GAZR-3.17)
     df["asset"] = df["ASSETCODE"].fillna(df["SHORTNAME"].str.split("-").str[0]).replace(ALIAS)
     df["SECID"] = df["SHORTNAME"]  # код повторяется раз в 10 лет — контракт определяет название
+    # Календарные спреды (LKOH-3.27-6.27) — не фьючерсы: их экспирация совпадает с ближним контрактом,
+    # и в склейку спред не попадал только из-за порядка сортировки названий.
+    df = df[df["SHORTNAME"].str.count("-") < 2]
     df = df[(df["SETTLEPRICE"] > 0) & (df["TRADEDATE"] <= END)]
     return df
 

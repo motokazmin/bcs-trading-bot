@@ -58,6 +58,9 @@ def paged(url):
 
 
 def asset_of(r):
+    """Базовый актив; None для календарного спреда (LKOH-3.27-6.27) — это не фьючерс, а разница двух."""
+    if r["SHORTNAME"].count("-") >= 2:
+        return None
     return r["ASSETCODE"] or r["SHORTNAME"].split("-")[0]
 
 
