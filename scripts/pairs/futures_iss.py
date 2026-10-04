@@ -5,6 +5,8 @@ python3 scripts/pairs/futures_iss.py fetch      # история каждого 
 
 Код истёкшего контракта в ISS повторяется раз в 10 лет: старый получает суффикс года (SRZ6_2016),
 поэтому контракты собираются со списков торгов по датам, а не конструируются из тикера.
+У части старых контрактов (GAZR-3.17, LKOH-6.17, …) ISS не заполняет ASSETCODE — базовый актив
+берётся из SHORTNAME (до «-»). Фильтр по одному ASSETCODE молча терял у GAZR/LKOH/ROSN почти весь 2017 год.
 """
 import csv
 import json
@@ -26,6 +28,7 @@ STOCKS = {
     "TRNF", "AFKS", "IRAO", "PIKK", "POLY", "PHOR", "RUAL", "YNDF", "YDEX", "OZON", "TCSI", "T",
     "FIVE", "X5", "POSI", "SMLT", "SIBN", "BSPB", "VKCO", "MTLR", "FESH", "CBOM", "SGZH", "SPBE",
     "SFIN", "BELU", "ISKJ", "WUSH", "HEAD", "ASTR", "SOFL", "LEAS", "MVID", "UPRO", "RNFT", "KMAZ",
+    "CHMFM", "PLZLM", "NOTKM",  # новые коды тех же эмитентов (склейка — ALIAS в futures_series.py)
 }
 
 
@@ -53,6 +56,10 @@ def paged(url):
         time.sleep(0.1)
 
 
+def asset_of(r):
+    return r["ASSETCODE"] or r["SHORTNAME"].split("-")[0]
+
+
 def discover():
     os.makedirs(OUT, exist_ok=True)
     seen = {}
@@ -65,14 +72,15 @@ def discover():
             if rows:
                 break
         for r in rows:
-            if r["ASSETCODE"] in STOCKS:
-                seen[r["SECID"]] = (r["SHORTNAME"], r["ASSETCODE"])
+            asset = asset_of(r)
+            if asset in STOCKS:
+                seen[(r["SECID"], r["SHORTNAME"])] = asset
         print(day, len(rows), "контрактов на акции всего", len(seen), flush=True)
         d = date(d.year + (d.month == 12), d.month % 12 + 1, 1)
     with open(os.path.join(OUT, "contracts.csv"), "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["SECID", "SHORTNAME", "ASSETCODE"])
-        for s, (n, a) in sorted(seen.items()):
+        for (s, n), a in sorted(seen.items()):
             w.writerow([s, n, a])
 
 
@@ -84,7 +92,8 @@ def fetch():
         if os.path.exists(path):
             continue
         rows = paged(f"{BASE}/{c['SECID']}.json?iss.only=history,history.cursor&history.columns={COLS}")
-        rows = [r for r in rows if r["SHORTNAME"] == c["SHORTNAME"]]  # код мог принадлежать другому году
+        rows = [dict(r, ASSETCODE=c["ASSETCODE"]) for r in rows
+                if r["SHORTNAME"] == c["SHORTNAME"]]  # код мог принадлежать другому году
         with open(path, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=COLS.split(","))
             w.writeheader()

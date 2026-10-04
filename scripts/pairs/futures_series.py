@@ -32,7 +32,9 @@ def load_contracts():
         frames.append(df)
     df = pd.concat(frames, ignore_index=True)
     df["TRADEDATE"] = pd.to_datetime(df["TRADEDATE"])
-    df["asset"] = df["ASSETCODE"].replace(ALIAS)
+    # у части старых контрактов ISS не заполняет ASSETCODE — базовый актив из названия (GAZR-3.17)
+    df["asset"] = df["ASSETCODE"].fillna(df["SHORTNAME"].str.split("-").str[0]).replace(ALIAS)
+    df["SECID"] = df["SHORTNAME"]  # код повторяется раз в 10 лет — контракт определяет название
     df = df[(df["SETTLEPRICE"] > 0) & (df["TRADEDATE"] <= END)]
     return df
 
@@ -41,11 +43,10 @@ def expiries(df):
     """Последний день торгов контракта. У ещё торгующихся на END — из названия (SBRF-12.26 → 2026-12-15):
     иначе «экспирацией» стал бы конец данных и перекладка ушла бы раньше времени."""
     last = df.groupby("SECID")["TRADEDATE"].max()
-    name = df.groupby("SECID")["SHORTNAME"].first()
     out = {}
     for s, d in last.items():
         if d >= END - pd.Timedelta(days=7):
-            m, y = name[s].rsplit("-", 1)[1].split(".")
+            m, y = s.rsplit("-", 1)[1].split(".")
             d = max(d, pd.Timestamp(2000 + int(y), int(m), 15))
         out[s] = d
     return pd.Series(out)
