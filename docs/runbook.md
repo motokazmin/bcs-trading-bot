@@ -139,31 +139,36 @@ grep -E "wsrecord|bar_age|закрыт по таймеру|переподклю�
 Лог не покажет steal CPU напрямую — если пик очереди растёт, смотреть `top` (поле `st`)
 в 10:00–10:05.
 
-## Сервер: пользователь trader, службы бота и моментума
+## Сервер: общий пользователь apps, службы бота и моментума
 
-Бот и проверка [0023](analysis/0023-momentum-forward-paper.md) работают под пользователем **trader**, а не root.
-Ставит всё `deploy/setup-trader.sh` — один раз от root, повторный запуск безопасен:
+Все свои проекты на сервере работают под **одним не-root пользователем `apps`**: у каждого своя папка в
+`/home/apps`, своя служба systemd, свой файл sudoers (`/etc/sudoers.d/apps-<проект>`) и свой deploy key на GitHub
+(ключ привязан к одному репозиторию — у apps их несколько, выбор по `~/.ssh/config`). Пользователь на проект —
+зоопарк; root — всё под одним ударом. До 2026-10-05 пользователь назывался `trader`.
+
+Бот и проверка [0023](analysis/0023-momentum-forward-paper.md) ставятся `deploy/setup-apps.sh` — один раз от root,
+повторный запуск безопасен (и сам переименует `trader` → `apps`):
 
 ```bash
 cd /root/projects/bcs-trading-bot && git fetch origin research/pref-common-pairs
-git show origin/research/pref-common-pairs:deploy/setup-trader.sh > /root/setup-trader.sh
-bash /root/setup-trader.sh
+git show origin/research/pref-common-pairs:deploy/setup-apps.sh > /root/setup-apps.sh
+bash /root/setup-apps.sh
 ```
 
 | Что | Где |
 |---|---|
-| бот | `/home/trader/bcs-trading-bot`, `trading-bot.service` (автозапуск, перезапуск при падении) |
-| секреты | `/etc/trading-bot/env` (root:trader 640) — `BCS_REFRESH_TOKEN`, `ADMIN_TOKEN`, `HTTP_LISTEN`; логин-шелл trader подхватывает сам |
-| моментум | `/home/trader/momentum-paper`, `momentum-auto.timer` (07/12/16 МСК) |
-| GitHub | deploy key trader с правом записи — только этот репозиторий |
-| sudo trader | только `systemctl start/stop/restart trading-bot`, `start momentum-auto.service` |
+| бот | `/home/apps/bcs-trading-bot`, `trading-bot.service` (автозапуск, перезапуск при падении) |
+| секреты | `/etc/trading-bot/env` (root:apps 640) — `BCS_REFRESH_TOKEN`, `ADMIN_TOKEN`, `HTTP_LISTEN`; логин-шелл apps подхватывает сам |
+| моментум | `/home/apps/momentum-paper`, `momentum-auto.timer` (07/12/16 МСК) |
+| GitHub | deploy key apps с правом записи — только этот репозиторий |
+| sudo apps | только `systemctl start/stop/restart trading-bot`, `start momentum-auto.service` |
 
 Скрипт останавливает старого бота (запущенного `make bot` от root), переносит `trades.db` онлайн-бэкапом и
 сверяет число строк; старая копия `/root/projects/bcs-trading-bot` не трогается. Откат:
 `systemctl disable --now trading-bot; cd /root/projects/bcs-trading-bot && make bot`.
-В конце печатается публичный ключ trader — добавить в GitHub → Settings → Deploy keys, **Allow write access**.
+В конце печатается публичный ключ apps — добавить в GitHub → Settings → Deploy keys, **Allow write access**.
 
-Повседневное (под trader):
+Повседневное (под apps):
 
 ```bash
 sudo systemctl restart trading-bot          # после git pull && make build-bot
@@ -191,7 +196,7 @@ read -rsp "токен бота: " T; echo; echo "TG_BOT_TOKEN=$T" >> /etc/tradin
 curl -s "https://api.telegram.org/bot$T/getUpdates" | grep -o '"chat":{"id":-\?[0-9]*' | head -1 \
   | grep -o -- '-\?[0-9]*$' | sed 's/^/TG_CHAT_ID=/' >> /etc/trading-bot/env; unset T
 grep -c '^TG_' /etc/trading-bot/env                       # 2
-bash /root/setup-trader.sh                                # поставит таймер проверки и пришлёт тестовое сообщение
+bash /root/setup-apps.sh                                # поставит таймер проверки и пришлёт тестовое сообщение
 ```
 
 ---

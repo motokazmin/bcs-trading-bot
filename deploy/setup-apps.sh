@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
-# Перенос бота и проверки 0023 под отдельного пользователя trader — запуск от root на сервере.
+# Бот и проверка 0023 под общим пользователем apps — запуск от root на сервере.
+#
+# apps — один не-root пользователь для всех своих проектов на сервере: у каждого своя папка в /home/apps
+# и своя служба (телеграм-мониторинг ставит свой deploy/setup-server.sh в том же apps). До 2026-10-05
+# пользователь назывался trader — скрипт переименует его сам (шаг 0).
 #
 #   cd /root/projects/bcs-trading-bot && git fetch origin research/pref-common-pairs
-#   git show origin/research/pref-common-pairs:deploy/setup-trader.sh > /root/setup-trader.sh
-#   bash /root/setup-trader.sh
+#   git show origin/research/pref-common-pairs:deploy/setup-apps.sh > /root/setup-apps.sh
+#   bash /root/setup-apps.sh
 #
 # Повторный запуск безопасен: каждый шаг проверяет, сделан ли он. Старая копия /root/projects/bcs-trading-bot
 # не трогается (откат: systemctl disable --now trading-bot; cd /root/projects/bcs-trading-bot && make bot).
 #
 # Что получится:
-#   trader — без пароля, вход по тем же ssh-ключам, что у root; без sudo, кроме управления двумя службами;
-#   /home/trader/bcs-trading-bot — бот (main), служба trading-bot.service;
-#   /home/trader/momentum-paper — проверка 0023, таймер momentum-auto.timer;
-#   /etc/trading-bot/env — секреты (root:trader 640) вместо export руками;
+#   apps — без пароля, вход по тем же ssh-ключам, что у root; без sudo, кроме управления своими службами;
+#   /home/apps/bcs-trading-bot — бот (main), служба trading-bot.service;
+#   /home/apps/momentum-paper — проверка 0023, таймер momentum-auto.timer;
+#   /etc/trading-bot/env — секреты (root:apps 640) вместо export руками;
 #   GitHub — deploy key только на этот репозиторий (ключ печатается в конце, добавить в настройках репо);
 #   Telegram — сбои бота и ежедневной репетиции 0023 (TG_BOT_TOKEN, TG_CHAT_ID в /etc/trading-bot/env).
 set -euo pipefail
 
-U=trader
+U=apps
 H=/home/$U
 OLD=${OLD:-/root/projects/bcs-trading-bot}
 REPO=git@github.com:motokazmin/bcs-trading-bot.git
@@ -34,12 +38,27 @@ as_u() { sudo -u "$U" -H bash -lc "$1"; }
 [ -x /usr/local/go/bin/go ] || { echo "нет Go в /usr/local/go"; exit 1; }
 for c in git make sqlite3 rsync python3 curl; do command -v $c >/dev/null || { echo "нет $c"; exit 1; }; done
 
+step "0. trader → $U (общий пользователь вместо пользователя на проект)"
+if id trader >/dev/null 2>&1 && ! id "$U" >/dev/null 2>&1; then
+    # usermod -l не переименует пользователя с живыми процессами
+    systemctl stop momentum-auto.timer momentum-health.timer trading-bot 2>/dev/null || true
+    pkill -u trader || true
+    sleep 2
+    usermod -l "$U" trader
+    groupmod -n "$U" trader
+    usermod -d "$H" -m "$U"
+    rm -f /etc/sudoers.d/trader /etc/sudoers.d/apps
+    echo "trader переименован в $U, дом перенесён в $H (ключи, репозитории, история фьючерсов — вместе с ним)"
+else
+    echo "не требуется"
+fi
+
 step "1. Пользователь $U"
 id "$U" >/dev/null 2>&1 || adduser --disabled-password --gecos "" "$U"
 passwd -l "$U" >/dev/null
 usermod -aG systemd-journal "$U"   # journalctl по службам без sudo
 install -d -m 700 -o "$U" -g "$U" "$H/.ssh"
-# Входить в trader могут те же ключи, что и в root: источник правды — /root/.ssh/authorized_keys.
+# Входить в apps могут те же ключи, что и в root: источник правды — /root/.ssh/authorized_keys.
 install -m 600 -o "$U" -g "$U" /root/.ssh/authorized_keys "$H/.ssh/authorized_keys"
 
 step "2. Секреты → $ENVF"
@@ -47,7 +66,7 @@ install -d -m 750 -o root -g "$U" /etc/trading-bot
 if [ ! -s "$ENVF" ]; then
     PID=$(pgrep -f "bin/bot -config" | head -1 || true)
     [ -n "$PID" ] || { echo "бот не запущен: создайте $ENVF руками (BCS_REFRESH_TOKEN=…, ADMIN_TOKEN=…, HTTP_LISTEN=…)"; exit 1; }
-    { echo "# Окружение бота: systemd EnvironmentFile и логин-шелл trader. Создан из работающего бота $(date -I)."
+    { echo "# Окружение бота: systemd EnvironmentFile и логин-шелл apps. Создан из работающего бота $(date -I)."
       tr '\0' '\n' < "/proc/$PID/environ" | grep -E '^(BCS_REFRESH_TOKEN|ADMIN_TOKEN|HTTP_LISTEN)='; } > "$ENVF"
 fi
 grep -q '^HTTP_LISTEN=' "$ENVF" || echo 'HTTP_LISTEN=0.0.0.0:8091' >> "$ENVF"
@@ -125,12 +144,12 @@ systemctl enable --now trading-bot
 systemctl enable --now momentum-auto.timer momentum-health.timer
 
 step "9. sudo для $U — только эти службы"
-cat > /etc/sudoers.d/$U <<EOF
-# trader управляет только своими службами (deploy/setup-trader.sh)
+cat > /etc/sudoers.d/$U-trading-bot <<EOF
+# apps: службы бота и проверки 0023 (deploy/setup-apps.sh); у других проектов — свои файлы apps-*
 $U ALL=(root) NOPASSWD: /usr/bin/systemctl start trading-bot, /usr/bin/systemctl stop trading-bot, /usr/bin/systemctl restart trading-bot, /usr/bin/systemctl start momentum-auto.service
 EOF
-chmod 440 /etc/sudoers.d/$U
-visudo -cf /etc/sudoers.d/$U >/dev/null || { rm -f /etc/sudoers.d/$U; echo "sudoers не прошёл проверку — удалён"; exit 1; }
+chmod 440 /etc/sudoers.d/$U-trading-bot
+visudo -cf /etc/sudoers.d/$U-trading-bot >/dev/null || { rm -f /etc/sudoers.d/$U-trading-bot; echo "sudoers не прошёл проверку — удалён"; exit 1; }
 
 step "10. Проверка"
 sleep 8
@@ -149,7 +168,7 @@ else
     cat "$H/.ssh/id_ed25519.pub"
 fi
 if grep -q '^TG_BOT_TOKEN=.' "$ENVF" && grep -q '^TG_CHAT_ID=.' "$ENVF"; then
-    as_u "$MOM/scripts/notify.sh 'setup-trader: уведомления работают'" && echo "Telegram: тестовое сообщение отправлено"
+    as_u "$MOM/scripts/notify.sh 'setup-apps: уведомления работают'" && echo "Telegram: тестовое сообщение отправлено"
 else
     echo
     echo "!! Telegram не настроен: допишите в $ENVF строки TG_BOT_TOKEN=… и TG_CHAT_ID=… (docs/runbook.md)"

@@ -1,5 +1,5 @@
-# Проверка вперёд 0023: портфель месяца в журнал (scripts/pairs/momentum_auto.sh) под пользователем trader.
-# Ставится deploy/setup-trader.sh в /etc/systemd/system/. Пуш журнала — deploy key trader с правом записи.
+# Проверка вперёд 0023: портфель месяца в журнал (scripts/pairs/momentum_auto.sh) под пользователем apps.
+# Ставится deploy/setup-apps.sh в /etc/systemd/system/. Пуш журнала — deploy key apps с правом записи.
 [Unit]
 Description=Моментум 0023: портфель месяца в журнал
 Wants=network-online.target
@@ -7,9 +7,9 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-User=trader
-Group=trader
+User=apps
+Group=apps
 Environment=TZ=Europe/Moscow
-WorkingDirectory=/home/trader/momentum-paper
-ExecStart=/home/trader/momentum-paper/scripts/pairs/momentum_auto.sh
+WorkingDirectory=/home/apps/momentum-paper
+ExecStart=/home/apps/momentum-paper/scripts/pairs/momentum_auto.sh
 NoNewPrivileges=true
