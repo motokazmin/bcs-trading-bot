@@ -40,7 +40,8 @@ BOT_PID_FILE ?= data/bot.pid
 
 .PHONY: build build-bot build-optimizer test analyze \
         sync-history optimizer-run optimizer-orc optimizer-orc-research optimizer-momentum optimizer-or-fade optimizer-afternoon optimizer-focus strategy-matrix charts-all \
-        bot bot-futures bot-real bot-smoke bot-stop bot-status help
+        bot bot-futures bot-real bot-smoke bot-stop bot-status help \
+        momentum-update momentum-signal momentum-score
 
 help:
 	@echo "BCS Trading Bot — make targets"
@@ -58,6 +59,10 @@ help:
 	@echo "  make optimizer-afternoon — MF afternoon → results/afternoon/"
 	@echo "  make optimizer-focus    — alias для optimizer-orc"
 	@echo "  make charts-all         — HTML-графики по OPTIMIZER_OUT"
+	@echo ""
+	@echo "  make momentum-update    — догрузить фьючерсы с MOEX ISS (проверка вперёд 0023)"
+	@echo "  make momentum-signal    — портфель месяца → docs/analysis/0023-journal.csv (MONTH=YYYY-MM)"
+	@echo "  make momentum-score     — доходность засчитанных месяцев и сверка с журналом"
 	@echo ""
 	@echo "  make bot                — paper portfolio в фоне; админка HTTP_LISTEN (дефолт 127.0.0.1:8091)"
 	@echo "  make bot-futures        — paper фьючерсы в фоне (не portfolio)"
@@ -109,6 +114,21 @@ analyze-new:
 analyze-mark:
 	python3 scripts/analyze-trades.py --db $(TRADES_DB) --history $(HISTORY_DIR) \
 		--mark-reviewed --label "$(LABEL)"
+
+# --- Моментум на фьючерсах: проверка вперёд (docs/analysis/0023-momentum-forward-paper.md) ---
+# После закрытия последнего торгового дня месяца: update → signal → коммит журнала ДО клиринга
+# первого торгового дня следующего месяца. Данные — MOEX ISS, конец — сегодня (PAIRS_END).
+PAIRS_END ?= $(shell date +%F)
+
+momentum-update:
+	PAIRS_END=$(PAIRS_END) python3 scripts/pairs/futures_iss.py update
+	PAIRS_END=$(PAIRS_END) python3 scripts/pairs/futures_series.py
+
+momentum-signal:
+	PAIRS_END=$(PAIRS_END) python3 scripts/pairs/momentum_forward.py signal $(MONTH)
+
+momentum-score:
+	PAIRS_END=$(PAIRS_END) python3 scripts/pairs/momentum_forward.py score
 
 # --- История для optimizer ---
 

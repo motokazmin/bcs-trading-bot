@@ -2,6 +2,7 @@
 
 python3 scripts/pairs/futures_iss.py discover   # список контрактов по датам → data/futures-d/contracts.csv
 python3 scripts/pairs/futures_iss.py fetch      # история каждого контракта → data/futures-d/<SECID>.csv
+python3 scripts/pairs/futures_iss.py update     # догрузка: новые контракты за 2 месяца и свежие дни живых (0023)
 
 Код истёкшего контракта в ISS повторяется раз в 10 лет: старый получает суффикс года (SRZ6_2016),
 поэтому контракты собираются со списков торгов по датам, а не конструируются из тикера.
@@ -60,11 +61,14 @@ def asset_of(r):
     return r["ASSETCODE"] or r["SHORTNAME"].split("-")[0]
 
 
-def discover():
+def discover(start=START, end=END, merge=False):
     os.makedirs(OUT, exist_ok=True)
     seen = {}
-    d = START
-    while d <= END:  # раз в месяц: квартальный контракт торгуется дольше, его не пропустить
+    if merge:
+        with open(os.path.join(OUT, "contracts.csv")) as f:
+            seen = {(r["SECID"], r["SHORTNAME"]): r["ASSETCODE"] for r in csv.DictReader(f)}
+    d = start
+    while d <= end:  # раз в месяц: квартальный контракт торгуется дольше, его не пропустить
         for shift in range(5):  # ближайший торговый день
             day = d + timedelta(days=shift)
             rows = paged(f"{BASE}.json?date={day}&iss.only=history,history.cursor"
@@ -84,13 +88,19 @@ def discover():
             w.writerow([s, n, a])
 
 
-def fetch():
+def fetch(refresh_since=None):
+    """Скачивает отсутствующие контракты; с refresh_since — и те, что торговались после этой даты."""
     with open(os.path.join(OUT, "contracts.csv")) as f:
         contracts = list(csv.DictReader(f))
     for i, c in enumerate(contracts):
         path = os.path.join(OUT, c["SECID"] + ".csv")
         if os.path.exists(path):
-            continue
+            if refresh_since is None:
+                continue
+            with open(path) as f:
+                last = max((r["TRADEDATE"] for r in csv.DictReader(f)), default="")
+            if last < str(refresh_since):
+                continue
         rows = paged(f"{BASE}/{c['SECID']}.json?iss.only=history,history.cursor&history.columns={COLS}")
         rows = [dict(r, ASSETCODE=c["ASSETCODE"]) for r in rows
                 if r["SHORTNAME"] == c["SHORTNAME"]]  # код мог принадлежать другому году
@@ -102,5 +112,12 @@ def fetch():
         time.sleep(0.1)
 
 
+def update():
+    """Догрузка для проверки вперёд: список контрактов за последние 2 месяца и свежие дни живых контрактов."""
+    today = date.today()
+    discover(start=today - timedelta(days=62), end=today, merge=True)
+    fetch(refresh_since=today - timedelta(days=10))
+
+
 if __name__ == "__main__":
-    {"discover": discover, "fetch": fetch}[sys.argv[1]]()
+    {"discover": discover, "fetch": fetch, "update": update}[sys.argv[1]]()

@@ -22,7 +22,8 @@ MIN_COVERAGE = 0.95
 MIN_VALUE = 50e6
 FEE_BPS = 1.0
 FIRST_TRADE = "2015-10-01"
-END = "2026-09-30"
+# Конец данных: 0021/0022 считаются по 2026-09-30; проверка вперёд (0023) задаёт PAIRS_END.
+END = os.environ.get("PAIRS_END", "2026-09-30")
 SUBPERIODS = [("2015-10", "2019-12"), ("2020-01", "2022-12"), ("2023-01", "2026-09")]
 SAME_ISSUER = {frozenset(p) for p in (("SBRF", "SBPR"), ("SNGR", "SNGP"), ("TATN", "TATP"))}
 

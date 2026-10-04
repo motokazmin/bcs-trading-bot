@@ -18,7 +18,7 @@ OUT = os.path.join(SRC, "continuous")
 ROLL_DAYS = 5
 # Переименования базового актива: один эмитент — один ряд.
 ALIAS = {"YNDF": "YDEX", "TCSI": "T", "FIVE": "X5", "CHMFM": "CHMF", "PLZLM": "PLZL", "NOTKM": "NOTK"}
-END = pd.Timestamp("2026-09-30")
+END = pd.Timestamp(os.environ.get("PAIRS_END", "2026-09-30"))  # см. distance.END
 
 
 def load_contracts():

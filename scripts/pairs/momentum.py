@@ -23,6 +23,31 @@ def month_ends(index):
     return s.groupby(index.to_period("M")).max()
 
 
+def target(ret, val, R, ends, periods, pos_of, k, lookback=12, rng=None):
+    """Портфель по сигналу на конец месяца periods[k]: веса (лонг > 0, шорт < 0), маска вселенной, оборот.
+
+    Общая для бэктеста и журнала проверки вперёд (0023) — портфель считается одним кодом.
+    """
+    i = pos_of[ends[periods[k]]]
+    win = slice(i - WINDOW + 1, i + 1)
+    cover = ret.iloc[win].notna().mean().to_numpy()
+    medv = val.iloc[win].median().to_numpy()
+    ok = (cover >= MIN_COVERAGE) & (medv >= MIN_VALUE)
+    # сигнал: доходность с конца месяца m−lookback по конец месяца m−1
+    a = pos_of[ends[periods[k - lookback]]]
+    b = pos_of[ends[periods[k - 1]]]
+    sig = np.prod(1 + R[a + 1:b + 1], axis=0) - 1
+    names = np.where(ok)[0]
+    new = np.zeros(ret.shape[1])
+    if len(names) >= 2:
+        s = sig[names] if rng is None else rng.permutation(len(names)).astype(float)
+        order = names[np.argsort(s)]
+        q = max(1, len(names) // 3)
+        new[order[-q:]] = 1.0 / q
+        new[order[:q]] = -1.0 / q
+    return new, ok, medv
+
+
 def run(ret, val, roll, lookback=12, cost_mult=1.0, rng=None):
     """Дневной P&L на капитал 1 и журнал ребалансировок."""
     idx = ret.index
@@ -37,7 +62,7 @@ def run(ret, val, roll, lookback=12, cost_mult=1.0, rng=None):
     ew = np.full(len(idx), np.nan)  # равновзвешенная вселенная (бенчмарк лонг/шорт-сторон)
     long_pnl, short_pnl = np.zeros(len(idx)), np.zeros(len(idx))
     log = []
-    target, exec_day, uni_mask = None, None, None
+    uni_mask = None
     rebal = {}
     periods = list(ends.index)
     for k, per in enumerate(periods):
@@ -63,24 +88,8 @@ def run(ret, val, roll, lookback=12, cost_mult=1.0, rng=None):
         pnl[t] -= (2 * cost * np.abs(w))[rolled].sum()
         # 2. ребалансировка по сигналу на конец прошлого месяца — по расчётной цене сегодня
         if t in rebal:
-            i, k = rebal[t]
-            lo = WINDOW
-            win = slice(i - lo + 1, i + 1)
-            cover = ret.iloc[win].notna().mean().to_numpy()
-            medv = val.iloc[win].median().to_numpy()
-            ok = (cover >= MIN_COVERAGE) & (medv >= MIN_VALUE)
-            # сигнал: доходность с конца месяца m−lookback по конец месяца m−1
-            a = pos_of[ends[periods[k - lookback]]]
-            b = pos_of[ends[periods[k - 1]]]
-            sig = np.prod(1 + R[a + 1:b + 1], axis=0) - 1
-            names = np.where(ok)[0]
-            new = np.zeros(len(assets))
-            if len(names) >= 2:
-                s = sig[names] if rng is None else rng.permutation(len(names)).astype(float)
-                order = names[np.argsort(s)]
-                q = max(1, len(names) // 3)
-                new[order[-q:]] = 1.0 / q
-                new[order[:q]] = -1.0 / q
+            _, k = rebal[t]
+            new, ok, medv = target(ret, val, R, ends, periods, pos_of, k, lookback, rng)
             c_now = cost_mult * (FEE_BPS + np.array([slip_bps(v) if np.isfinite(v) else 10.0 for v in medv])) / 1e4
             trade = np.abs(new - w)
             c = (trade * np.where(trade > 0, c_now, 0)).sum()
