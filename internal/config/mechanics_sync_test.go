@@ -52,6 +52,11 @@ func TestSearchSpaceФиксируетМеханику(t *testing.T) {
 		"../../configs/strategies/session-orc-evening.yaml",
 		"../../configs/strategies/session-orc-morning.yaml",
 		"../../configs/strategies/momentum-filtered-afternoon-longonly-narrow-ws2.yaml",
+		"../../configs/strategies/m15/session-orc-morning.yaml",
+		"../../configs/strategies/m15/orc-day.yaml",
+		"../../configs/strategies/m15/or-fade.yaml",
+		"../../configs/strategies/m15/mf-afternoon.yaml",
+		"../../configs/strategies/m15/session-orc-evening.yaml",
 	} {
 		var cfg struct {
 			SearchSpace struct {

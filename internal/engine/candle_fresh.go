@@ -1,33 +1,25 @@
 package engine
 
 import (
-	"strings"
 	"time"
+
+	"bcs-trading-bot/internal/engine/timeframe"
 )
 
 const staleAgeBars = 3
 
-// CandleBarDuration возвращает длительность бара по строке таймфрейма BCS (M1, M5, M15, H1).
-// Неизвестный формат → M5.
+// CandleBarDuration возвращает длительность бара по строке таймфрейма BCS (M1, M5, M15, M30, H1).
+// Пустой или неизвестный формат → M5; конфиг с неизвестным таймфреймом не загрузится
+// (config.validate), так что fallback здесь — только для пустого поля в тестах.
 func CandleBarDuration(tf string) time.Duration {
 	return candleBarDuration(tf)
 }
 
 func candleBarDuration(tf string) time.Duration {
-	switch strings.ToUpper(strings.TrimSpace(tf)) {
-	case "M1":
-		return time.Minute
-	case "M5", "":
-		return 5 * time.Minute
-	case "M15":
-		return 15 * time.Minute
-	case "M30":
-		return 30 * time.Minute
-	case "H1":
-		return time.Hour
-	default:
-		return 5 * time.Minute
+	if d, err := timeframe.Duration(tf); err == nil {
+		return d
 	}
+	return 5 * time.Minute
 }
 
 // candleMaxAge — максимальный допустимый |now − barTime| для live-входа (3×TF).

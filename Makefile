@@ -20,6 +20,8 @@ SYNC_TICKERS_CONFIG ?= configs/shared/tickers.yaml
 # Алиас: UNIVERSE = TICKERS_CONFIG (локальные override).
 UNIVERSE          ?= $(TICKERS_CONFIG)
 HISTORY_DIR       ?= data/history
+# Таймфрейм истории для sync-history: M5 → $(HISTORY_DIR), иначе $(HISTORY_DIR)-<tf> (make sync-history TIMEFRAME=M15).
+TIMEFRAME         ?= M5
 TRADES_DB         ?= data/trades.db
 SEARCH_SPACE      ?= configs/strategies/orc.yaml
 OPTIMIZER_STRATEGY ?= opening_range_continuation
@@ -114,7 +116,8 @@ sync-history: build-optimizer
 	$(BINARY_DIR)/optimizer sync-history \
 		-tickers-config $(SYNC_TICKERS_CONFIG) \
 		-parallel-tickers $(PARALLEL_TICKERS) \
-		-output-dir $(HISTORY_DIR)
+		-output-dir $(HISTORY_DIR) \
+		-timeframe $(TIMEFRAME)
 
 # --- Optimizer ---
 

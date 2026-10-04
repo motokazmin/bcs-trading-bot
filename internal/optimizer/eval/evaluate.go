@@ -11,6 +11,7 @@ import (
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/engine/marketdata"
+	"bcs-trading-bot/internal/engine/timeframe"
 	core "bcs-trading-bot/internal/optimizer/core"
 	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/engine/trailing"
@@ -158,9 +159,11 @@ func (e *Evaluator) trailCfg(params core.ParameterSet) trailing.Config {
 	return cfg
 }
 
-// LoadCandleData загружает CSV-историю для списка тикеров.
+// LoadCandleData загружает CSV-историю таймфрейма tf из его папки
+// (timeframe.HistoryDir(historyDir, tf)) и проверяет, что бары лежат на его сетке.
 // Тикеры без файла или с пустым CSV пропускаются (WARN в лог).
-func LoadCandleData(historyDir string, tickers []string) (map[string][]models.Candle, error) {
+func LoadCandleData(historyDir string, tickers []string, tf string) (map[string][]models.Candle, error) {
+	historyDir = timeframe.HistoryDir(historyDir, tf)
 	out := make(map[string][]models.Candle, len(tickers))
 	var skipped []string
 	for _, ticker := range tickers {
@@ -173,10 +176,13 @@ func LoadCandleData(historyDir string, tickers []string) (map[string][]models.Ca
 			skipped = append(skipped, ticker)
 			continue
 		}
+		if err := timeframe.CheckGrid(candles, tf); err != nil {
+			return nil, fmt.Errorf("%s (%s): %w", ticker, historyDir, err)
+		}
 		out[ticker] = candles
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("нет загруженной истории ни по одному тикеру (запустите: optimizer sync-history)")
+		return nil, fmt.Errorf("нет истории %s ни по одному тикеру в %s (запустите: optimizer sync-history -timeframe %s)", tf, historyDir, tf)
 	}
 	if len(skipped) > 0 {
 		logx.Warn("история пропущена (нет данных): %s", strings.Join(skipped, ", "))

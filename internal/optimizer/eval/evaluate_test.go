@@ -21,7 +21,7 @@ func TestLoadCandleDataSkipsMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := eval.LoadCandleData(dir, []string{"SBER", "YNDX"})
+	data, err := eval.LoadCandleData(dir, []string{"SBER", "YNDX"}, "M5")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestLoadCandleDataSkipsMissing(t *testing.T) {
 
 func TestLoadCandleDataAllMissing(t *testing.T) {
 	dir := t.TempDir()
-	_, err := eval.LoadCandleData(dir, []string{"YNDX"})
+	_, err := eval.LoadCandleData(dir, []string{"YNDX"}, "M5")
 	if err == nil {
 		t.Fatal("expected error")
 	}

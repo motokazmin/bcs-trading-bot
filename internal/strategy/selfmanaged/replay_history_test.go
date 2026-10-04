@@ -98,7 +98,7 @@ func TestLiveMatchesBacktestOnHistory(t *testing.T) {
 		sort.Slice(sl, func(i, j int) bool { return sl[i].cfg.Label < sl[j].cfg.Label })
 	}
 	tickers := cfg.AllTickerSymbols()
-	data, err := eval.LoadCandleData(hist, tickers)
+	data, err := eval.LoadCandleData(hist, tickers, "M5")
 	if err != nil {
 		t.Fatal(err)
 	}

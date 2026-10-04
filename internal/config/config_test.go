@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"fmt"
 	"testing"
 
 	"bcs-trading-bot/internal/config"
@@ -94,6 +95,36 @@ risk:
 	}
 	if cfg.Tickers[0].StepPriceValue != 2.5 {
 		t.Fatalf("step_price_value: %f", cfg.Tickers[0].StepPriceValue)
+	}
+}
+
+// Неизвестный таймфрейм — ошибка загрузки, а не молчаливый M5 (engine.CandleBarDuration):
+// с неверной длительностью бара съезжают конец бара, EOD и гейты входа.
+func TestUnknownCandleTimeframeRejected(t *testing.T) {
+	const base = `
+trading_mode: virtual
+tickers: [SBER]
+%s
+experiments:
+  - id: a
+    %s
+    strategy:
+      type: opening_range_continuation
+`
+	for _, tc := range []struct{ root, exp string }{
+		{"candle_timeframe: M10", ""},
+		{"", "candle_timeframe: M10"},
+	} {
+		if _, err := config.LoadFromBytes([]byte(fmt.Sprintf(base, tc.root, tc.exp))); err == nil {
+			t.Fatalf("root=%q exp=%q: ожидалась ошибка", tc.root, tc.exp)
+		}
+	}
+	cfg, err := config.LoadFromBytes([]byte(fmt.Sprintf(base, "candle_timeframe: m15", "")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.ResolvedExperiments()[0].CandleTimeframe; got != "M15" {
+		t.Fatalf("таймфрейм эксперимента %q, want M15", got)
 	}
 }
 

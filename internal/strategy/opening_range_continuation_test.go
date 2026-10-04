@@ -350,3 +350,14 @@ func TestORCEntryAtCloseEntersOnBreakoutBar(t *testing.T) {
 		t.Fatalf("entry_at_close не должен ставить лимит, а вошёл на ретесте: %+v", o)
 	}
 }
+
+// best-config session_orc без явного allowAllTickers не должен записывать false:
+// YAML allow_all_tickers перекрывает дефолт типа, и конфиг молча сужался до ORCWhitelist.
+func TestORCConfigFieldsНеЗаписываетНеявныйWhitelist(t *testing.T) {
+	if v, ok := orcConfigFields(Params{}, BuildContext{})["allow_all_tickers"]; ok {
+		t.Fatalf("allow_all_tickers=%v записан без явного параметра — session_orc сузится до whitelist", v)
+	}
+	if v := orcConfigFields(Params{"allowAllTickers": 1}, BuildContext{})["allow_all_tickers"]; v != true {
+		t.Fatalf("явный allowAllTickers=1 потерян: %v", v)
+	}
+}

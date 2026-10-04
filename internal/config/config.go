@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"bcs-trading-bot/internal/engine/costs"
+	"bcs-trading-bot/internal/engine/timeframe"
 	"bcs-trading-bot/internal/strategy"
 
 	"gopkg.in/yaml.v3"
@@ -345,6 +346,7 @@ func (c *Config) applyDefaults() {
 	if c.ClassCode == "" {
 		c.ClassCode = defaultClassCode
 	}
+	c.CandleTimeFrame = timeframe.Normalize(c.CandleTimeFrame)
 	if c.CandleTimeFrame == "" {
 		c.CandleTimeFrame = defaultCandleTimeFrame
 	}
@@ -389,6 +391,7 @@ func (c *Config) applyDefaults() {
 	for i := range c.Experiments {
 		exp := &c.Experiments[i]
 		exp.ID = strings.TrimSpace(exp.ID)
+		exp.CandleTimeframe = timeframe.Normalize(exp.CandleTimeframe)
 		if exp.Name == "" {
 			exp.Name = exp.ID
 		}
@@ -445,6 +448,10 @@ func (c *Config) validate() error {
 		}
 	}
 
+	if _, err := timeframe.Duration(c.CandleTimeFrame); err != nil {
+		return fmt.Errorf("candle_timeframe: %w", err)
+	}
+
 	if c.HasExperiments() {
 		if c.TradingMode == TradingModeReal && len(c.Experiments) > 1 {
 			return fmt.Errorf("real mode: допускается не более одного эксперимента")
@@ -460,6 +467,11 @@ func (c *Config) validate() error {
 			seen[exp.ID] = struct{}{}
 			if err := validateStrategyConfig(exp.Strategy); err != nil {
 				return fmt.Errorf("experiments.%s: %w", exp.ID, err)
+			}
+			if exp.CandleTimeframe != "" {
+				if _, err := timeframe.Duration(exp.CandleTimeframe); err != nil {
+					return fmt.Errorf("experiments.%s: candle_timeframe: %w", exp.ID, err)
+				}
 			}
 			for _, t := range exp.Tickers {
 				if t.Symbol == "" {

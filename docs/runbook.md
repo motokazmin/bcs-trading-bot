@@ -164,6 +164,10 @@ grep -E "wsrecord|bar_age|закрыт по таймеру|переподклю�
 export BCS_REFRESH_TOKEN=...
 make build-optimizer
 make sync-history          # полный universe → data/history/*.csv
+make sync-history TIMEFRAME=M15   # родные M15 брокера → data/history-m15/*.csv
+
+# Таймфрейм бэктеста — `candle_timeframe` в YAML или флаг -timeframe M15;
+# история берётся из папки этого таймфрейма, бары не на его сетке — ошибка.
 
 make optimizer-orc         # → results/orc/
 make optimizer-or-fade
