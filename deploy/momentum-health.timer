@@ -1,0 +1,9 @@
+[Unit]
+Description=Моментум 0023: ежедневная проверка в 09:00 МСК
+
+[Timer]
+OnCalendar=*-*-* 09:00 Europe/Moscow
+Persistent=true
+
+[Install]
+WantedBy=timers.target

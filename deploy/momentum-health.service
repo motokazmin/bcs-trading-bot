@@ -1,0 +1,15 @@
+# Ежедневная репетиция месячного расчёта 0023 (scripts/pairs/momentum_health.sh): сбой — сообщение в Telegram
+# в тот же день, по понедельникам — «всё в порядке». Ставится deploy/setup-trader.sh.
+[Unit]
+Description=Моментум 0023: ежедневная проверка пути расчёта
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=trader
+Group=trader
+Environment=TZ=Europe/Moscow
+WorkingDirectory=/home/trader/momentum-paper
+ExecStart=/home/trader/momentum-paper/scripts/pairs/momentum_health.sh
+NoNewPrivileges=true

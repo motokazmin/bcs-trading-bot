@@ -13,7 +13,8 @@
 #   /home/trader/bcs-trading-bot — бот (main), служба trading-bot.service;
 #   /home/trader/momentum-paper — проверка 0023, таймер momentum-auto.timer;
 #   /etc/trading-bot/env — секреты (root:trader 640) вместо export руками;
-#   GitHub — deploy key только на этот репозиторий (ключ печатается в конце, добавить в настройках репо).
+#   GitHub — deploy key только на этот репозиторий (ключ печатается в конце, добавить в настройках репо);
+#   Telegram — сбои бота и ежедневной репетиции 0023 (TG_BOT_TOKEN, TG_CHAT_ID в /etc/trading-bot/env).
 set -euo pipefail
 
 U=trader
@@ -116,9 +117,12 @@ step "8. Службы systemd"
 install -m 644 "$MOM/deploy/trading-bot.service" /etc/systemd/system/trading-bot.service
 install -m 644 "$MOM/deploy/momentum-auto.service" /etc/systemd/system/momentum-auto.service
 install -m 644 "$MOM/deploy/momentum-auto.timer" /etc/systemd/system/momentum-auto.timer
+install -m 644 "$MOM/deploy/momentum-health.service" /etc/systemd/system/momentum-health.service
+install -m 644 "$MOM/deploy/momentum-health.timer" /etc/systemd/system/momentum-health.timer
+install -m 644 "$MOM/deploy/notify@.service" "/etc/systemd/system/notify@.service"
 systemctl daemon-reload
 systemctl enable --now trading-bot
-systemctl enable --now momentum-auto.timer
+systemctl enable --now momentum-auto.timer momentum-health.timer
 
 step "9. sudo для $U — только эти службы"
 cat > /etc/sudoers.d/$U <<EOF
@@ -143,6 +147,12 @@ else
     echo "   github.com/motokazmin/bcs-trading-bot → Settings → Deploy keys → Add deploy key → Allow write access"
     echo
     cat "$H/.ssh/id_ed25519.pub"
+fi
+if grep -q '^TG_BOT_TOKEN=.' "$ENVF" && grep -q '^TG_CHAT_ID=.' "$ENVF"; then
+    as_u "$MOM/scripts/notify.sh 'setup-trader: уведомления работают'" && echo "Telegram: тестовое сообщение отправлено"
+else
+    echo
+    echo "!! Telegram не настроен: допишите в $ENVF строки TG_BOT_TOKEN=… и TG_CHAT_ID=… (docs/runbook.md)"
 fi
 echo
 echo "ГОТОВО. Вход: ssh $U@$(hostname -I | awk '{print $1}'). Старая копия $OLD не тронута."

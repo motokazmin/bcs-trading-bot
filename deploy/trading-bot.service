@@ -5,6 +5,11 @@
 Description=BCS trading bot
 Wants=network-online.target
 After=network-online.target
+# 5 перезапусков за 10 минут — служба «упала», OnFailure шлёт сообщение. С лимитом по умолчанию
+# (5 за 10 с) при RestartSec=15 он не срабатывает никогда: бот перезапускался бы молча бесконечно.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+OnFailure=notify@%n.service
 
 [Service]
 User=trader

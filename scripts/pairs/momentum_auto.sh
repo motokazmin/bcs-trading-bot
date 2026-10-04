@@ -29,11 +29,18 @@ if has_month; then
     exit 0
 fi
 
-fail() { echo "ОШИБКА: $1"; exit 1; }
+fail() {
+    echo "ОШИБКА: $1"
+    ./scripts/notify.sh "Моментум 0023: портфель $MONTH НЕ записан — $1. Следующая попытка по таймеру; записать надо до клиринга первого торгового дня (~18:50 МСК). Лог: ~/momentum-paper/$LOG"
+    exit 1
+}
 make momentum-update || fail "догрузка ISS"
 make momentum-signal MONTH="$MONTH" || fail "расчёт портфеля"
 git add "$JOURNAL" || fail "git add"
 git commit -m "data(0023): портфель $MONTH (авто, $(hostname))" || fail "git commit"
-git push || echo "ВНИМАНИЕ: пуш не прошёл — коммит только локальный, метки времени снаружи нет"
+pushed="и запушен"
+git push || { pushed="но НЕ запушен — метки времени снаружи нет"; echo "ВНИМАНИЕ: пуш не прошёл — коммит только локальный"; }
 make momentum-score || echo "ВНИМАНИЕ: score не посчитался"
+summary=$(awk -F, -v m="$MONTH" '$1==m {s[$5]=s[$5] " " $4} END {printf "лонг:%s; шорт:%s", s["лонг"], s["шорт"]}' "$JOURNAL")
+./scripts/notify.sh "Моментум 0023: портфель $MONTH записан $pushed. $summary"
 echo "ГОТОВО: портфель $MONTH в журнале"

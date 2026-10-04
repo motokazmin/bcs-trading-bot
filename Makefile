@@ -41,7 +41,7 @@ BOT_PID_FILE ?= data/bot.pid
 .PHONY: build build-bot build-optimizer test analyze \
         sync-history optimizer-run optimizer-orc optimizer-orc-research optimizer-momentum optimizer-or-fade optimizer-afternoon optimizer-focus strategy-matrix charts-all \
         bot bot-futures bot-real bot-smoke bot-stop bot-status help \
-        momentum-update momentum-signal momentum-score
+        momentum-update momentum-signal momentum-signal-dry momentum-score
 
 help:
 	@echo "BCS Trading Bot — make targets"
@@ -126,6 +126,9 @@ momentum-update:
 
 momentum-signal:
 	PAIRS_END=$(PAIRS_END) python3 scripts/pairs/momentum_forward.py signal $(MONTH)
+
+momentum-signal-dry:
+	PAIRS_END=$(PAIRS_END) python3 scripts/pairs/momentum_forward.py signal-dry
 
 momentum-score:
 	PAIRS_END=$(PAIRS_END) python3 scripts/pairs/momentum_forward.py score

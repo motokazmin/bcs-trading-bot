@@ -2,6 +2,7 @@
 
 PAIRS_END=$(date +%F) python3 scripts/pairs/momentum_forward.py signal [YYYY-MM]   # портфель месяца → журнал
 PAIRS_END=$(date +%F) python3 scripts/pairs/momentum_forward.py score              # доходность и сверка с журналом
+PAIRS_END=$(date +%F) python3 scripts/pairs/momentum_forward.py signal-dry         # тот же расчёт без записи (репетиция)
 
 Правило — ровно 0022 (`momentum.target`), регистрация и критерий — docs/analysis/0023-momentum-forward-paper.md.
 Журнал коммитится до расчётной цены первого торгового дня месяца: время коммита — улика, что портфель
@@ -43,11 +44,13 @@ def trade_month(arg):
     return today.to_period("M") + (1 if today >= last_weekday else 0)
 
 
-def signal(arg=None):
-    T = trade_month(arg)
+def signal(arg=None, dry=False):
+    """Портфель месяца T в журнал. dry — без записи: ежедневная репетиция (momentum_health.sh) портфеля
+    текущего месяца по закрытому прошлому — проверяет весь путь, кроме записи."""
+    T = pd.Timestamp(date.today()).to_period("M") if dry else trade_month(arg)
     M = T - 1
     j = read_journal()
-    if (j["month"] == str(T)).any():
+    if not dry and (j["month"] == str(T)).any():
         sys.exit(f"портфель {T} уже в журнале — журнал не перезаписывается")
     ret, val, roll = load()
     idx = ret.index
@@ -76,6 +79,11 @@ def signal(arg=None):
                      "side": "лонг" if w[a_i] > 0 else "шорт", "weight": round(abs(w[a_i]), 6),
                      "secid": secid, "settle": settle, "contracts": int(round(CAPITAL * abs(w[a_i]) / settle)),
                      "universe": int(ok.sum()), "generated_at": datetime.now().isoformat(timespec="seconds")})
+    if dry:
+        print(f"репетиция: портфель {T} по сигналу на {sig_day.date()}, вселенная {int(ok.sum())}, "
+              f"лонг {', '.join(r['asset'] for r in rows if r['side'] == 'лонг')}; "
+              f"шорт {', '.join(r['asset'] for r in rows if r['side'] == 'шорт')}")
+        return
     new = not os.path.exists(JOURNAL)
     with open(JOURNAL, "a", newline="") as fh:
         wr = csv.DictWriter(fh, fieldnames=FIELDS)
@@ -133,5 +141,7 @@ if __name__ == "__main__":
     cmd = sys.argv[1]
     if cmd == "signal":
         signal(sys.argv[2] if len(sys.argv) > 2 else None)
+    elif cmd == "signal-dry":
+        signal(dry=True)
     else:
         score()

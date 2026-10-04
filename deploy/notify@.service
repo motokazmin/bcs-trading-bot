@@ -1,0 +1,9 @@
+# Сообщение в Telegram об упавшей службе: OnFailure=notify@%n.service в юните службы.
+[Unit]
+Description=Уведомление: служба %i упала
+
+[Service]
+Type=oneshot
+User=trader
+Group=trader
+ExecStart=/home/trader/momentum-paper/scripts/notify.sh "служба %i упала и не поднялась после перезапусков: systemctl status %i; tail /var/log/trading-bot/bot.log"
