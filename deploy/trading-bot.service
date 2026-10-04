@@ -1,0 +1,25 @@
+# Бот под пользователем trader (deploy/setup-trader.sh). Секреты — /etc/trading-bot/env (root:trader 640):
+# BCS_REFRESH_TOKEN, ADMIN_TOKEN, HTTP_LISTEN. Конфиг — BOT_CONFIG ниже.
+# Управление: systemctl status|restart trading-bot; журнал — /var/log/trading-bot/bot.log.
+[Unit]
+Description=BCS trading bot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=trader
+Group=trader
+WorkingDirectory=/home/trader/bcs-trading-bot
+EnvironmentFile=/etc/trading-bot/env
+Environment=BOT_CONFIG=configs/runs/paper-m15.yaml
+ExecStart=/home/trader/bcs-trading-bot/bin/bot -config ${BOT_CONFIG} -http-listen ${HTTP_LISTEN} -log-file /var/log/trading-bot/bot.log
+# SIGTERM — штатная остановка (signal.NotifyContext в cmd/bot)
+KillSignal=SIGTERM
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=15
+NoNewPrivileges=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

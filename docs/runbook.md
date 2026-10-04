@@ -139,34 +139,45 @@ grep -E "wsrecord|bar_age|закрыт по таймеру|переподклю�
 Лог не покажет steal CPU напрямую — если пик очереди растёт, смотреть `top` (поле `st`)
 в 10:00–10:05.
 
-## Моментум 0023: портфель месяца по таймеру
+## Сервер: пользователь trader, службы бота и моментума
 
-Проверка вперёд [0023](analysis/0023-momentum-forward-paper.md) требует раз в месяц посчитать портфель и
-закоммитить журнал **до клиринга первого торгового дня** (~18:50 МСК). На сервере это делает таймер:
-`scripts/pairs/momentum_auto.sh` 3 раза в день (07/12/16 МСК) проверяет, есть ли портфель текущего месяца
-в `docs/analysis/0023-journal.csv`; нет — догружает ISS, считает, коммитит и пушит. Есть — выходит.
-
-**Отдельная копия репо**, не та, из которой крутится бот: коммиты журнала не должны мешать его checkout.
+Бот и проверка [0023](analysis/0023-momentum-forward-paper.md) работают под пользователем **trader**, а не root.
+Ставит всё `deploy/setup-trader.sh` — один раз от root, повторный запуск безопасен:
 
 ```bash
-# на сервере, один раз
-sudo apt install -y python3-pandas python3-numpy git make   # или pip install pandas numpy
-git clone git@github.com:<you>/bcs-trading-bot.git ~/momentum-paper
-cd ~/momentum-paper && git checkout research/pref-common-pairs     # ветка с журналом (после мержа — main)
-git config user.name "momentum-bot" && git config user.email "<you>@users.noreply.github.com"
-# пуш нужен с сервера: deploy key с правом записи (GitHub → Settings → Deploy keys → Allow write access)
-ssh -T git@github.com                                    # проверить доступ
-make momentum-update                                     # первая загрузка истории фьючерсов: ~35 мин
-mkdir -p ~/.config/systemd/user && cp deploy/momentum-auto.{service,timer} ~/.config/systemd/user/
-systemctl --user daemon-reload && systemctl --user enable --now momentum-auto.timer
-sudo loginctl enable-linger "$USER"                      # таймер работает без входа в систему
-systemctl --user list-timers momentum-auto.timer         # следующий запуск
+cd /root/projects/bcs-trading-bot && git fetch origin research/pref-common-pairs
+git show origin/research/pref-common-pairs:deploy/setup-trader.sh > /root/setup-trader.sh
+bash /root/setup-trader.sh
 ```
 
-Проверка: `tail data/momentum-auto.log` — последняя строка месяца `ГОТОВО: портфель …` или `ОШИБКА: …`.
-`ВНИМАНИЕ: пуш не прошёл` — коммит только на сервере, внешней метки времени нет: чинить ключ и пушить руками.
-Вручную в любой момент: `./scripts/pairs/momentum_auto.sh` (лишний запуск ничего не сломает).
-Счёт: `make momentum-score`.
+| Что | Где |
+|---|---|
+| бот | `/home/trader/bcs-trading-bot`, `trading-bot.service` (автозапуск, перезапуск при падении) |
+| секреты | `/etc/trading-bot/env` (root:trader 640) — `BCS_REFRESH_TOKEN`, `ADMIN_TOKEN`, `HTTP_LISTEN`; логин-шелл trader подхватывает сам |
+| моментум | `/home/trader/momentum-paper`, `momentum-auto.timer` (07/12/16 МСК) |
+| GitHub | deploy key trader с правом записи — только этот репозиторий |
+| sudo trader | только `systemctl start/stop/restart trading-bot`, `start momentum-auto.service` |
+
+Скрипт останавливает старого бота (запущенного `make bot` от root), переносит `trades.db` онлайн-бэкапом и
+сверяет число строк; старая копия `/root/projects/bcs-trading-bot` не трогается. Откат:
+`systemctl disable --now trading-bot; cd /root/projects/bcs-trading-bot && make bot`.
+В конце печатается публичный ключ trader — добавить в GitHub → Settings → Deploy keys, **Allow write access**.
+
+Повседневное (под trader):
+
+```bash
+sudo systemctl restart trading-bot          # после git pull && make build-bot
+systemctl status trading-bot; tail -f /var/log/trading-bot/bot.log
+journalctl -u momentum-auto -n 30            # запуски таймера
+tail data/momentum-auto.log                  # в ~/momentum-paper: «ГОТОВО …» / «ОШИБКА …»
+make momentum-score
+```
+
+**Моментум по таймеру.** Раз в месяц надо посчитать портфель и закоммитить журнал **до клиринга первого
+торгового дня** (~18:50 МСК). `scripts/pairs/momentum_auto.sh` 3 раза в день проверяет, есть ли портфель
+текущего месяца в `docs/analysis/0023-journal.csv`; нет — догружает ISS, считает, коммитит и пушит. Есть — выходит.
+`ВНИМАНИЕ: пуш не прошёл` — коммит только на сервере, внешней метки времени нет: проверить deploy key.
+Вручную в любой момент: `sudo systemctl start momentum-auto.service` (лишний запуск ничего не сломает).
 
 ---
 
