@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Бот и проверка 0023 под общим пользователем apps — запуск от root на сервере.
 #
-# apps — один не-root пользователь для всех своих проектов на сервере: у каждого своя папка в /home/apps
-# и своя служба (телеграм-мониторинг ставит свой deploy/setup-server.sh в том же apps). До 2026-10-05
-# пользователь назывался trader — скрипт переименует его сам (шаг 0).
+# apps — один не-root пользователь для своих проектов на сервере: у каждого своя папка в /home/apps,
+# своя служба и свой sudoers-файл. До 2026-10-05 пользователь назывался trader — скрипт переименует его сам (шаг 0).
 #
 #   cd /root/projects/bcs-trading-bot && git fetch origin research/pref-common-pairs
 #   git show origin/research/pref-common-pairs:deploy/setup-apps.sh > /root/setup-apps.sh
