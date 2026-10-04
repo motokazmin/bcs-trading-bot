@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-CONFIG = "configs/runs/portfolio-paper.yaml"
+CONFIG = "configs/legacy/runs/portfolio-paper-m5.yaml"
 SLOT = "or-fade-conservative"
 SLOT4 = ["LKOH", "CHMF", "MOEX", "AFKS"]
 CORE6 = ["SBER", "GAZP", "NVTK", "ROSN", "MGNT", "TATN"]

@@ -1,10 +1,13 @@
 # Baseline портфеля
 
+> **M5-стенд выведен 2026-10-04** — бот работает только на M15 (`configs/runs/paper-m15.yaml`).
+> Ниже — история M5. Эталон для paper M15 — в [`analysis/0019`](analysis/0019-paper-m15-registration.md).
+
 Эталон для сравнения paper/live с backtest на **едином счёте** 200 000 ₽.
 
 ```bash
 go run ./cmd/optimizer portfolio-backtest \
-  -config configs/runs/portfolio-paper.yaml
+  -config configs/legacy/runs/portfolio-paper-m5.yaml
 ```
 
 Модель: M5 CSV, комиссия 0,008%/leg, **проскальзывание 1 б.п. на ногу**

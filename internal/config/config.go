@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/engine/timeframe"
@@ -479,6 +480,11 @@ func (c *Config) validate() error {
 				}
 			}
 		}
+		for _, exp := range c.ResolvedExperiments() {
+			if err := sessionOnGrid(exp.CandleTimeframe, c.SessionForExperiment(exp)); err != nil {
+				return fmt.Errorf("experiments.%s: %w", exp.ID, err)
+			}
+		}
 		ar := c.AccountRisk()
 		if ar.Deposit <= 0 {
 			return fmt.Errorf("risk.deposit должен быть > 0 (единый счёт)")
@@ -515,4 +521,45 @@ func validateStrategyConfig(s StrategyConfig) error {
 		return fmt.Errorf("неверный stop_mode %q (допустимо: range, atr)", s.StopMode)
 	}
 	return nil
+}
+
+// sessionOnGrid проверяет, что открытие, начало входов и EOD лежат на границах баров таймфрейма.
+// Время внутри бара live и backtest видят по-разному: live закрывает в 18:40 по тику, backtest
+// узнаёт о 18:40 только на закрытии бара 18:30–18:45 и выходит по цене 18:45, которой в момент
+// выхода не было. На M15 так разошлись 374 сделки из 886 (docs/analysis/0019).
+func sessionOnGrid(tf string, s SessionConfig) error {
+	d, err := timeframe.Duration(tf)
+	if err != nil || d >= 24*time.Hour {
+		return err
+	}
+	step := int(d / time.Minute)
+	open, err := hhmmMinutes(s.SessionOpenTime)
+	if err != nil {
+		return fmt.Errorf("session_open_time: %w", err)
+	}
+	eod, err := hhmmMinutes(s.EODCloseTime)
+	if err != nil {
+		return fmt.Errorf("eod_close_time: %w", err)
+	}
+	for _, p := range []struct {
+		name string
+		min  int
+	}{
+		{"session_open_time " + s.SessionOpenTime, open},
+		{"eod_close_time " + s.EODCloseTime, eod},
+		{fmt.Sprintf("начало входов (open + entry_delay_minutes %d)", s.EntryDelayMinutes), open + s.EntryDelayMinutes},
+	} {
+		if p.min%step != 0 {
+			return fmt.Errorf("%s не на границе бара %s — live и backtest выйдут/войдут по разным ценам", p.name, tf)
+		}
+	}
+	return nil
+}
+
+func hhmmMinutes(v string) (int, error) {
+	t, err := time.Parse("15:04", strings.TrimSpace(v))
+	if err != nil {
+		return 0, err
+	}
+	return t.Hour()*60 + t.Minute(), nil
 }

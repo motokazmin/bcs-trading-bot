@@ -39,7 +39,7 @@ func ParseFlags() Options {
 		defaultLogFile = v
 	}
 
-	configPath := flag.String("config", "configs/runs/portfolio-paper.yaml", "путь к YAML-конфигу")
+	configPath := flag.String("config", "configs/runs/paper-m15.yaml", "путь к YAML-конфигу")
 	noColor := flag.Bool("no-color", false, "отключить цветной вывод в терминале")
 	logFile := flag.String("log-file", defaultLogFile, "лог в файл + stdout (дефолт /var/log/trading-bot/bot.log; пустая строка или \"-\" — только stdout)")
 	smokeTest := flag.Bool("smoke-test", false, "быстрая проверка: OAuth + WebSocket + виртуальная сделка без записи в БД")

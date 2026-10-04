@@ -46,7 +46,7 @@ bin/optimizer backtest -strategy … -search-space … -date-from … -date-to �
 
 ```bash
 go run ./cmd/optimizer portfolio-backtest \
-  -config configs/runs/portfolio-paper.yaml \
+  -config configs/runs/paper-m15.yaml \
   -date-from 2024-07-04 -date-to 2026-07-03
 ```
 

@@ -97,8 +97,9 @@ N новых сделок» и орёт, если конфиг изменилс�
 
 **Чемпионов больше нет: `configs/legacy/champions/*` — история, не источник параметров.**
 Их параметры подобраны под модель исполнения до 0005–0010, а проверка 0009–0012 не нашла
-преимущества ни у одного слота. `make bot` запускает `configs/runs/portfolio-paper.yaml` —
-это **стенд проверки исполнения**, а не торговая система; ожидание его exp_R ≈ минус издержки.
+преимущества ни у одного слота. **С 2026-10-04 бот только на M15:** `make bot` запускает
+`configs/runs/paper-m15.yaml` — paper двух кандидатов из 0015 (MF Afternoon, OR Fade), критерии
+до запуска — в 0019. M5-стенд выведен в `configs/legacy/runs/portfolio-paper-m5.yaml`.
 Новые параметры — только из зарегистрированной проверки, сразу в `configs/runs/*`.
 
 **`risk_per_trade_percent` и `min_stop_bps` — связанная пара, крутить только вместе.**
@@ -147,9 +148,9 @@ Bearer `ADMIN_TOKEN`) → `make analyze-json JSON=путь`. Отчёт поби
 `wal_checkpoint(TRUNCATE)` при активном писателе откажет, копирование живого файла — гонка.
 
 **Трейлинг мёртв, если `trail_activation_r >= reward_ratio`** — позиция закроется по
-тейку раньше, чем трейл включится. Сейчас так в 3 слотах из 6 (`session-orc-evening`,
-`or-fade-conservative`, `mf-afternoon`), у `orc-wave2` активация на 92% пути к тейку.
-Рычаг сильный: у `orc-complement` сдвиг 1.515 → 0.364 дал PF портфеля 2.18 → 2.80.
+тейку раньше, чем трейл включится. В выведенном M5-стенде так было в 3 слотах из 6; в paper-m15
+мёртвых нет (активация подбиралась долей тейка). Рычаг сильный: у `orc-complement` сдвиг
+1.515 → 0.364 дал PF портфеля 2.18 → 2.80.
 Чинить переподбором выхода, а не правкой числа наугад. Держит
 `TestМёртвыйТрейлингТолькоВИзвестныхСлотах`.
 
@@ -179,6 +180,11 @@ Bearer `ADMIN_TOKEN`) → `make analyze-json JSON=путь`. Отчёт поби
 редкий набор судился по одному удачному окну из 16: на M15 все пять победителей 0014 — по 1–6 окнам,
 хвост провалили. Сравнивать score прогонов до и после планки нельзя. **`best-config` у `momentum_filtered` теряет `trail_*`** — дописывать из JSON.
 
+**Время сессии — только на границах баров таймфрейма.** На M15 EOD 18:40 — середина бара 18:30–18:45:
+live закрывал в 18:40 по тику, backtest — по close бара (цена 18:45, которой в момент выхода не было).
+Сверка `TestLiveMatchesBacktestOnHistory` разошлась на 374 сделках из 886 ([0019](docs/analysis/0019-paper-m15-registration.md)).
+Теперь такой конфиг не загружается (`config.sessionOnGrid`); в paper-m15 EOD 18:30.
+
 **`atr_period: 0` в `best-config-*.yaml` — нормализовать в 14 при переносе.**
 Оптимизатор пишет ноль, параметр молча уедет не тем.
 
@@ -196,7 +202,7 @@ Bearer `ADMIN_TOKEN`) → `make analyze-json JSON=путь`. Отчёт поби
 
 | место | что держать |
 |-------|-------------|
-| `configs/runs/portfolio-paper.yaml` | `min_stop_bps`, `risk_per_trade_percent`, `costs.slippage_bps` |
+| `configs/runs/paper-m15.yaml` | `min_stop_bps`, `risk_per_trade_percent`, `costs.slippage_bps` |
 | `configs/strategies/*` → `search_space.fixed` | `minStopBps`, `riskPerTradePercent` |
 | `configs/shared/tickers*.yaml` → `costs` | `slippage_bps` |
 

@@ -18,7 +18,7 @@ lean_tickers:
   - NVTK
 
 # Полный universe акций MOEX для sync-history и широкого поиска
-# (portfolio-paper + session liquid; AFKS — OR Fade champion).
+# (бывший M5 portfolio-paper + session liquid; AFKS — OR Fade champion).
 tickers:
   - SBER
   - GAZP

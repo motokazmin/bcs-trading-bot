@@ -30,7 +30,7 @@ PARALLEL_TICKERS  ?= 5
 OPTIMIZER_PARALLEL ?= 0
 OPTIMIZER_TWO_PHASE ?=
 
-BOT_CONFIG ?= configs/runs/portfolio-paper.yaml
+BOT_CONFIG ?= configs/runs/paper-m15.yaml
 # Админка: локально 127.0.0.1:8091; в облаке HTTP_LISTEN=0.0.0.0:8091 и ADMIN_TOKEN=...
 HTTP_LISTEN ?= 127.0.0.1:8091
 # Дублировать логи в файл (дефолт /var/log/trading-bot/bot.log). Только stdout: LOG_FILE=- make bot

@@ -304,7 +304,7 @@ func backtestCmd(args []string) {
 
 func portfolioBacktestCmd(args []string) {
 	fs := flag.NewFlagSet("portfolio-backtest", flag.ExitOnError)
-	configPath := fs.String("config", "configs/runs/portfolio-paper.yaml", "bot YAML с experiments (FROZEN champions)")
+	configPath := fs.String("config", "configs/runs/paper-m15.yaml", "bot YAML с experiments")
 	historyDir := fs.String("history-dir", "data/history", "директория CSV-истории")
 	dateFrom := fs.String("date-from", "", "начало периода YYYY-MM-DD (default: из CSV)")
 	dateTo := fs.String("date-to", "", "конец периода YYYY-MM-DD (default: из CSV)")

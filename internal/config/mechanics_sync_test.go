@@ -41,7 +41,7 @@ func TestИздержкиОбъявленыЯвно(t *testing.T) {
 }
 
 // Search space боевых слотов обязан фиксировать гейт и риск теми же значениями,
-// что в configs/runs/portfolio-paper.yaml.
+// что в configs/runs/paper-m15.yaml.
 func TestSearchSpaceФиксируетМеханику(t *testing.T) {
 	const wantGate, wantRisk = 20.0, 0.20
 	for _, path := range []string{

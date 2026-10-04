@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A/B: вход ORC по close бара пробоя против ретест-лимита — docs/analysis/0009.
 
-Плечо A — configs/runs/portfolio-paper.yaml как есть; плечо B — тот же файл с
+Плечо A — configs/legacy/runs/portfolio-paper-m5.yaml как есть; плечо B — тот же файл с
 `entry_at_close: true` у ORC-слотов. Оба плеча — портфельный backtest при 1 и 2 б.п.
 
     python3 scripts/ab-orc-entry.py [--workdir DIR]
@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-CONFIG = "configs/runs/portfolio-paper.yaml"
+CONFIG = "configs/legacy/runs/portfolio-paper-m5.yaml"
 ORC_TYPES = {"opening_range_continuation", "session_orc"}
 DATE_FROM, DATE_TO = "2024-07-03", "2026-10-02"
 START, END = dt.date(2024, 7, 3), dt.date(2026, 10, 2)

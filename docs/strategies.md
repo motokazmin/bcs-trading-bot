@@ -126,14 +126,14 @@ func init() {
 Один эксперимент — корневые `strategy` + `tickers`:
 
 ```bash
-go run ./cmd/bot -config configs/runs/portfolio-paper.yaml
+go run ./cmd/bot -config configs/runs/paper-m15.yaml
 ```
 
-Портфель — секция `experiments[]` (как в `portfolio-paper.yaml`): один счёт
+Портфель — секция `experiments[]` (как в `paper-m15.yaml`): один счёт
 (депозит, CB, one-position-per-ticker), у каждого слота свои окно/тикеры/params.
 
 ```bash
-go run ./cmd/bot -config configs/runs/portfolio-paper.yaml   # = make bot
+go run ./cmd/bot -config configs/runs/paper-m15.yaml   # = make bot
 ```
 
 ### Optimizer
@@ -144,7 +144,7 @@ bin/optimizer run -strategy opening_range_continuation \
   -search-space configs/strategies/orc.yaml \
   -tickers-config configs/shared/tickers-orc.yaml
 bin/optimizer backtest ...
-bin/optimizer portfolio-backtest -config configs/runs/portfolio-paper.yaml
+bin/optimizer portfolio-backtest -config configs/runs/paper-m15.yaml
 ```
 
 `best-config` **не** автодеплоится. Параметры попадают в `configs/runs/*` только после зарегистрированной проверки (`docs/analysis/0008`, `0012` — формат).

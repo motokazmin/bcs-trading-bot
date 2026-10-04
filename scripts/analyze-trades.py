@@ -31,7 +31,11 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
-BAR = pd.Timedelta(minutes=5)
+# Длина бара — по таймфрейму сделки (closed_trades.candle_timeframe): бар входа, следующий бар
+# и «вход и выход в одной свече» считаются в барах бота. С M5-баром у сделок M15 эти метрики
+# смотрели бы на треть бара входа (0019). Пустое поле — старые сделки M5.
+BAR_BY_TF = {"M1": pd.Timedelta(minutes=1), "M5": pd.Timedelta(minutes=5), "M15": pd.Timedelta(minutes=15),
+             "M30": pd.Timedelta(minutes=30), "H1": pd.Timedelta(hours=1)}
 SESSION_END = pd.Timestamp("1900-01-01 15:40", tz="UTC").time()  # 18:40 MSK
 MSK_OFFSET = pd.Timedelta(hours=3)
 
@@ -72,6 +76,8 @@ def _prepare(t: pd.DataFrame) -> pd.DataFrame:
         return t
     t = t.sort_values("opened_at").reset_index(drop=True)
     t["entry_bar_ts"] = pd.to_datetime(t["entry_bar_time"], utc=True, format="ISO8601")
+    tf = t["candle_timeframe"] if "candle_timeframe" in t else pd.Series("", index=t.index)
+    t["tf"] = tf.fillna("").str.strip().str.upper().replace("", "M5")
     t["open_utc"] = pd.to_datetime(t["opened_at"]).sub(MSK_OFFSET).dt.tz_localize("UTC")
     t["close_utc"] = pd.to_datetime(t["closed_at"]).sub(MSK_OFFSET).dt.tz_localize("UTC")
     t["sgn"] = np.where(t.direction == "BUY", 1, -1)
@@ -104,8 +110,21 @@ def drop_archived(t: pd.DataFrame, archives: list[dict]):
     return t[keep].reset_index(drop=True), dropped
 
 
-def load_history(path: str) -> dict[str, pd.DataFrame]:
+def history_dir(base: str, tf: str) -> str:
+    """Как timeframe.HistoryDir в Go: M5 — в базовой папке, остальные — в <база>-<tf>."""
+    return base if tf in ("", "M5") else base.rstrip("/") + "-" + tf.lower()
+
+
+def load_history(path: str, tfs) -> dict[str, dict[str, pd.DataFrame]]:
+    """История по таймфреймам сделок: {tf: {тикер: бары}}."""
+    return {tf: _load_dir(history_dir(path, tf)) for tf in tfs}
+
+
+def _load_dir(path: str) -> dict[str, pd.DataFrame]:
     out = {}
+    if not os.path.isdir(path):
+        print(f"нет истории {path} — проверки по барам для этого таймфрейма пропущены")
+        return out
     for f in sorted(os.listdir(path)):
         if not f.endswith(".csv"):
             continue
@@ -116,15 +135,15 @@ def load_history(path: str) -> dict[str, pd.DataFrame]:
 
 # --- производные метрики ----------------------------------------------------
 
-def enrich(t: pd.DataFrame, H: dict[str, pd.DataFrame]) -> pd.DataFrame:
+def enrich(t: pd.DataFrame, H: dict[str, dict[str, pd.DataFrame]]) -> pd.DataFrame:
     """Добавляет диагностику, которую нельзя посчитать без исторических баров."""
     rows = []
     for _, r in t.iterrows():
-        d = H.get(r.ticker)
+        d = H.get(r.tf, {}).get(r.ticker)
         bar = nxt = None
         if d is not None:
             b = d.loc[d.index == r.entry_bar_ts]
-            n = d.loc[d.index == r.entry_bar_ts + BAR]
+            n = d.loc[d.index == r.entry_bar_ts + BAR_BY_TF[r.tf]]
             bar = b.iloc[0] if len(b) else None
             nxt = n.iloc[0] if len(n) else None
 
@@ -156,7 +175,8 @@ def enrich(t: pd.DataFrame, H: dict[str, pd.DataFrame]) -> pd.DataFrame:
     t["mfe_after_exit_r"] = [x[3] for x in rows]
 
     t["r_bps"] = 1e4 * t.r_distance / t.entry_price
-    t["same_bar"] = (t.open_utc.dt.floor("5min") == t.close_utc.dt.floor("5min")).astype(int)
+    t["same_bar"] = [int(o.floor(BAR_BY_TF[tf]) == c.floor(BAR_BY_TF[tf]))
+                     for o, c, tf in zip(t.open_utc, t.close_utc, t.tf)]
     # Мёртвый вход: позиция уже за стопом, едва открывшись.
     t["dead_on_arrival"] = (t.pos_at_open_r < -1).astype("Int64")
     # Недобор по выходу: сколько R осталось на столе после фиксации.
@@ -203,7 +223,7 @@ def report(t: pd.DataFrame, m: pd.DataFrame) -> None:
     dead = t.dead_on_arrival.sum()
     print(f"  уже за стопом на открытии следующей свечи: {dead}/{t.pos_at_open_r.notna().sum()}"
           f" ({dead / max(t.pos_at_open_r.notna().sum(), 1):.0%})")
-    print(f"  вход и выход в одной 5-мин свече:          {t.same_bar.sum()}/{n}"
+    print(f"  вход и выход в одной свече бота:          {t.same_bar.sum()}/{n}"
           f" ({t.same_bar.mean():.0%})")
     print(f"  медиана позиции сразу после входа:         {t.pos_at_open_r.median():+.2f}R")
     if t.level_touched.notna().any():
@@ -395,7 +415,7 @@ def main() -> None:
                     help="считать по всем сделкам, включая заархивированные")
     ap.add_argument("--review-state", default=REVIEW_STATE,
                     help="файл с водяным знаком прошлого разбора")
-    ap.add_argument("--config", default="configs/runs/portfolio-paper.yaml",
+    ap.add_argument("--config", default="configs/runs/paper-m15.yaml",
                     help="боевой конфиг: с него снимается отпечаток механики")
     ap.add_argument("--since-review", action="store_true",
                     help="считать только сделки, появившиеся после прошлого разбора")
@@ -459,7 +479,7 @@ def main() -> None:
                       f"(последняя сделка id={st['last_trade_id']}, {st['config_summary']})")
             return
 
-    t = enrich(t, load_history(args.history))
+    t = enrich(t, load_history(args.history, sorted(t.tf.unique()) if len(t) else []))
     m = per_experiment(t)
     report(t, m)
 

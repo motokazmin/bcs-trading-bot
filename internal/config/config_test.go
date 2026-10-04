@@ -7,14 +7,19 @@ import (
 	"bcs-trading-bot/internal/config"
 )
 
-func TestLoadPortfolioPaper(t *testing.T) {
-	cfg, err := config.Load("../../configs/runs/portfolio-paper.yaml")
+func TestLoadPaperM15(t *testing.T) {
+	cfg, err := config.Load("../../configs/runs/paper-m15.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	exps := cfg.ResolvedExperiments()
-	if len(exps) != 6 {
-		t.Fatalf("experiments: got %d, want 6", len(exps))
+	if len(exps) != 2 {
+		t.Fatalf("experiments: got %d, want 2", len(exps))
+	}
+	for _, e := range exps {
+		if e.CandleTimeframe != "M15" {
+			t.Fatalf("%s: таймфрейм %q, want M15 — бот запускается только на M15", e.ID, e.CandleTimeframe)
+		}
 	}
 	if cfg.AccountRisk().Deposit != 200_000 {
 		t.Fatalf("account deposit: got %.0f, want 200000", cfg.AccountRisk().Deposit)
@@ -104,6 +109,7 @@ func TestUnknownCandleTimeframeRejected(t *testing.T) {
 	const base = `
 trading_mode: virtual
 tickers: [SBER]
+session: {eod_close_time: "18:30"}
 %s
 experiments:
   - id: a
@@ -125,6 +131,36 @@ experiments:
 	}
 	if got := cfg.ResolvedExperiments()[0].CandleTimeframe; got != "M15" {
 		t.Fatalf("таймфрейм эксперимента %q, want M15", got)
+	}
+}
+
+// Время сессии внутри бара live и backtest видят по-разному: на M15 с EOD 18:40 разошлись
+// 374 сделки из 886 (0019). Такой конфиг не должен загружаться.
+func TestSessionOffGridRejected(t *testing.T) {
+	const base = `
+trading_mode: virtual
+tickers: [SBER]
+candle_timeframe: M15
+session: {session_open_time: "10:00", eod_close_time: "%s"}
+experiments:
+  - id: a
+    entry_delay_minutes: %d
+    strategy:
+      type: opening_range_continuation
+`
+	for _, tc := range []struct {
+		eod   string
+		delay int
+		ok    bool
+	}{
+		{"18:30", 150, true},
+		{"18:40", 150, false}, // EOD внутри бара 18:30–18:45
+		{"18:30", 140, false}, // начало входов 12:20 внутри бара
+	} {
+		_, err := config.LoadFromBytes([]byte(fmt.Sprintf(base, tc.eod, tc.delay)))
+		if (err == nil) != tc.ok {
+			t.Fatalf("eod=%s delay=%d: err=%v, ожидалось ok=%v", tc.eod, tc.delay, err, tc.ok)
+		}
 	}
 }
 
