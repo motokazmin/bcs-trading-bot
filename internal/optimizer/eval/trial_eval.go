@@ -75,7 +75,7 @@ func (e *Evaluator) evaluateTrial(ctx context.Context, index int, params core.Pa
 	return TrialResult{
 		Index:   index,
 		Params:  params,
-		Score:   core.MedianFloat(scores),
+		Score:   core.WindowScore(scores, e.settings.MinValidWindowShare),
 		Windows: windowResults,
 	}
 }

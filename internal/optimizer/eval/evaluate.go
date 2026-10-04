@@ -31,6 +31,9 @@ type RunSettings struct {
 	StepPriceValue  float64
 	Costs           costs.Config
 	MinTrades       int
+	// MinValidWindowShare — доля окон, где сделок должно быть ≥ MinTrades, иначе trial
+	// получает −Inf (core.WindowScore). 0 — прежнее правило: судить по любым прошедшим окнам.
+	MinValidWindowShare float64
 	Session         config.SessionConfig
 }
 

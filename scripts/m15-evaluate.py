@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Оценка кандидатов 0014: лучший набор каждой стратегии → однослотовый конфиг →
+"""Оценка кандидатов 0014/0015: лучший набор каждой стратегии → однослотовый конфиг →
 portfolio-backtest на подборе и на хвосте. Критерий — в docs/analysis/0014-m15-champion-search.md.
 
 Сверка переноса параметров: тот же набор гоняется движком оптимизатора (`optimizer backtest`
 с замороженным пространством). Потерянный при конвертации в YAML параметр меняет число сделок.
 
-Запуск: python3 scripts/m15-evaluate.py
+Запуск: python3 scripts/m15-evaluate.py                       (0014, results/m15)
+        M15_RESULTS=results/m15-v2 python3 scripts/m15-evaluate.py (0015)
 """
 import glob
 import json
@@ -22,6 +23,7 @@ OPT = os.path.join(ROOT, "bin", "optimizer")
 TICKERS = ["AFKS", "CHMF", "GAZP", "LKOH", "MGNT", "MOEX", "NVTK", "ROSN", "SBER", "TATN"]
 FIT = ("2024-10-04", "2026-03-31")
 HOLD = ("2026-04-01", "2026-10-02")
+MIN_TRADES = 10  # -min-trades подбора
 SLOTS = [
     ("session-orc-morning", "session_orc"),
     ("orc-day", "session_orc"),
@@ -45,7 +47,11 @@ def load_best(name):
     files = sorted(glob.glob(os.path.join(RES, name, "optimizer-run-*.json")))
     if not files:
         sys.exit(f"{name}: нет результата подбора в {RES}/{name}")
-    best = json.load(open(files[-1]))["best"]
+    run = json.load(open(files[-1]))
+    best = run["best"]
+    trial = next(t for t in run["trials"] if t.get("index") == best["index"])
+    counts = [w["metrics"].get("num_trades", 0) for w in trial["windows"]]
+    best["valid_windows"] = (sum(1 for c in counts if c >= MIN_TRADES), len(counts))
     cfgs = sorted(glob.glob(os.path.join(RES, name, "best-config-*.yaml")))
     return best, yaml.safe_load(open(cfgs[-1]))
 
@@ -135,6 +141,9 @@ def engine_trades(strategy_id, space, period):
     return int(m[1])
 
 
+BEST_WINDOWS = {}
+
+
 def main():
     rows = []
     for name, sid in SLOTS:
@@ -147,6 +156,7 @@ def main():
         c1 = h1["trades"] >= 30
         c2 = h2["exp_r"] > 0
         c3 = fit["exp_r"] > 0 and h1["exp_r"] >= 0.5 * fit["exp_r"]
+        BEST_WINDOWS[name] = best["valid_windows"]
         rows.append((name, best["score"], fit, h1, h2, eng, lost, c1, c2, c3))
 
     print(f"подбор {FIT[0]}…{FIT[1]}, хвост {HOLD[0]}…{HOLD[1]}, M15, 10 тикеров\n")
@@ -159,6 +169,10 @@ def main():
         print(f"{name:22} {score:6.2f} | {fit['trades']:5d} {fit['exp_r']:+.3f} PF {fit['pf']:4.2f} | "
               f"{h1['trades']:5d} {h1['exp_r']:+.3f} PF {h1['pf']:4.2f} | {h2['exp_r']:+.3f} PF {h2['pf']:4.2f} | "
               f"{yn(c1)} {yn(c2)} {yn(c3)} | {'КАНДИДАТ' if ok else 'отклонена'}")
+    print("\nокон в оценке оптимизатора у победителя (сделок ≥ min-trades / всего):")
+    for name, score, fit, h1, h2, eng, lost, *_ in rows:
+        v, n = BEST_WINDOWS[name]
+        print(f"  {name:22} {v:2d} / {n}")
     print("\nсверка переноса (сделок на подборе: портфель по YAML / движок оптимизатора по параметрам):")
     for name, score, fit, h1, h2, eng, lost, *_ in rows:
         note = f"  дописаны в YAML: {', '.join(lost)}" if lost else ""

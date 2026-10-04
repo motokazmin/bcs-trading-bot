@@ -82,6 +82,7 @@ func runCmd(args []string) {
 	stepMonths := fs.Int("step-months", 1, "шаг сдвига окна в месяцах")
 	trials := fs.Int("trials", 200, "число random search trials")
 	minTrades := fs.Int("min-trades", 20, "мин. сделок для валидного score")
+	minValidWindows := fs.Float64("min-valid-windows", 0.75, "доля окон, где сделок ≥ min-trades, иначе trial отсеивается (0 = судить по любым прошедшим окнам, как до 0015)")
 	commission := fs.Float64("commission-per-lot", -1, "flat round-trip за акцию/контракт, руб (<=0: из tickers-config)")
 	commissionRate := fs.Float64("commission-rate", -1, "ставка за leg, доля оборота (0.00008 = 0,008%%; <=0: из tickers-config)")
 	stopMode := fs.String("stop-mode", "atr", "stop_mode: range или atr")
@@ -153,6 +154,7 @@ func runCmd(args []string) {
 		StepPriceValue:  *stepPrice,
 		Costs:           u.ResolvedCosts(*commission, *commissionRate),
 		MinTrades:       *minTrades,
+		MinValidWindowShare: *minValidWindows,
 		Session:         optimizer.DefaultSession(),
 	}
 	if sess, err := optimizer.LoadSessionFromStrategyFile(spacePath); err == nil {
