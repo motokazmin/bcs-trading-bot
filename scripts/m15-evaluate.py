@@ -146,8 +146,14 @@ BEST_WINDOWS = {}
 
 def main():
     rows = []
+    unjudged = []
     for name, sid in SLOTS:
         best, best_cfg = load_best(name)
+        if best["score"] is None:
+            # Ни один trial не прошёл планку по окнам (score −Inf → null в JSON):
+            # побеждать некому, на хвост не гоняем.
+            unjudged.append((name, best["valid_windows"]))
+            continue
         cfg, lost = build_config(name, best, best_cfg)
         fit = portfolio(cfg, FIT, 1)
         h1 = portfolio(cfg, HOLD, 1)
@@ -169,6 +175,8 @@ def main():
         print(f"{name:22} {score:6.2f} | {fit['trades']:5d} {fit['exp_r']:+.3f} PF {fit['pf']:4.2f} | "
               f"{h1['trades']:5d} {h1['exp_r']:+.3f} PF {h1['pf']:4.2f} | {h2['exp_r']:+.3f} PF {h2['pf']:4.2f} | "
               f"{yn(c1)} {yn(c2)} {yn(c3)} | {'КАНДИДАТ' if ok else 'отклонена'}")
+    for name, (v, n) in unjudged:
+        print(f"{name:22}   нет допустимого набора: ни один trial не набрал ≥{MIN_TRADES} сделок в 75% окон | не судима")
     print("\nокон в оценке оптимизатора у победителя (сделок ≥ min-trades / всего):")
     for name, score, fit, h1, h2, eng, lost, *_ in rows:
         v, n = BEST_WINDOWS[name]
