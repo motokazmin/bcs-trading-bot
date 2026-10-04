@@ -1,0 +1,240 @@
+{"id": "p000", "action": "long", "stop": 99.3, "target": 101.3, "setup": "trend-pullback-vwap", "note": "после трендового дня флаг у VWAP выше вчерашнего high"}
+{"id": "p001", "action": "skip", "note": "узкий день, ATR M5 0.04% — издержки"}
+{"id": "p002", "action": "skip", "note": "пила вокруг VWAP, плохой RR"}
+{"id": "p003", "action": "long", "stop": 99.45, "target": 100.9, "setup": "trend-pullback-ema", "note": "гэп вниз выкуплен, повышающиеся минимумы над VWAP, откат к EMA"}
+{"id": "p004", "action": "short", "stop": 101.25, "target": 98.2, "setup": "breakout-continuation", "note": "пробой вчерашнего low с ускорением после сильного дневного падения"}
+{"id": "p005", "action": "skip", "note": "узкий день, ATR M5 0.036%"}
+{"id": "p006", "action": "long", "stop": 99.7, "target": 100.6, "setup": "trend-pullback-vwap", "note": "первый откат к VWAP после пробоя вчерашнего high на объёме"}
+{"id": "p007", "action": "long", "stop": 99.55, "target": 100.9, "setup": "reversal-pullback", "note": "разворот после вчерашнего падения, откат над VWAP"}
+{"id": "p008", "action": "short", "stop": 100.75, "target": 98.9, "setup": "breakout-continuation", "note": "сильный медвежий день, пробит вчерашний low, стоп за EMA/VWAP"}
+{"id": "p009", "action": "short", "stop": 100.6, "target": 99.3, "setup": "trend-continuation", "note": "понижающиеся максимумы под VWAP, минимум дня"}
+{"id": "p010", "action": "long", "stop": 99.5, "target": 100.8, "setup": "trend-pullback-vwap", "note": "внутри дня бычий над VWAP, откат после выноса; D1 вниз — против дневного тренда"}
+{"id": "p011", "action": "long", "stop": 99.4, "target": 101.2, "setup": "breakout-continuation", "note": "сильный opening drive, пробит вчерашний high"}
+{"id": "p012", "action": "long", "stop": 99.7, "target": 100.6, "setup": "trend-pullback-ema", "note": "бычий трендовый день, откат к EMA над VWAP"}
+{"id": "p013", "action": "short", "stop": 100.45, "target": 99.5, "setup": "breakout-continuation", "note": "медвежий день под VWAP, пробит вчерашний low"}
+{"id": "p014", "action": "skip", "note": "узкая пила вокруг VWAP"}
+{"id": "p015", "action": "short", "stop": 100.45, "target": 99.4, "setup": "trend-continuation", "note": "медвежий тренд с 10:00, ниже вчерашнего low и далеко под VWAP"}
+{"id": "p016", "action": "skip", "note": "пила у VWAP"}
+{"id": "p017", "action": "long", "stop": 99.3, "target": 101.0, "setup": "trend-continuation", "note": "гэп вниз выкуплен, бычий канал над VWAP, D1 вверх"}
+{"id": "p018", "action": "short", "stop": 100.3, "target": 99.6, "setup": "breakout-continuation", "note": "пробит вчерашний low, отскок под VWAP"}
+{"id": "p019", "action": "skip", "note": "вялый диапазон у минимума"}
+{"id": "p020", "action": "long", "stop": 99.4, "target": 101.0, "setup": "breakout-continuation", "note": "бычий пробой вчерашнего high в 10:00, узкий флаг над VWAP"}
+{"id": "p021", "action": "short", "stop": 100.6, "target": 98.9, "setup": "trend-continuation", "note": "вынос вверх продан, понижающиеся максимумы под VWAP"}
+{"id": "p022", "action": "long", "stop": 99.7, "target": 100.5, "setup": "trend-pullback-vwap", "note": "пробой вверх в 14:00, откат над VWAP; волатильность низкая"}
+{"id": "p023", "action": "skip", "note": "диапазон вокруг VWAP"}
+{"id": "p024", "action": "short", "stop": 100.5, "target": 99.3, "setup": "trend-continuation", "note": "медвежий тренд ниже вчерашнего low, минимум дня"}
+{"id": "p025", "action": "short", "stop": 100.85, "target": 99.0, "setup": "trend-continuation", "note": "медвежий дрейф под VWAP, понижающиеся максимумы"}
+{"id": "p026", "action": "skip", "note": "после падения у VWAP, неопределённо"}
+{"id": "p027", "action": "skip", "note": "разворот от базы против дневного тренда, неясно"}
+{"id": "p028", "action": "long", "stop": 99.5, "target": 100.8, "setup": "trend-continuation", "note": "сильный бычий канал, у максимума"}
+{"id": "p029", "action": "skip", "note": "обвал одной свечой на огромном объёме — новость"}
+{"id": "p030", "action": "skip", "note": "плоско у VWAP"}
+{"id": "p031", "action": "short", "stop": 100.55, "target": 99.4, "setup": "second-leg", "note": "медвежий выплеск на объёме, отскок упёрся в EMA — второй заход вниз"}
+{"id": "p032", "action": "skip", "note": "мёртвая бумага, ATR M5 0.015%"}
+{"id": "p033", "action": "long", "stop": 99.4, "target": 101.0, "setup": "breakout-continuation", "note": "бычий трендовый день, держится над вчерашним high"}
+{"id": "p034", "action": "short", "stop": 100.55, "target": 99.2, "setup": "breakout-continuation", "note": "пробит вчерашний low, после выплеска вялый отскок"}
+{"id": "p035", "action": "long", "stop": 99.5, "target": 100.9, "setup": "reversal-pullback", "note": "V-разворот, первый откат к VWAP"}
+{"id": "p036", "action": "skip", "note": "низкая волатильность после гэпа"}
+{"id": "p037", "action": "long", "stop": 99.7, "target": 100.6, "setup": "trend-pullback-vwap", "note": "пробой вчерашнего high, откат к VWAP/EMA"}
+{"id": "p038", "action": "long", "stop": 99.5, "target": 100.8, "setup": "range-breakout", "note": "выход вверх из утренней базы на объёме над VWAP"}
+{"id": "p039", "action": "skip", "note": "медвежий день, отскок к VWAP — неясно"}
+{"id": "p040", "action": "short", "stop": 100.55, "target": 99.2, "setup": "reversal-pullback", "note": "разворот вниз из дневного максимума, отскок под VWAP; H1 вверх"}
+{"id": "p041", "action": "short", "stop": 100.6, "target": 99.0, "setup": "reversal-pullback", "note": "вынос до 103 продан, далеко под VWAP, отскок"}
+{"id": "p042", "action": "short", "stop": 100.45, "target": 99.4, "setup": "trend-continuation", "note": "продажи с 11:30 под VWAP к вчерашнему low"}
+{"id": "p043", "action": "skip", "note": "низкая волатильность"}
+{"id": "p044", "action": "skip", "note": "низкая волатильность"}
+{"id": "p045", "action": "long", "stop": 99.55, "target": 100.9, "setup": "breakout-retest", "note": "тренд вверх D1/H1, откат к вчерашнему high как к поддержке"}
+{"id": "p046", "action": "short", "stop": 100.35, "target": 99.4, "setup": "trend-continuation", "note": "гэп вверх продают весь день, под VWAP"}
+{"id": "p047", "action": "skip", "note": "диапазон после большого роста"}
+{"id": "p048", "action": "short", "stop": 100.6, "target": 99.2, "setup": "failed-breakout", "note": "вынос вверх в 13:35 продан, под VWAP"}
+{"id": "p049", "action": "short", "stop": 100.55, "target": 99.0, "setup": "trend-continuation", "note": "медвежий тренд на всех таймфреймах"}
+{"id": "p050", "action": "skip", "note": "низкая волатильность, диапазон"}
+{"id": "p051", "action": "short", "stop": 100.45, "target": 99.4, "setup": "gap-fill", "note": "гэп вверх, дрейф под VWAP — к вчерашнему high"}
+{"id": "p052", "action": "short", "stop": 100.45, "target": 99.3, "setup": "breakout-continuation", "note": "медвежий день, пробит вчерашний low"}
+{"id": "p053", "action": "skip", "note": "мёртвая бумага"}
+{"id": "p054", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p055", "action": "skip", "note": "климакс вниз далеко от VWAP — поздно"}
+{"id": "p056", "action": "short", "stop": 100.25, "target": 99.65, "setup": "trend-continuation", "note": "медвежий дрейф под VWAP к вчерашнему low, низкая волатильность"}
+{"id": "p057", "action": "skip", "note": "диапазон"}
+{"id": "p058", "action": "long", "stop": 99.6, "target": 100.6, "setup": "trend-continuation", "note": "бычий трендовый день, у максимума над VWAP"}
+{"id": "p059", "action": "long", "stop": 99.5, "target": 101.0, "setup": "trend-pullback-ema", "note": "бычий тренд с утра, откат над VWAP"}
+{"id": "p060", "action": "long", "stop": 99.5, "target": 100.7, "setup": "reversal-pullback", "note": "разворотный выплеск вверх на объёме после медвежьего дня, над VWAP"}
+{"id": "p061", "action": "skip", "note": "диапазон после утреннего выноса"}
+{"id": "p062", "action": "skip", "note": "диапазон, резкий провал без структуры"}
+{"id": "p063", "action": "skip", "note": "диапазон"}
+{"id": "p064", "action": "short", "stop": 100.45, "target": 99.4, "setup": "trend-continuation", "note": "медвежий дрейф под VWAP, понижающиеся максимумы; D1 вверх"}
+{"id": "p065", "action": "short", "stop": 100.45, "target": 99.3, "setup": "failed-breakout", "note": "гэп вверх провалился, под VWAP, отскок"}
+{"id": "p066", "action": "skip", "note": "база над вчерашним low"}
+{"id": "p067", "action": "short", "stop": 100.4, "target": 99.4, "setup": "trend-continuation", "note": "медвежий тренд весь день, новый минимум, отскок под VWAP"}
+{"id": "p068", "action": "long", "stop": 99.55, "target": 100.9, "setup": "breakout-continuation", "note": "гэп вверх выше вчерашнего high, флаг над VWAP, новый максимум"}
+{"id": "p069", "action": "skip", "note": "отскок упёрся во вчерашний high"}
+{"id": "p070", "action": "skip", "note": "у VWAP без структуры"}
+{"id": "p071", "action": "short", "stop": 100.5, "target": 99.2, "setup": "failed-breakout", "note": "утренний вынос провалился, под VWAP"}
+{"id": "p072", "action": "skip", "note": "низкая волатильность"}
+{"id": "p073", "action": "skip", "note": "капитуляция далеко от VWAP — поздно"}
+{"id": "p074", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p075", "action": "skip", "note": "диапазон после гэпа вниз"}
+{"id": "p076", "action": "short", "stop": 100.55, "target": 99.3, "setup": "trend-continuation", "note": "медвежий день, понижающиеся максимумы под VWAP"}
+{"id": "p077", "action": "skip", "note": "низкая волатильность"}
+{"id": "p078", "action": "long", "stop": 99.65, "target": 100.6, "setup": "trend-pullback-vwap", "note": "бычий трендовый день, откат к VWAP/EMA"}
+{"id": "p079", "action": "long", "stop": 99.5, "target": 101.0, "setup": "trend-pullback-ema", "note": "сильный бычий день, откат к EMA над VWAP"}
+{"id": "p080", "action": "skip", "note": "капитуляция ~5 ATR M5 от VWAP — поздно"}
+{"id": "p081", "action": "short", "stop": 100.4, "target": 99.5, "setup": "trend-continuation", "note": "ровный медвежий дрейф под VWAP"}
+{"id": "p082", "action": "short", "stop": 101.0, "target": 98.5, "setup": "second-leg", "note": "отскок не взял VWAP, второй заход вниз"}
+{"id": "p083", "action": "long", "stop": 99.4, "target": 100.9, "setup": "failed-breakout", "note": "ложный пробой вчерашнего low, возврат над VWAP"}
+{"id": "p084", "action": "skip", "note": "низкая волатильность"}
+{"id": "p085", "action": "short", "stop": 100.5, "target": 99.2, "setup": "trend-pullback-vwap", "note": "медвежий тренд, отскок под VWAP"}
+{"id": "p086", "action": "long", "stop": 99.55, "target": 100.8, "setup": "reversal-pullback", "note": "утренний обвал выкуплен V, держится над VWAP"}
+{"id": "p087", "action": "short", "stop": 100.4, "target": 99.4, "setup": "trend-continuation", "note": "ровный медвежий тренд с 12:00, понижающиеся максимумы"}
+{"id": "p088", "action": "long", "stop": 99.4, "target": 100.9, "setup": "failed-breakout", "note": "ложный пробой вниз, вернули вчерашний low и VWAP"}
+{"id": "p089", "action": "long", "stop": 99.4, "target": 100.9, "setup": "trend-continuation", "note": "ровный бычий тренд весь день, у вчерашнего high"}
+{"id": "p090", "action": "short", "stop": 100.4, "target": 99.5, "setup": "breakout-continuation", "note": "пробит вчерашний low, медвежий флаг под VWAP"}
+{"id": "p091", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p092", "action": "skip", "note": "низкая волатильность"}
+{"id": "p093", "action": "short", "stop": 100.4, "target": 99.4, "setup": "breakout-continuation", "note": "пробит вчерашний low, отскок к VWAP не удержался"}
+{"id": "p094", "action": "short", "stop": 100.55, "target": 99.2, "setup": "failed-breakout", "note": "вынос вверх в 13:30 продан, отскок к EMA под VWAP"}
+{"id": "p095", "action": "long", "stop": 99.35, "target": 100.9, "setup": "failed-breakout", "note": "пробой вчерашнего low выкуплен сильной свечой, возврат к VWAP"}
+{"id": "p096", "action": "short", "stop": 100.6, "target": 99.0, "setup": "trend-continuation", "note": "сильный медвежий день, отскок после минимума"}
+{"id": "p097", "action": "short", "stop": 100.45, "target": 99.4, "setup": "trend-continuation", "note": "медвежий тренд, понижающиеся минимумы под VWAP"}
+{"id": "p098", "action": "skip", "note": "диапазон под вчерашним high"}
+{"id": "p099", "action": "skip", "note": "хаос после новостного выплеска"}
+{"id": "p100", "action": "long", "stop": 99.6, "target": 100.8, "setup": "trend-continuation", "note": "бычий трендовый день выше вчерашнего high, флаг у максимумов"}
+{"id": "p101", "action": "long", "stop": 99.6, "target": 100.8, "setup": "trend-continuation", "note": "бычий тренд над VWAP, флаг у максимумов"}
+{"id": "p102", "action": "long", "stop": 99.3, "target": 101.0, "setup": "trend-continuation", "note": "тренд +6% за день, ровный канал"}
+{"id": "p103", "action": "skip", "note": "низкая волатильность"}
+{"id": "p104", "action": "short", "stop": 100.45, "target": 99.2, "setup": "trend-pullback-vwap", "note": "медвежий тренд утром, отскок к VWAP"}
+{"id": "p105", "action": "skip", "note": "ускорение вниз ~4 ATR от VWAP — поздно"}
+{"id": "p106", "action": "short", "stop": 100.45, "target": 99.3, "setup": "trend-pullback-vwap", "note": "медвежий тренд D1/H1, отскок к VWAP"}
+{"id": "p107", "action": "skip", "note": "дрейф у VWAP"}
+{"id": "p108", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p109", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p110", "action": "skip", "note": "низкая волатильность, рано"}
+{"id": "p111", "action": "long", "stop": 99.4, "target": 100.9, "setup": "breakout-retest", "note": "бычий пробой вчерашнего high утром, флаг у VWAP"}
+{"id": "p112", "action": "skip", "note": "диапазон после новостного выплеска"}
+{"id": "p113", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p114", "action": "skip", "note": "мёртвая бумага"}
+{"id": "p115", "action": "skip", "note": "низкая волатильность, диапазон"}
+{"id": "p116", "action": "skip", "note": "низкая волатильность"}
+{"id": "p117", "action": "short", "stop": 100.4, "target": 99.5, "setup": "trend-continuation", "note": "многодневный медвежий тренд, ниже вчерашнего low, у VWAP"}
+{"id": "p118", "action": "skip", "note": "пробой вчерашнего low и возврат — смешанно"}
+{"id": "p119", "action": "skip", "note": "низкая волатильность, диапазон"}
+{"id": "p120", "action": "skip", "note": "диапазон"}
+{"id": "p121", "action": "skip", "note": "провал на всплеске объёма — новость"}
+{"id": "p122", "action": "long", "stop": 99.75, "target": 100.45, "setup": "trend-pullback-ema", "note": "бычий тренд с 10:00, откат над VWAP"}
+{"id": "p123", "action": "skip", "note": "капитуляция далеко от VWAP"}
+{"id": "p124", "action": "short", "stop": 100.4, "target": 99.4, "setup": "breakout-continuation", "note": "пробит вчерашний low, отскок под VWAP"}
+{"id": "p125", "action": "short", "stop": 100.45, "target": 99.4, "setup": "trend-continuation", "note": "вынос на открытии, медвежий дрейф под VWAP"}
+{"id": "p126", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p127", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p128", "action": "long", "stop": 99.6, "target": 100.8, "setup": "trend-continuation", "note": "бычий тренд, флаг под вчерашним high"}
+{"id": "p129", "action": "long", "stop": 99.6, "target": 100.9, "setup": "breakout-continuation", "note": "бычий пробой в 10:30, флаг над VWAP"}
+{"id": "p130", "action": "skip", "note": "пила у VWAP"}
+{"id": "p131", "action": "short", "stop": 100.6, "target": 99.2, "setup": "gap-fill", "note": "гэп вверх продают, понижающиеся максимумы под VWAP"}
+{"id": "p132", "action": "long", "stop": 99.5, "target": 100.9, "setup": "trend-pullback-vwap", "note": "сильный рост утром, первое касание VWAP"}
+{"id": "p133", "action": "skip", "note": "капитуляция далеко от VWAP"}
+{"id": "p134", "action": "long", "stop": 99.7, "target": 100.6, "setup": "breakout-retest", "note": "бычий пробой вчерашнего high, флаг над VWAP"}
+{"id": "p135", "action": "short", "stop": 100.4, "target": 99.4, "setup": "breakout-continuation", "note": "медвежий тренд, пробит вчерашний low, новый минимум под VWAP"}
+{"id": "p136", "action": "skip", "note": "низкая волатильность"}
+{"id": "p137", "action": "short", "stop": 100.35, "target": 99.55, "setup": "trend-continuation", "note": "медвежий день, флаг у минимумов под VWAP"}
+{"id": "p138", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p139", "action": "long", "stop": 99.2, "target": 101.3, "setup": "trend-continuation", "note": "сильный бычий трендовый день, новый максимум"}
+{"id": "p140", "action": "long", "stop": 99.6, "target": 100.8, "setup": "reversal-pullback", "note": "разворот от утреннего low, бычий тренд с 10:00 над VWAP"}
+{"id": "p141", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p142", "action": "long", "stop": 99.65, "target": 100.55, "setup": "trend-continuation", "note": "бычий дрейф над VWAP, цель под вчерашним high"}
+{"id": "p143", "action": "long", "stop": 99.4, "target": 100.9, "setup": "failed-breakout", "note": "ложный пробой вчерашнего low, V-разворот над VWAP"}
+{"id": "p144", "action": "short", "stop": 100.45, "target": 99.4, "setup": "breakout-continuation", "note": "пробит вчерашний low, под VWAP"}
+{"id": "p145", "action": "skip", "note": "отскок к вчерашнему close на дневном downtrend — смешанно"}
+{"id": "p146", "action": "skip", "note": "низкая волатильность"}
+{"id": "p147", "action": "short", "stop": 100.45, "target": 99.4, "setup": "trend-continuation", "note": "гэп вниз, продажи, база под VWAP"}
+{"id": "p148", "action": "short", "stop": 100.6, "target": 99.3, "setup": "reversal-pullback", "note": "утренний вынос резко развёрнут на объёме, под VWAP"}
+{"id": "p149", "action": "skip", "note": "гэп вверх после ралли, диапазон"}
+{"id": "p150", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p151", "action": "short", "stop": 100.4, "target": 99.5, "setup": "trend-continuation", "note": "гэп вниз под вчерашний low, понижающиеся максимумы под VWAP"}
+{"id": "p152", "action": "skip", "note": "диапазон, низкая волатильность"}
+{"id": "p153", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p154", "action": "skip", "note": "пила у VWAP"}
+{"id": "p155", "action": "long", "stop": 99.5, "target": 100.9, "setup": "trend-pullback-ema", "note": "бычий пробой утром, откат к EMA над VWAP"}
+{"id": "p156", "action": "short", "stop": 100.5, "target": 99.3, "setup": "failed-breakout", "note": "вынос на открытии выше вчерашнего high провалился, под VWAP"}
+{"id": "p157", "action": "skip", "note": "обвал ~3 ATR от VWAP — поздно"}
+{"id": "p158", "action": "short", "stop": 100.5, "target": 99.3, "setup": "trend-continuation", "note": "после обвала понижающиеся максимумы под VWAP"}
+{"id": "p159", "action": "long", "stop": 99.6, "target": 100.9, "setup": "trend-pullback-ema", "note": "бычий тренд с ночи, откат над VWAP"}
+{"id": "p160", "action": "long", "stop": 99.45, "target": 100.9, "setup": "reversal-pullback", "note": "после обвала в 11:00 выкуп, над VWAP"}
+{"id": "p161", "action": "skip", "note": "пила у VWAP"}
+{"id": "p162", "action": "skip", "note": "диапазон, низкая волатильность"}
+{"id": "p163", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p164", "action": "long", "stop": 99.6, "target": 100.8, "setup": "breakout-retest", "note": "D1 сильно вверх, пробой вчерашнего high, откат к VWAP"}
+{"id": "p165", "action": "skip", "note": "резкий провал на объёме, неясно"}
+{"id": "p166", "action": "short", "stop": 100.35, "target": 99.55, "setup": "trend-continuation", "note": "медвежий дрейф под VWAP, низкая волатильность"}
+{"id": "p167", "action": "skip", "note": "диапазон после обвала"}
+{"id": "p168", "action": "skip", "note": "разворот дня вниз против сильного D1 — смешанно"}
+{"id": "p169", "action": "skip", "note": "вялый диапазон над VWAP"}
+{"id": "p170", "action": "skip", "note": "низкая волатильность"}
+{"id": "p171", "action": "short", "stop": 100.4, "target": 99.5, "setup": "trend-continuation", "note": "медвежий тренд D1/H1, уход под VWAP"}
+{"id": "p172", "action": "skip", "note": "диапазон"}
+{"id": "p173", "action": "short", "stop": 100.35, "target": 99.55, "setup": "breakout-continuation", "note": "пробой вчерашнего low на объёме, под VWAP"}
+{"id": "p174", "action": "skip", "note": "низкая волатильность, смешанно"}
+{"id": "p175", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p176", "action": "skip", "note": "новостной обвал, ATR M5 1.2%"}
+{"id": "p177", "action": "long", "stop": 99.4, "target": 100.9, "setup": "reversal-pullback", "note": "сильный разворот вверх с утра, над VWAP"}
+{"id": "p178", "action": "skip", "note": "диапазон"}
+{"id": "p179", "action": "short", "stop": 100.4, "target": 99.4, "setup": "breakout-continuation", "note": "пробит вчерашний low, отскок под VWAP"}
+{"id": "p180", "action": "skip", "note": "новостная тень"}
+{"id": "p181", "action": "short", "stop": 100.45, "target": 99.4, "setup": "failed-breakout", "note": "утреннее ралли затухло, под VWAP и вчерашним high"}
+{"id": "p182", "action": "skip", "note": "после обвала повышающиеся минимумы — смешанно"}
+{"id": "p183", "action": "skip", "note": "диапазон"}
+{"id": "p184", "action": "skip", "note": "низкая волатильность"}
+{"id": "p185", "action": "skip", "note": "пила"}
+{"id": "p186", "action": "short", "stop": 100.4, "target": 99.4, "setup": "trend-pullback-vwap", "note": "пробит вчерашний low, база под VWAP, отскок к VWAP"}
+{"id": "p187", "action": "short", "stop": 100.45, "target": 99.4, "setup": "gap-fill", "note": "гэп вверх затухает, понижающиеся максимумы под VWAP"}
+{"id": "p188", "action": "short", "stop": 100.4, "target": 99.4, "setup": "trend-continuation", "note": "медвежий тренд, пробит вчерашний low, дрейф под VWAP"}
+{"id": "p189", "action": "long", "stop": 99.5, "target": 100.9, "setup": "trend-continuation", "note": "бычий трендовый день у максимумов"}
+{"id": "p190", "action": "long", "stop": 99.6, "target": 100.7, "setup": "breakout-continuation", "note": "бычий тренд днём, пробит вчерашний high, флаг над VWAP"}
+{"id": "p191", "action": "long", "stop": 99.65, "target": 100.8, "setup": "reversal-pullback", "note": "бычий разворот с 11:00, флаг над VWAP"}
+{"id": "p192", "action": "short", "stop": 100.35, "target": 99.5, "setup": "trend-continuation", "note": "медвежий дрейф D1/H1/день, вчерашний low пробит"}
+{"id": "p193", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p194", "action": "skip", "note": "низкая волатильность"}
+{"id": "p195", "action": "short", "stop": 100.6, "target": 99.2, "setup": "reversal-pullback", "note": "вынос до 102.3 продан ровным трендом ниже вчерашнего low"}
+{"id": "p196", "action": "long", "stop": 99.6, "target": 100.8, "setup": "trend-pullback-ema", "note": "бычий тренд с 11:30, откат над VWAP"}
+{"id": "p197", "action": "short", "stop": 100.45, "target": 99.4, "setup": "trend-continuation", "note": "ровный медвежий канал весь день"}
+{"id": "p198", "action": "skip", "note": "резкий провал >3 ATR от VWAP"}
+{"id": "p199", "action": "skip", "note": "низкая волатильность"}
+{"id": "p200", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p201", "action": "skip", "note": "после медвежьего выплеска сильный отскок — неясно"}
+{"id": "p202", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p203", "action": "skip", "note": "низкая волатильность, диапазон"}
+{"id": "p204", "action": "short", "stop": 100.35, "target": 99.5, "setup": "trend-continuation", "note": "утренний провал под VWAP, понижающиеся минимумы"}
+{"id": "p205", "action": "short", "stop": 100.3, "target": 99.6, "setup": "trend-continuation", "note": "ровный медвежий тренд с утра под VWAP"}
+{"id": "p206", "action": "skip", "note": "новостной выброс, хаос"}
+{"id": "p207", "action": "skip", "note": "мёртвая бумага"}
+{"id": "p208", "action": "skip", "note": "бычий день, у максимумов флэт; поздно"}
+{"id": "p209", "action": "skip", "note": "низкая волатильность"}
+{"id": "p210", "action": "skip", "note": "гэп вверх растерян, у VWAP диапазон"}
+{"id": "p211", "action": "skip", "note": "мёртвая бумага"}
+{"id": "p212", "action": "short", "stop": 100.45, "target": 99.3, "setup": "trend-continuation", "note": "медвежий тренд D1/H1, утренний пробой вниз под VWAP"}
+{"id": "p213", "action": "skip", "note": "капитуляция далеко от VWAP"}
+{"id": "p214", "action": "skip", "note": "откат после роста к вчерашнему high — смешанно"}
+{"id": "p215", "action": "short", "stop": 100.5, "target": 99.3, "setup": "trend-continuation", "note": "медвежий день, пробит вчерашний low, понижающиеся максимумы"}
+{"id": "p216", "action": "short", "stop": 100.35, "target": 99.5, "setup": "trend-continuation", "note": "многодневный медвежий дрейф, пробит вчерашний low, под VWAP"}
+{"id": "p217", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p218", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p219", "action": "skip", "note": "обвал на объёме далеко от VWAP — поздно"}
+{"id": "p220", "action": "skip", "note": "мёртвая бумага"}
+{"id": "p221", "action": "skip", "note": "бычий тренд сломался вниз под VWAP — смешанно"}
+{"id": "p222", "action": "skip", "note": "новостной выброс, ATR M5 1%"}
+{"id": "p223", "action": "long", "stop": 99.5, "target": 100.9, "setup": "breakout-retest", "note": "бычий тренд с 10:00, пробит вчерашний high, откат"}
+{"id": "p224", "action": "skip", "note": "хаос, широкие свечи"}
+{"id": "p225", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p226", "action": "skip", "note": "отскок от минимума в медвежьем дне — смешанно"}
+{"id": "p227", "action": "long", "stop": 99.55, "target": 100.8, "setup": "reversal-pullback", "note": "разворот от вчерашнего low, повышающиеся минимумы над VWAP"}
+{"id": "p228", "action": "long", "stop": 99.5, "target": 100.9, "setup": "trend-continuation", "note": "гэп-пробой вверх на объёме, флаг над VWAP, D1 вверх"}
+{"id": "p229", "action": "skip", "note": "выброс вниз и V-отскок — хаос"}
+{"id": "p230", "action": "skip", "note": "диапазон у VWAP, рано"}
+{"id": "p231", "action": "skip", "note": "низкая волатильность, диапазон"}
+{"id": "p232", "action": "short", "stop": 100.45, "target": 99.3, "setup": "trend-pullback-vwap", "note": "медвежий тренд, отскок под VWAP"}
+{"id": "p233", "action": "long", "stop": 99.5, "target": 100.7, "setup": "reversal-pullback", "note": "разворот после утреннего обвала, выход над VWAP на объёме; цель — вчерашний close"}
+{"id": "p234", "action": "short", "stop": 100.3, "target": 99.6, "setup": "trend-continuation", "note": "медвежий дрейф под VWAP к вчерашнему low"}
+{"id": "p235", "action": "skip", "note": "диапазон у VWAP"}
+{"id": "p236", "action": "long", "stop": 99.6, "target": 100.8, "setup": "trend-continuation", "note": "бычий дрейф с 13:00 над VWAP, у максимума"}
+{"id": "p237", "action": "skip", "note": "отскок у вчерашнего close — смешанно"}
+{"id": "p238", "action": "skip", "note": "диапазон у вчерашнего low"}
+{"id": "p239", "action": "skip", "note": "диапазон у VWAP"}
