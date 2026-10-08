@@ -1,17 +1,13 @@
 {
-  "last_review_at": "2026-09-11T18:49:21Z",
-  "last_trade_id": 106,
-  "last_trade_closed_at": "2026-09-11 12:04:28",
-  "trades_reviewed": 0,
-  "label": "чемпионы после переоптимизации orc-complement (вход+выход), перед деплоем",
-  "config_fingerprint": "sha256:e9c876a9650e636d",
+  "last_review_at": "2026-10-08T19:07:26Z",
+  "last_trade_id": 113,
+  "last_trade_closed_at": "2026-10-08 13:00:01",
+  "trades_reviewed": 7,
+  "label": "paper-m15: разобраны 10-05…10-08 (холодный старт); дальше — после прогрева, с 10-09",
+  "config_fingerprint": "sha256:a21d35378c44ddbd",
   "config_summary": "min_stop_bps=20 risk=0.2 slippage=1",
   "config_slots": {
-    "session-orc-morning": "062b0702d1ac",
-    "orc-wave2": "3c863027db56",
-    "orc-complement": "6eaef78b7094",
-    "or-fade-conservative": "8e679dbfc375",
-    "mf-afternoon": "8f0d1c3eeb38",
-    "session-orc-evening": "3e15c4c88f00"
+    "mf-afternoon-m15": "2f2aafdf4101",
+    "or-fade-m15": "a783267638b1"
   }
 }
