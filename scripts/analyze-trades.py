@@ -166,13 +166,37 @@ def enrich(t: pd.DataFrame, H: dict[str, dict[str, pd.DataFrame]]) -> pd.DataFra
                 fav = w.high.max() if r.sgn > 0 else w.low.min()
                 mfe_after = (fav - r.entry_price) * r.sgn / r.r_distance
 
-        rows.append((pos_at_open, fillbar_close, level_touched, mfe_after))
+        # Выход по стопу против уровня. Live следит за стопом по котировке раз в секунду и
+        # закрывается рыночно, backtest — по уровню при касании high/low. Хуже уровня: >0 б.п.
+        # (проскальзывание slippage_bps входит). Открытие бара выхода уже за стопом — гэп или
+        # трейл, поставленный за ценой: там и backtest берёт худшую цену, сравнивать не с чем.
+        stop_gap = np.nan
+        gap_open = None
+        if r.close_reason == "STOP_LOSS" and r.get("final_stop_loss", 0) > 0:
+            stop_gap = 1e4 * r.sgn * (r.final_stop_loss - r.exit_price) / r.final_stop_loss
+            if d is not None:
+                xb = d.loc[d.index == r.close_utc.floor(BAR_BY_TF[r.tf])]
+                if len(xb):
+                    gap_open = bool(r.sgn * (r.final_stop_loss - xb.iloc[0].open) >= 0)
+        # Пропущенный стоп: бар между баром входа и баром выхода прошёл ИСХОДНЫЙ стоп, а выхода
+        # не было — короткий выброс между снимками котировок (AFKS 2026-10-05: high 7.077, стоп
+        # 7.076, котировки не выше 7.075). Трейл стоп только подтягивает — оценка снизу.
+        missed = None
+        if d is not None and r.get("initial_stop_loss", 0) > 0:
+            w = d.loc[(d.index > r.entry_bar_ts) & (d.index < r.close_utc.floor(BAR_BY_TF[r.tf]))]
+            hit = (w.low <= r.initial_stop_loss) if r.sgn > 0 else (w.high >= r.initial_stop_loss)
+            missed = bool(hit.any())
+
+        rows.append((pos_at_open, fillbar_close, level_touched, mfe_after, stop_gap, gap_open, missed))
 
     t = t.copy()
     t["pos_at_open_r"] = [x[0] for x in rows]
     t["fillbar_close_r"] = [x[1] for x in rows]
     t["level_touched"] = [x[2] for x in rows]
     t["mfe_after_exit_r"] = [x[3] for x in rows]
+    t["stop_gap_bps"] = [x[4] for x in rows]
+    t["stop_gap_at_open"] = [x[5] for x in rows]
+    t["missed_stop"] = [x[6] for x in rows]
 
     t["r_bps"] = 1e4 * t.r_distance / t.entry_price
     t["same_bar"] = [int(o.floor(BAR_BY_TF[tf]) == c.floor(BAR_BY_TF[tf]))
@@ -274,10 +298,37 @@ def report(t: pd.DataFrame, m: pd.DataFrame) -> None:
     else:
         print("  выходов по тейку нет")
 
+    report_stop_exits(t)
+
     print("\n— По экспериментам —")
     cols = ["experiment_id", "trades", "sum_r", "expectancy_r", "win_rate",
             "median_r_bps", "same_bar_share", "dead_on_arrival_share"]
     print(m[cols].to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+
+
+def report_stop_exits(t: pd.DataFrame) -> None:
+    """Live следит за стопом по котировкам, backtest — по уровню (docs/analysis/state.md,
+    2026-10-08). Пока стопы ставит бот, а не биржа, эта разница — цена его архитектуры."""
+    if "stop_gap_bps" not in t.columns:
+        return
+    sl = t[t.stop_gap_bps.notna()]
+    print("\n— Выход по стопу: live против уровня —")
+    if len(sl):
+        inside = sl[sl.stop_gap_at_open != True]  # noqa: E712
+        at_open = sl[sl.stop_gap_at_open == True]  # noqa: E712
+        if len(inside):
+            print(f"  внутри бара: {len(inside)}, хуже уровня медиана {inside.stop_gap_bps.median():+.1f} б.п.,"
+                  f" среднее {inside.stop_gap_bps.mean():+.1f} б.п. (backtest здесь — ровно slippage_bps)")
+        if len(at_open):
+            print(f"  бар выхода открылся за стопом (гэп / трейл за ценой): {len(at_open)},"
+                  f" среднее {at_open.stop_gap_bps.mean():+.1f} б.п. — backtest берёт ту же худшую цену")
+    else:
+        print("  выходов по стопу нет")
+    known = t.missed_stop.notna().sum()
+    if known:
+        missed = t[t.missed_stop == True]  # noqa: E712
+        print(f"  стоп пропущен (бар прошёл исходный стоп, выхода не было): {len(missed)}/{known}"
+              + (f" — id {', '.join(str(i) for i in missed.id)}" if len(missed) else ""))
 
 
 # --- водяной знак разбора ------------------------------------------------
