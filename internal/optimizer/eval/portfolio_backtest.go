@@ -28,7 +28,10 @@ type PortfolioBacktestResult struct {
 	ExpectancyR     float64
 	ExpectancyRub   float64
 	ProfitFactor    float64
-	TickerBusySkips int
+	// Skips — сигналы, не ставшие сделкой, по причине (backtest.Skip*); CashCapped —
+	// открытые с объёмом, урезанным по кэшу.
+	Skips      map[string]int
+	CashCapped int
 	Trades          []models.ClosedTrade
 	// NetPnL — net по каждой сделке (после комиссии), параллельно Trades: в GrossPnL backtest
 	// лежит валовый PnL, а комиссия считается здесь, по costs из YAML.
@@ -181,7 +184,8 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 		ExpectancyR:     expR,
 		ExpectancyRub:   expRub,
 		ProfitFactor:    pf,
-		TickerBusySkips: portfolio.TickerBusySkips,
+		Skips:           portfolio.Skips,
+		CashCapped:      portfolio.CashCapped,
 		Trades:          trades,
 		NetPnL:          netPnL,
 		ByExperiment:    byExp,

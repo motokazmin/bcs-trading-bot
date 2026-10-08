@@ -49,8 +49,21 @@ type PortfolioRunner struct {
 	byTicker        map[string][]*tickerState
 	global          *risk.GlobalRiskController
 	store           contract.TradeStore
-	TickerBusySkips int
+	// Skips — сигналы, которые не стали сделкой, по причине (Skip*). Без них портфель
+	// молча терял сигналы по кэшу и лимиту риска: видно было только «тикер занят».
+	Skips map[string]int
+	// CashCapped — сделки, открытые, но с объёмом, урезанным по кэшу.
+	CashCapped int
 }
+
+// Причины отказа сигнала в портфеле (PortfolioRunner.Skips).
+const (
+	SkipCircuitBreaker = "circuit_breaker"
+	SkipZeroSize       = "zero_size"
+	SkipCash           = "cash"
+	SkipTickerBusy     = "ticker_busy"
+	SkipRiskBudget     = "risk_budget"
+)
 
 // NewPortfolioRunner создаёт портфельный симулятор.
 func NewPortfolioRunner(cfg PortfolioRunnerConfig, store contract.TradeStore) (*PortfolioRunner, error) {
@@ -119,6 +132,7 @@ func NewPortfolioRunner(cfg PortfolioRunnerConfig, store contract.TradeStore) (*
 		byTicker:   byTicker,
 		global:     cfg.GlobalRisk,
 		store:      store,
+		Skips:      make(map[string]int),
 	}, nil
 }
 
@@ -240,10 +254,12 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 		return
 	}
 	if err := st.riskMgr.CheckCircuitBreaker(); err != nil {
+		p.Skips[SkipCircuitBreaker]++
 		return
 	}
 	qty := st.riskMgr.CalculatePositionSize(signal.Price, signal.StopLoss)
 	if qty <= 0 {
+		p.Skips[SkipZeroSize]++
 		return
 	}
 	entryAtClose := !signal.IntrabarFill && signal.Price == candle.Close
@@ -259,7 +275,11 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 		cashAtOpen = bal
 		qty = st.cfg.capQuantityByCash(qty, fillPrice, bal)
 		if qty <= 0 {
+			p.Skips[SkipCash]++
 			return
+		}
+		if qty < requestedQty {
+			p.CashCapped++
 		}
 	}
 	signal.Quantity = qty
@@ -272,8 +292,13 @@ func (p *PortfolioRunner) processCandle(ctx context.Context, executor contract.O
 	tradeRisk := abs(signal.Price-signal.StopLoss) * float64(qty) * st.cfg.StepPriceValue
 	if p.global != nil {
 		if err := p.global.TryOpen(st.cfg.Ticker, tradeRisk); err != nil {
-			if errors.Is(err, risk.ErrTickerBusy) {
-				p.TickerBusySkips++
+			switch {
+			case errors.Is(err, risk.ErrTickerBusy):
+				p.Skips[SkipTickerBusy]++
+			case errors.Is(err, risk.ErrCircuitBreakerTriggered):
+				p.Skips[SkipCircuitBreaker]++
+			default:
+				p.Skips[SkipRiskBudget]++
 			}
 			return
 		}

@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"bcs-trading-bot/internal/backtest"
 	"bcs-trading-bot/internal/engine/broker"
 	"bcs-trading-bot/internal/engine/costs"
 	"bcs-trading-bot/internal/engine/marketdata"
@@ -354,8 +355,11 @@ func portfolioBacktestCmd(args []string) {
 		result.ProfitFactor,
 		result.Metrics.WinRate*100,
 		result.Metrics.MaxDrawdown,
-		result.TickerBusySkips,
+		result.Skips[backtest.SkipTickerBusy],
 	)
+	fmt.Printf("  сигналов без сделки: кэш=%d лимит_риска=%d circuit_breaker=%d нулевой_объём=%d тикер_занят=%d; урезано по кэшу=%d\n",
+		result.Skips[backtest.SkipCash], result.Skips[backtest.SkipRiskBudget], result.Skips[backtest.SkipCircuitBreaker],
+		result.Skips[backtest.SkipZeroSize], result.Skips[backtest.SkipTickerBusy], result.CashCapped)
 	if *tradesCSV != "" {
 		if err := writePortfolioTradesCSV(*tradesCSV, result); err != nil {
 			logx.Fatalf("trades-csv: %v", err)
