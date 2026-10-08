@@ -14,6 +14,7 @@ import (
 	"bcs-trading-bot/internal/engine/timeframe"
 	"bcs-trading-bot/internal/models"
 	core "bcs-trading-bot/internal/optimizer/core"
+	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/backtest"
 	"bcs-trading-bot/internal/engine/storage/memory"
 )
@@ -129,46 +130,21 @@ func RunPortfolioBacktest(ctx context.Context, opts PortfolioBacktestOptions) (P
 			from.Format("2006-01-02"), to.Format("2006-01-02"))
 	}
 
-	runnerCfgs := make(map[string]backtest.RunnerConfig)
-	for _, exp := range experiments {
-		session := cfg.SessionForExperiment(exp)
-		trailCfg := exp.Strategy.TrailingConfig(1.0, costsCfg, cfg.ClassCode)
-
-		for _, tc := range cfg.TickersForExperiment(exp) {
-			step := tc.StepPriceValue
-			if step <= 0 {
-				step = 1.0
-			}
-			slotKey := exp.ID + "/" + tc.Symbol
-			rcStrat, err := exp.Strategy.BuildStrategy(session)
-			if err != nil {
-				return PortfolioBacktestResult{}, fmt.Errorf("%s: %w", slotKey, err)
-			}
-			slotTrail := trailCfg
-			slotTrail.StepPriceValue = step
-			runnerCfgs[slotKey] = backtest.RunnerConfig{
-				CostsCfg:             costsCfg,
-				Ticker:          tc.Symbol,
-				ClassCode:       cfg.ClassCode,
-				CandleTimeframe: exp.CandleTimeframe,
-				TradingMode:     config.TradingModeVirtual,
-				RunID:           "portfolio-backtest",
-				ExperimentID:    exp.ID,
-				StepPriceValue:  step,
-				Deposit:         deposit,
-				MaxDailyLoss:    maxDailyLoss,
-				RiskPerTradePct: riskPerTrade,
-				CashUtilizationPct: accountRisk.EffectiveCashUtilization(),
-				MaxTradesPerDay: exp.Strategy.MaxTradesPerTickerPerDay,
-				Strategy:        rcStrat,
-				StrategyID:      exp.Strategy.TypeOrDefault(),
-				StopMode:        exp.Strategy.StopMode,
-				Lookback:        exp.Strategy.Lookback,
-				TrailCfg:        slotTrail,
-				RewardRatio:     exp.Strategy.EffectiveRewardRatio(),
-				SessionCfg:      session,
-			}
+	runnerCfgs, err := backtest.SlotConfigs(cfg, experiments, backtest.Account{
+		Deposit:            deposit,
+		MaxDailyLoss:       maxDailyLoss,
+		RiskPerTradePct:    riskPerTrade,
+		CashUtilizationPct: accountRisk.EffectiveCashUtilization(),
+		Costs:              costsCfg,
+	}, "portfolio-backtest", func(slotKey string, exp config.ResolvedExperiment, session config.SessionConfig) (strategy.CandleStrategy, error) {
+		strat, err := exp.Strategy.BuildStrategy(session)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", slotKey, err)
 		}
+		return strat, nil
+	})
+	if err != nil {
+		return PortfolioBacktestResult{}, err
 	}
 
 	store := memory.NewTradeStore()

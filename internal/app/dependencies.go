@@ -105,29 +105,48 @@ func (d *Dependencies) buildRecorder(cfg *config.Config) broker.RawTap {
 // one-position-per-ticker. Это тот самый гейт, который стратегия обойти не
 // может (см. contract.RiskPort). Нули в конфиге → безопасные дефолты ниже.
 func buildPortfolioRisk(cfg *config.Config) *risk.GlobalRiskController {
-	accountRisk := cfg.AccountRisk()
-	maxParallel := accountRisk.MaxParallelTrades
-	if maxParallel <= 0 {
-		maxParallel = 5
-	}
-	riskPct := accountRisk.RiskPerTradePercent
-	if riskPct <= 0 {
-		riskPct = 0.5
-	}
-	pct := accountRisk.MaxDailyLossPercent
-	if pct <= 0 {
-		pct = 2.0
-	}
-	globalRisk := risk.NewGlobalRiskController(accountRisk.Deposit, pct, riskPct, maxParallel)
+	p := portfolioRiskOf(cfg)
+	globalRisk := p.controller()
 	logx.Info(
 		"Единый счёт: депозит %.0f | CB %.1f%% | open_risk_budget=%.0f ₽ (%.1f%%×%d слотов) | one-position-per-ticker",
-		accountRisk.Deposit,
-		pct,
+		p.deposit,
+		p.dailyLossPct,
 		globalRisk.MaxOpenRiskBudgetLimit(),
-		riskPct,
-		maxParallel,
+		p.riskPct,
+		p.maxParallel,
 	)
 	return globalRisk
+}
+
+// portfolioRisk — лимиты счёта с дефолтами. Из них же прогрев (warmup.go) собирает свой
+// контроллер: с другими лимитами прогретая стратегия видела бы другие позиции.
+type portfolioRisk struct {
+	deposit, dailyLossPct, riskPct float64
+	maxParallel                    int
+}
+
+func portfolioRiskOf(cfg *config.Config) portfolioRisk {
+	accountRisk := cfg.AccountRisk()
+	p := portfolioRisk{
+		deposit:      accountRisk.Deposit,
+		dailyLossPct: accountRisk.MaxDailyLossPercent,
+		riskPct:      accountRisk.RiskPerTradePercent,
+		maxParallel:  accountRisk.MaxParallelTrades,
+	}
+	if p.maxParallel <= 0 {
+		p.maxParallel = 5
+	}
+	if p.riskPct <= 0 {
+		p.riskPct = 0.5
+	}
+	if p.dailyLossPct <= 0 {
+		p.dailyLossPct = 2.0
+	}
+	return p
+}
+
+func (p portfolioRisk) controller() *risk.GlobalRiskController {
+	return risk.NewGlobalRiskController(p.deposit, p.dailyLossPct, p.riskPct, p.maxParallel)
 }
 
 // buildExecutor выбирает исполнителя ордеров по trading_mode. Backtest сюда
