@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"bcs-trading-bot/internal/backtest"
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine"
 	"bcs-trading-bot/internal/engine/broker"
@@ -11,6 +12,7 @@ import (
 	"bcs-trading-bot/internal/engine/datafeed"
 	"bcs-trading-bot/internal/logx"
 	"bcs-trading-bot/internal/models"
+	"bcs-trading-bot/internal/strategy"
 	"bcs-trading-bot/internal/strategy/selfmanaged"
 )
 
@@ -24,6 +26,12 @@ type Trader struct {
 	count    int
 	expN     int
 	eodTime  string
+
+	// Для прогрева (warmup.go): сигнальная стратегия слота — тот же экземпляр, что
+	// внутри SelfManagedStrategy, и live-обёртки по тикеру.
+	cfg      *config.Config
+	signals  map[string]strategy.CandleStrategy
+	byTicker map[string][]*selfmanaged.SelfManagedStrategy
 }
 
 // Hub — live-Hub для dashboard.NewServer.
@@ -38,6 +46,10 @@ func BuildTrader(cfg *config.Config, client *broker.BCSClient, deps *Dependencie
 		hub:     dashboard.NewHub(),
 		expN:    len(cfg.ResolvedExperiments()),
 		eodTime: cfg.Session.EODCloseTime,
+
+		cfg:      cfg,
+		signals:  make(map[string]strategy.CandleStrategy),
+		byTicker: make(map[string][]*selfmanaged.SelfManagedStrategy),
 	}
 	hubFeeds := make(map[[2]string]bool) // (ticker, timeframe) → hub уже подписан
 
@@ -98,6 +110,8 @@ func BuildTrader(cfg *config.Config, client *broker.BCSClient, deps *Dependencie
 				Session:         sessionClock,
 			})
 			t.hub.Register(selfManaged)
+			t.signals[backtest.SlotKey(exp.ID, tc.Symbol)] = signalStrategy
+			t.byTicker[tc.Symbol] = append(t.byTicker[tc.Symbol], selfManaged)
 
 			candleCh := make(chan models.Candle, 64)
 			tickCh := make(chan models.Tick, 256)

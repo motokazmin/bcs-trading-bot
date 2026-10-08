@@ -28,6 +28,7 @@ func main() {
 	defer deps.Close()
 
 	trader := app.BuildTrader(cfg, client, deps)
+	trader.Warmup(ctx, client)
 	app.StartDashboard(ctx, opts, cfg, trader, deps, client)
 
 	trader.Run(ctx, cancel)

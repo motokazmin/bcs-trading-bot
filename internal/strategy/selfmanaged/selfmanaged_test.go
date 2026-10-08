@@ -460,3 +460,41 @@ func TestTrailIgnoresEntryBarDuplicate(t *testing.T) {
 		t.Fatalf("дубликат бара входа сдвинул позицию: %+v", s.pos)
 	}
 }
+
+type countingSignal struct{ seen []time.Time }
+
+func (s *countingSignal) ID() string { return "counting" }
+func (s *countingSignal) OnCandle(c models.Candle) *models.Order {
+	s.seen = append(s.seen, c.Timestamp)
+	return nil
+}
+
+type chanCtx struct {
+	fakeCtx
+	candles chan models.Candle
+}
+
+func (c *chanCtx) Candles() <-chan models.Candle { return c.candles }
+
+// Прогрев (app.Trader.Warmup) уже показал стратегии бары по последний закрытый; WS после
+// подписки может прислать тот же бар ещё раз — второй раз в буфер стратегии он не попадает.
+func TestБарИзПрогреваНеПовторяетсяИзWS(t *testing.T) {
+	sig := &countingSignal{}
+	s := newTestStrategy(Config{Signal: sig, ExperimentID: "e", CandleTimeframe: "M5"})
+	now := time.Now().UTC().Truncate(5 * time.Minute)
+	warmed, next := now.Add(-5*time.Minute), now
+	s.SkipBarsThrough(warmed)
+
+	sctx := &chanCtx{
+		fakeCtx: fakeCtx{orders: &stubExecutor{}, risk: newFakeRisk(), trades: &recordingTradeStore{}},
+		candles: make(chan models.Candle, 2),
+	}
+	sctx.candles <- models.Candle{Close: 100, Timestamp: warmed}
+	sctx.candles <- models.Candle{Close: 100, Timestamp: next}
+	close(sctx.candles)
+	s.Run(context.Background(), sctx)
+
+	if len(sig.seen) != 1 || !sig.seen[0].Equal(next) {
+		t.Fatalf("стратегия получила %v, ждали только %s", sig.seen, next)
+	}
+}

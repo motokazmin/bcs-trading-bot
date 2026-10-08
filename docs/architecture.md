@@ -56,6 +56,9 @@ cmd/bot/main.go
 │     └─ runners : []*engine.StrategyRunner — по одному на пару             │
 │                  (experiment × ticker)                                    │
 │                                                                          │
+│  trader.Warmup ──────────► REST-история ~10 дней → backtest.Warmup:       │
+│                            те же экземпляры стратегий, портфельный        │
+│                            раннер; сделки выбрасываются (app/warmup.go)   │
 │  StartDashboard ─────────► dashboard.Server   HTTP UI/API админки (:8091) │
 │  trader.Run ─────────────► запускает раннеры + стрим feed; блокируется    │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -140,7 +143,7 @@ WS БКС шлёт бар много раз, пока он формируетс�
 | `marketdata` | `engine/marketdata` | загрузка истории (CSV для optimizer) |
 | `timeframe` | `engine/timeframe` | leaf: допустимые таймфреймы и длительность бара (M1…H1; D — для исследований; неизвестный — ошибка конфига), папка истории таймфрейма (`data/history` для M5, `data/history-<tf>` для остальных), проверка сетки баров при загрузке |
 | `Dependencies` / `Trader` | `app` | composition root: собирает всё вышеперечисленное |
-| `backtest` | `internal/backtest` | тот же торговый цикл на CSV (optimizer / portfolio-backtest) |
+| `backtest` | `internal/backtest` | тот же торговый цикл на CSV (optimizer / portfolio-backtest) и прогрев live после старта (`Warmup`); слоты портфеля для обоих собирает `SlotConfigs` |
 
 ---
 
@@ -150,7 +153,13 @@ WS БКС шлёт бар много раз, пока он формируетс�
 
 ```
 models ← engine/contract ← engine/* ← strategy/selfmanaged ← app ← cmd/bot
+                                      ← backtest ← app (прогрев), optimizer
 ```
+
+Прогрев: без него стратегия после рестарта копила бары с нуля и день торговала не то,
+что backtest. Решение — прогнать историю тем же портфельным раннером, что `portfolio-backtest`,
+через live-экземпляры стратегий; последствие — `app` зависит от `backtest`, а состояние
+стратегии к старту совпадает с backtest, кроме слотов с открытой в backtest позицией (лог `прогрев:`).
 
 ---
 

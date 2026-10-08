@@ -86,6 +86,10 @@ type SelfManagedStrategy struct {
 	eodCloseDate  string
 	riskResetDate string
 	tradesToday   int
+
+	// warmedThrough — метка последнего бара прогрева (app.Trader.Warmup): этот бар
+	// и более ранние стратегия уже видела, повтор из WS после подписки ей не отдаётся.
+	warmedThrough time.Time
 }
 
 // New создаёт стратегию. cfg.Signal — уже сконструированный CandleStrategy
@@ -140,6 +144,9 @@ func (s *SelfManagedStrategy) SnapshotPosition() *models.PositionSnapshot {
 	}
 }
 
+// SkipBarsThrough — бары с меткой ≤ t стратегия уже получила прогревом. Вызывать до Run.
+func (s *SelfManagedStrategy) SkipBarsThrough(t time.Time) { s.warmedThrough = t }
+
 func (s *SelfManagedStrategy) hasPos() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -179,6 +186,9 @@ func (s *SelfManagedStrategy) Run(ctx context.Context, sctx contract.StrategyCon
 		case candle, ok := <-sctx.Candles():
 			if !ok {
 				return
+			}
+			if !candle.Timestamp.After(s.warmedThrough) {
+				continue
 			}
 			now := time.Now()
 			s.setLastPrice(candle.Close)
