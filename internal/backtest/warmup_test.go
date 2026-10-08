@@ -20,6 +20,8 @@ import (
 // После рестарта live стартует с прогретыми стратегиями (app.Trader.Warmup). Прогрев до
 // полуночи плюс продолжение обязаны дать те же входы, что непрерывный backtest, а холодный
 // старт — другие: иначе прогрев ничего не держит. Стратегии paper-m15 на M5-истории из git.
+// Кэш исполнителя бесконечный: проверяется состояние стратегий, а не баланс — у непрерывного
+// прогона к отсечке он другой, и кап по кэшу отсекал бы другие входы (на main — MF CHMF 09-29).
 func TestПрогревДаётТеЖеВходыЧтоНепрерывныйBacktest(t *testing.T) {
 	root := "../.."
 	cfg, err := config.Load(filepath.Join(root, "configs/runs/paper-m15.yaml"))
@@ -50,6 +52,7 @@ func TestПрогревДаётТеЖеВходыЧтоНепрерывныйBac
 	}
 
 	acc := cfg.AccountRisk()
+	const cash = 1e12
 	newSlots := func() map[string]RunnerConfig {
 		slots, err := SlotConfigs(cfg, experiments, Account{
 			Deposit: acc.Deposit, MaxDailyLoss: acc.MaxDailyLoss, RiskPerTradePct: acc.RiskPerTradePercent,
@@ -71,7 +74,7 @@ func TestПрогревДаётТеЖеВходыЧтоНепрерывныйBac
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := p.Run(context.Background(), candles, execution.NewVirtualExecutor(acc.Deposit)); err != nil {
+		if err := p.Run(context.Background(), candles, execution.NewVirtualExecutor(cash)); err != nil {
 			t.Fatal(err)
 		}
 		var out []string
@@ -87,7 +90,7 @@ func TestПрогревДаётТеЖеВходыЧтоНепрерывныйBac
 	continuous := entries(newSlots(), all)
 
 	warmSlots := newSlots()
-	if _, err := Warmup(context.Background(), warmSlots, before, global()); err != nil {
+	if _, err := Warmup(context.Background(), warmSlots, before, global(), cash); err != nil {
 		t.Fatal(err)
 	}
 	warm := entries(warmSlots, after)
