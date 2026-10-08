@@ -148,7 +148,7 @@ func singleTradeChartRange(t models.ClosedTrade) (from, to time.Time) {
 // BuildStrategyTradeChartPayload — candles/markers/levels для одной сделки.
 func BuildStrategyTradeChartPayload(experimentID, timeframe string, candles []models.Candle, trade models.ClosedTrade) map[string]any {
 	outCandles := candlesToPayload(candles)
-	markers := closedTradesToMarkers([]models.ClosedTrade{trade})
+	markers := closedTradesToMarkers([]models.ClosedTrade{trade}, candles)
 	spans := closedTradesToSpans([]models.ClosedTrade{trade})
 	if len(spans) > 0 {
 		spans[0]["tradeId"] = tradeSpanID(trade)

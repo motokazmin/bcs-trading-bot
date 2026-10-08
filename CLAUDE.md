@@ -236,6 +236,10 @@ MF на другую стратегию, и её +0.261 к ней уже не о
 «Стратегии»). Новый REST-вызов через `BCSClient` обязан на 401 делать `client.Connect`
 и повторять — как `fetchCandlesChunk` в `internal/engine/marketdata/fetch.go`.
 
+**Маркер на графике админки — только на метке бара (`markerBarTime`), не по сырому времени сделки.**
+`OpenedAt` в live — момент решения (12:30:03, после закрытия бара), а LWC 4.2 кладёт маркер с меткой
+между барами на *следующий* бар: вход «12:30» рисовался на баре 12:45, как только тот появлялся. Держит `TestМаркерВходаНаСвоёмБаре`.
+
 **`Trades[].PnLR` в backtest — до комиссии, в live — после.** `internal/backtest/portfolio.go`
 и `runner.go` делят валовый PnL, `selfmanaged.go` — чистый. При поштучной сверке backtest стабильно
 выше на 0.04–0.07R — это не расхождение исполнения ([0005](docs/analysis/0005-closed-bar-fix-live-matches-backtest.md)).
