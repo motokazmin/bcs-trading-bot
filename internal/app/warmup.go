@@ -53,7 +53,7 @@ func (t *Trader) Warmup(ctx context.Context, client *broker.BCSClient) {
 		return
 	}
 
-	open, err := backtest.Warmup(ctx, slots, candles, portfolioRiskOf(t.cfg).controller())
+	open, err := backtest.Warmup(ctx, slots, candles, portfolioRiskOf(t.cfg).controller(), t.cfg.AccountBalance())
 	if err != nil {
 		logx.Error("прогрев: %v — стратегии стартуют без истории", err)
 		return

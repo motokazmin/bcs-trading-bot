@@ -82,17 +82,16 @@ func SlotConfigs(cfg *config.Config, experiments []config.ResolvedExperiment, ac
 //
 // Возвращает слоты, у которых к концу истории осталась открытая позиция: live стартует
 // без неё и будет кормить такой слот барами, которых backtest стратегии не показал бы.
-func Warmup(ctx context.Context, slots map[string]RunnerConfig, candles map[string][]models.Candle, global *risk.GlobalRiskController) ([]string, error) {
+//
+// balance — кэш исполнителя на начало истории: тот же, с которым стартует live
+// (virtual-исполнитель после рестарта начинает с конфига), иначе кап по кэшу отсечёт
+// при прогреве другие входы.
+func Warmup(ctx context.Context, slots map[string]RunnerConfig, candles map[string][]models.Candle, global *risk.GlobalRiskController, balance float64) ([]string, error) {
 	p, err := NewPortfolioRunner(PortfolioRunnerConfig{Tickers: slots, GlobalRisk: global}, nil)
 	if err != nil {
 		return nil, err
 	}
-	deposit := 0.0
-	for _, rc := range slots {
-		deposit = rc.Deposit
-		break
-	}
-	if err := p.Run(ctx, candles, execution.NewVirtualExecutor(deposit)); err != nil {
+	if err := p.Run(ctx, candles, execution.NewVirtualExecutor(balance)); err != nil {
 		return nil, err
 	}
 	return p.openSlots(), nil
