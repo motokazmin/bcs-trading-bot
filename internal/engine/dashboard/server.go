@@ -234,7 +234,7 @@ func BuildOpenChartPayload(candles []models.Candle, pos *models.PositionSnapshot
 			entryShape = "arrowDown"
 		}
 		markers = append(markers, map[string]any{
-			"time":     pos.OpenedAt.Unix(),
+			"time":     markerBarTime(candles, pos.OpenedAt),
 			"position": entryPos,
 			"color":    entryColor,
 			"shape":    entryShape,

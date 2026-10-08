@@ -73,3 +73,30 @@ func TestHubPositions(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+// Вход в live пишется временем решения — секунды после закрытия бара. LWC кладёт
+// маркер с меткой между барами на следующий бар, поэтому метка обязана быть началом
+// бара, в котором вход случился, а не сырым OpenedAt.
+func TestМаркерВходаНаСвоёмБаре(t *testing.T) {
+	msk := time.FixedZone("MSK", 3*3600)
+	bar := func(h, m int) models.Candle {
+		return models.Candle{Ticker: "SBER", Open: 1, High: 1, Low: 1, Close: 1,
+			Timestamp: time.Date(2026, 10, 7, h, m, 0, 0, msk)}
+	}
+	candles := []models.Candle{bar(12, 15), bar(12, 30), bar(12, 45)}
+	opened := time.Date(2026, 10, 7, 12, 30, 3, 0, msk)
+	closed := time.Date(2026, 10, 7, 12, 52, 41, 0, msk)
+	want := candles[1].Timestamp.Unix()
+
+	pos := &models.PositionSnapshot{ID: "a/SBER", Ticker: "SBER", Direction: "BUY", OpenedAt: opened}
+	markers, _ := BuildOpenChartPayload(candles, pos)["markers"].([]map[string]any)
+	if got := markers[0]["time"]; got != want {
+		t.Fatalf("открытая: маркер на %v, вход в баре %v", got, want)
+	}
+
+	trade := models.ClosedTrade{Ticker: "SBER", Direction: "BUY", OpenedAt: opened, ClosedAt: closed}
+	markers, _ = BuildDayChartPayload("2026-10-07", "SBER", "M15", candles, []models.ClosedTrade{trade})["markers"].([]map[string]any)
+	if markers[0]["time"] != want || markers[1]["time"] != candles[2].Timestamp.Unix() {
+		t.Fatalf("закрытая: маркеры %v / %v", markers[0]["time"], markers[1]["time"])
+	}
+}

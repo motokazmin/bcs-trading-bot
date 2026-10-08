@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"bcs-trading-bot/internal/models"
 )
@@ -148,7 +149,7 @@ func BuildDayChartPayload(date, ticker, timeframe string, candles []models.Candl
 	outCandles := candlesToPayload(candles)
 
 	sorted := sortTradesByOpen(trades)
-	markers := closedTradesToMarkers(sorted)
+	markers := closedTradesToMarkers(sorted, candles)
 	spans := closedTradesToSpans(sorted)
 
 	return map[string]any{
@@ -161,7 +162,7 @@ func BuildDayChartPayload(date, ticker, timeframe string, candles []models.Candl
 	}
 }
 
-func closedTradesToMarkers(trades []models.ClosedTrade) []map[string]any {
+func closedTradesToMarkers(trades []models.ClosedTrade, candles []models.Candle) []map[string]any {
 	markers := make([]map[string]any, 0, len(trades)*2)
 	for i, t := range trades {
 		n := i + 1
@@ -177,7 +178,7 @@ func closedTradesToMarkers(trades []models.ClosedTrade) []map[string]any {
 			exitPos = "belowBar"
 		}
 		markers = append(markers, map[string]any{
-			"time":     t.OpenedAt.Unix(),
+			"time":     markerBarTime(candles, t.OpenedAt),
 			"position": entryPos,
 			"color":    entryColor,
 			"shape":    entryShape,
@@ -189,7 +190,7 @@ func closedTradesToMarkers(trades []models.ClosedTrade) []map[string]any {
 			exitColor = "#66bb6a"
 		}
 		markers = append(markers, map[string]any{
-			"time":     t.ClosedAt.Unix(),
+			"time":     markerBarTime(candles, t.ClosedAt),
 			"position": exitPos,
 			"color":    exitColor,
 			"shape":    "circle",
@@ -203,6 +204,19 @@ func closedTradesToMarkers(trades []models.ClosedTrade) []map[string]any {
 		return ti < tj
 	})
 	return markers
+}
+
+// markerBarTime — метка бара, в котором случилось событие: начало последнего бара
+// с Timestamp ≤ at. Время сделки — момент решения (после закрытия бара, по тику
+// внутри бара), а Lightweight Charts кладёт маркер с меткой между барами на
+// СЛЕДУЮЩИЙ бар: вход в 12:30:03 рисовался на баре 12:45, как только тот появлялся.
+// Раньше первого бара — время как есть (LWC прижмёт к первому).
+func markerBarTime(candles []models.Candle, at time.Time) int64 {
+	i := sort.Search(len(candles), func(i int) bool { return candles[i].Timestamp.After(at) })
+	if i == 0 {
+		return at.Unix()
+	}
+	return candles[i-1].Timestamp.Unix()
 }
 
 func formatMarkerPrice(price float64) string {
