@@ -37,6 +37,8 @@ type BCSClient struct {
 	accessToken  string
 	classCode    string
 	clientID     string
+	// alerter — тревоги человеку (WS лежит, токен не принят); nil — только лог.
+	alerter contract.Alerter
 }
 
 func NewBCSClient(refreshToken string) *BCSClient {
@@ -56,6 +58,17 @@ func (c *BCSClient) SetClassCode(code string) {
 // SetWriteMode переключает OAuth client_id на trade-api-write для реальной торговли.
 func (c *BCSClient) SetWriteMode() {
 	c.clientID = ClientIDWrite
+}
+
+// SetAlerter подключает тревоги в Telegram. Вызывается в composition root до старта WS.
+func (c *BCSClient) SetAlerter(a contract.Alerter) {
+	c.alerter = a
+}
+
+func (c *BCSClient) alert(msg string) {
+	if c.alerter != nil {
+		c.alerter.Alert(msg)
+	}
 }
 
 // AccessToken возвращает текущий OAuth2 access token.

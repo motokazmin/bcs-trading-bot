@@ -36,6 +36,9 @@ cmd/bot/main.go
 │  MustConnectBroker ────────► broker.BCSClient    ◄── BCS Trade API        │
 │                                                 OAuth2, WS (свечи+квоты), │
 │                                                 real-ордера               │
+│     ├─ Alerter : contract.Alerter = notify.Telegram  тревоги: WS лежит,   │
+│     │            токен не принят (TG_BOT_TOKEN, TG_CHAT_ID; нет — лог)    │
+│     └─ watchRefreshTokenExpiry  срок refresh token: старт + раз в сутки   │
 │                                                                          │
 │  BuildDependencies ───────► app.Dependencies     ОБЩАЯ ИНФРА СЧЁТА:       │
 │     ├─ Executor  : contract.OrderExecutor                                 │
@@ -130,6 +133,7 @@ WS БКС шлёт бар много раз, пока он формируетс�
 | Сущность | Пакет | Роль |
 |----------|-------|------|
 | `BCSClient` | `engine/broker` | единственный выход наружу: OAuth2, WS-данные, real-ордера |
+| `notify.Telegram` | `engine/notify` | `contract.Alerter`: тревога человеку в Telegram. Шлёт `broker.streamAlarm` (отказ переавторизации — сразу, WS лежит > 10 мин днём — тоже, напоминание раз в час, отбой) и `app.watchRefreshTokenExpiry` (за 14 дней) |
 | `datafeed.Feed` | `engine/datafeed` | одна WS-подписка → fan-out каналов по `(ticker, timeframe)`; стратегиям — закрытые бары (`barCloser`), hub — формирующиеся |
 | `wsrecord.Recorder` | `engine/wsrecord` | сырой WS-поток до разбора → `<recording.dir>/<день МСК>.jsonl.gz`; неблокирующий, переполнение буфера → отброс + счётчик. Подключён отводом `broker.RawTap` через `datafeed.New` |
 | `GlobalRiskController` | `engine/risk` | единый счёт: circuit breaker, риск-бюджет открытых позиций, one-position-per-ticker; финальное «можно открыться» |

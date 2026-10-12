@@ -9,6 +9,8 @@ import (
 
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine/broker"
+	"bcs-trading-bot/internal/engine/contract"
+	"bcs-trading-bot/internal/engine/notify"
 	"bcs-trading-bot/internal/logx"
 )
 
@@ -21,11 +23,13 @@ func MustConnectBroker(ctx context.Context, opts Options, cfg *config.Config) *b
 		logx.Fatal("задайте переменную окружения BCS_REFRESH_TOKEN")
 	}
 
+	alerter := notify.FromEnv()
 	client := broker.NewBCSClient(token)
 	client.SetClassCode(cfg.ClassCode)
+	client.SetAlerter(alerter)
 
 	logStartupSummary(opts, cfg)
-	warnRefreshTokenExpiry(token)
+	go watchRefreshTokenExpiry(ctx, token, alerter)
 
 	logx.Info("Шаг 1: Авторизация через БКС OAuth...")
 	if err := client.Connect(ctx); err != nil {
@@ -35,24 +39,44 @@ func MustConnectBroker(ctx context.Context, opts Options, cfg *config.Config) *b
 	return client
 }
 
-// warnRefreshTokenExpiry — refresh token БКС живёт 90 дней, и когда он
-// истекает, открытый WS торгует дальше, а админка («День», «Стратегии») и любое
-// переподключение падают с "Token is not active". Предупреждаем заранее.
-func warnRefreshTokenExpiry(token string) {
+// refreshTokenWarnBefore — за сколько до истечения refresh token звать человека.
+const refreshTokenWarnBefore = 14 * 24 * time.Hour
+
+// watchRefreshTokenExpiry — refresh token БКС живёт 90 дней. Истёк — открытый
+// WS торгует до первого обрыва, а дальше бот слеп: 2026-10-11 так ушло ~32 ч
+// без данных. Проверяем при старте и раз в сутки, за 14 дней шлём в Telegram.
+func watchRefreshTokenExpiry(ctx context.Context, token string, alerter contract.Alerter) {
 	exp, ok := broker.RefreshTokenExpiry(token)
 	if !ok {
-		logx.Warn("не удалось прочитать срок действия BCS_REFRESH_TOKEN")
+		alerter.Alert("не удалось прочитать срок действия BCS_REFRESH_TOKEN — проверить токен")
 		return
 	}
-	left := time.Until(exp)
+	logx.Info("BCS_REFRESH_TOKEN действует до %s", exp.Format("2006-01-02 15:04 MST"))
+	tick := time.NewTicker(24 * time.Hour)
+	defer tick.Stop()
+	for {
+		if msg, due := refreshTokenExpiryAlert(exp, time.Now()); due {
+			alerter.Alert(msg)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+	}
+}
+
+func refreshTokenExpiryAlert(exp, now time.Time) (string, bool) {
+	left := exp.Sub(now)
 	switch {
 	case left <= 0:
-		logx.Warn("BCS_REFRESH_TOKEN истёк %s — выпустите новый в кабинете БКС", exp.Format("2006-01-02 15:04 MST"))
-	case left < 14*24*time.Hour:
-		logx.Warn("BCS_REFRESH_TOKEN истекает %s (через %d дн.) — выпустите новый заранее", exp.Format("2006-01-02 15:04 MST"), int(left.Hours()/24))
-	default:
-		logx.Info("BCS_REFRESH_TOKEN действует до %s", exp.Format("2006-01-02"))
+		return fmt.Sprintf("BCS_REFRESH_TOKEN истёк %s — выпустить новый в кабинете БКС, прописать в /etc/trading-bot/env, systemctl restart trading-bot",
+			exp.Format("2006-01-02 15:04 MST")), true
+	case left < refreshTokenWarnBefore:
+		return fmt.Sprintf("BCS_REFRESH_TOKEN истекает %s (через %d дн.) — выпустить новый заранее, прописать в /etc/trading-bot/env, systemctl restart trading-bot",
+			exp.Format("2006-01-02 15:04 MST"), int(left.Hours()/24)), true
 	}
+	return "", false
 }
 
 func logStartupSummary(opts Options, cfg *config.Config) {

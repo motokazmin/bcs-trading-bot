@@ -205,13 +205,19 @@ func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[Ro
 	// заново. Выход только через ctx (отмена сверху).
 	backoff := time.Second
 	const maxBackoff = 60 * time.Second
+	var alarm streamAlarm
+	onConnected := func() {
+		if msg, ok := alarm.up(time.Now()); ok {
+			c.alert(msg)
+		}
+	}
 
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 
-		err := c.runMarketDataSession(ctx, routes, tap)
+		err := c.runMarketDataSession(ctx, routes, tap, onConnected)
 		if err != nil {
 			// Отмену не считаем сбоем — это штатное завершение.
 			if ctx.Err() != nil {
@@ -221,10 +227,12 @@ func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[Ro
 			// Протухший токен лечится переавторизацией, а не ожиданием:
 			// удалось — сразу переподключаемся без паузы и со сброшенным
 			// backoff; не удалось — проваливаемся в общий backoff ниже.
+			cause, authFailed := err, false
 			if isUnauthorizedWSError(err) {
 				logx.WS("токен протух, переавторизация...")
 				if authErr := c.Connect(ctx); authErr != nil {
 					logx.WS("переавторизация не удалась: %v, backoff %s", authErr, backoff)
+					cause, authFailed = authErr, true
 				} else {
 					logx.WS("переавторизация успешна, переподключение")
 					backoff = time.Second
@@ -232,6 +240,9 @@ func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[Ro
 				}
 			} else {
 				logx.WS("рыночные данные: %v, переподключение через %s", err, backoff)
+			}
+			if msg, ok := alarm.down(time.Now(), cause, authFailed); ok {
+				c.alert(msg)
 			}
 		} else {
 			// Сессия завершилась без ошибки (обрыв без явного сбоя) —
@@ -265,7 +276,8 @@ func (c *BCSClient) SubscribeMarketDataFanOut(ctx context.Context, routes map[Ro
 //  3. поднять keepalive (свой ping, иначе сервер молча отвалится);
 //  4. крутить цикл чтения, раздавая каждое сообщение в каналы воркеров,
 //     пока соединение живо.
-func (c *BCSClient) runMarketDataSession(ctx context.Context, routes map[RouteKey][]WorkerRoutes, tap RawTap) error {
+// onConnected зовётся после успешного рукопожатия — для streamAlarm.
+func (c *BCSClient) runMarketDataSession(ctx context.Context, routes map[RouteKey][]WorkerRoutes, tap RawTap, onConnected func()) error {
 	// --- 1. Подключение ---
 	token := c.AccessToken()
 	if token == "" {
@@ -286,6 +298,7 @@ func (c *BCSClient) runMarketDataSession(ctx context.Context, routes map[RouteKe
 		return formatWSDialError(err, resp)
 	}
 	defer conn.Close()
+	onConnected()
 
 	// --- 2. Подписки ---
 	// Один и тот же тикер может встречаться в routes с разными таймфреймами
