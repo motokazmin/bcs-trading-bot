@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"bcs-trading-bot/internal/config"
 	"bcs-trading-bot/internal/engine/broker"
@@ -24,6 +25,7 @@ func MustConnectBroker(ctx context.Context, opts Options, cfg *config.Config) *b
 	client.SetClassCode(cfg.ClassCode)
 
 	logStartupSummary(opts, cfg)
+	warnRefreshTokenExpiry(token)
 
 	logx.Info("Шаг 1: Авторизация через БКС OAuth...")
 	if err := client.Connect(ctx); err != nil {
@@ -31,6 +33,26 @@ func MustConnectBroker(ctx context.Context, opts Options, cfg *config.Config) *b
 	}
 	logx.Info("Access Token получен.")
 	return client
+}
+
+// warnRefreshTokenExpiry — refresh token БКС живёт 90 дней, и когда он
+// истекает, открытый WS торгует дальше, а админка («День», «Стратегии») и любое
+// переподключение падают с "Token is not active". Предупреждаем заранее.
+func warnRefreshTokenExpiry(token string) {
+	exp, ok := broker.RefreshTokenExpiry(token)
+	if !ok {
+		logx.Warn("не удалось прочитать срок действия BCS_REFRESH_TOKEN")
+		return
+	}
+	left := time.Until(exp)
+	switch {
+	case left <= 0:
+		logx.Warn("BCS_REFRESH_TOKEN истёк %s — выпустите новый в кабинете БКС", exp.Format("2006-01-02 15:04 MST"))
+	case left < 14*24*time.Hour:
+		logx.Warn("BCS_REFRESH_TOKEN истекает %s (через %d дн.) — выпустите новый заранее", exp.Format("2006-01-02 15:04 MST"), int(left.Hours()/24))
+	default:
+		logx.Info("BCS_REFRESH_TOKEN действует до %s", exp.Format("2006-01-02"))
+	}
 }
 
 func logStartupSummary(opts Options, cfg *config.Config) {

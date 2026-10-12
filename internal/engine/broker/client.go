@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,6 +85,13 @@ func (c *BCSClient) Connect(ctx context.Context) error {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		// "Token is not active" — Keycloak так отвечает на истёкший refresh
+		// token (живёт 90 дней). Ретрай на 401 тут не поможет: нужен новый
+		// токен из кабинета БКС, поэтому говорим об этом прямо.
+		if exp, ok := RefreshTokenExpiry(c.refreshToken); ok && time.Now().After(exp) {
+			return fmt.Errorf("refresh token БКС истёк %s — выпустить новый в кабинете и прописать в BCS_REFRESH_TOKEN (статус %d, ответ: %s)",
+				exp.Format("2006-01-02 15:04 MST"), resp.StatusCode, string(body))
+		}
 		return fmt.Errorf("брокер отклонил авторизацию, статус: %d, ответ: %s", resp.StatusCode, string(body))
 	}
 
@@ -99,6 +108,26 @@ func (c *BCSClient) Connect(ctx context.Context) error {
 	c.accessToken = token
 	c.mu.Unlock()
 	return nil
+}
+
+// RefreshTokenExpiry — срок действия refresh token из claim exp. Подпись не
+// проверяется: нужно только знать, когда токен перестанет работать.
+func RefreshTokenExpiry(token string) (time.Time, bool) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return time.Time{}, false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(parts[1], "="))
+	if err != nil {
+		return time.Time{}, false
+	}
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if json.Unmarshal(payload, &claims) != nil || claims.Exp == 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(claims.Exp, 0), true
 }
 
 func (c *BCSClient) GetPortfolio(ctx context.Context) (string, error) {
